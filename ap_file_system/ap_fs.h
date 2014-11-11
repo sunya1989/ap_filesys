@@ -8,10 +8,12 @@ struct ap_file_operations;
 struct ap_inode{
 	char *name;
 	int is_dir;
-	void *x_object
+	void *x_object;
 	struct list_head inodes;
+    struct list_head children;
+    struct list_head child;
 	struct ap_file_operations *f_ops;
-	struct ap_inode_operation *i_ops;
+	struct ap_inode_operations *i_ops;
 };
 
 struct ap_inode_indicator{
@@ -38,5 +40,5 @@ struct ap_file_operations{
 	int (*readdir) (struct ap_file *, void *);
 };
 
-extern struct ap_inode_indicator *walk_path(struct ap_inode_indicator *start);
+extern int walk_path(struct ap_inode_indicator *start);
 
