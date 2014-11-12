@@ -12,12 +12,12 @@ int walk_path(struct ap_inode_indicator *start)
     size_t str_len = strlen(path);
     temp_path = (char *) malloc(str_len + 1);
     
-    path_end = temp_path + str_len + 1;
-    
     if (temp_path == NULL) {
         perror("malloc_faile");
         exit(1);
     }
+    
+    path_end = temp_path + str_len;
     
     strncpy(temp_path, path, str_len+1);
     path = temp_path;

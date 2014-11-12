@@ -1,5 +1,3 @@
-#define OPEN_MAX 1024
 
-
-extern int open(char *path, int flags);
+extern int ap_open(char *path, int flags);
 
