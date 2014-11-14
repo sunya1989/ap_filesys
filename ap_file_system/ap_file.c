@@ -41,13 +41,11 @@ static char *regular_path(char *path)
 
 int ap_open(char *path, int flags)
 {
+    int ap_fd;
+    
     if (!ap_fs_start) {
         perror("ap_fs didn't start");
         exit(1);
-    }
-    if (file_info->o_files >= _OPEN_MAX) {
-        errno = EMFILE;
-        return -1;
     }
     
     struct ap_file *file;
@@ -89,14 +87,21 @@ int ap_open(char *path, int flags)
         file->real_fd = final_inode->real_fd;
     }
     
+    pthread_mutex_lock(&file_info->files_lock);
+    if (file_info->o_files >= _OPEN_MAX) {
+        errno = EMFILE;
+        pthread_mutex_unlock(&file_info->files_lock);
+        return -1;
+    }
     for (int i=0; i<_OPEN_MAX; i++) {
         if (file_info->file_list[i] == NULL) {
             file_info->file_list[i] = file;
+            ap_fd = i;
             break;
         }
     }
-    
-    return 0;
+    pthread_mutex_unlock(&file_info->files_lock);
+    return ap_fd;
 }
 
 

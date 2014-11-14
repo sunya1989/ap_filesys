@@ -26,6 +26,10 @@ int walk_path(struct ap_inode_indicator *start)
     if (cur_slash == NULL) {
         cur_slash = path_end;
     }
+    
+    pthread_mutex_lock(&start->cur_inode->ch_lock);
+    start->cur_inode->in_use++;
+    pthread_mutex_unlock(&start->cur_inode->ch_lock);
  
 AGAIN:
     while (1){
@@ -34,18 +38,34 @@ AGAIN:
         
         *cur_slash = '\0';
         
+        pthread_mutex_lock(&cursor_inode->ch_lock);
+        
         list_for_each(_cusor, &cursor_inode->children){
            temp_inode = list_entry(_cusor, struct ap_inode, child);
             if (strcmp(temp_inode->name, path) == 0) {
-               cursor_inode = start->cur_inode = temp_inode;
+                start->cur_inode = temp_inode;
+                
                 path = cur_slash;
                 if (path == path_end) {
+                    cursor_inode->in_use--;
+                    if (start->cur_inode->is_dir) {
+                        pthread_mutex_unlock(&cursor_inode->ch_lock);
+                        return -1;
+                    }
+                    start->cur_inode->in_use++;
+                    pthread_mutex_unlock(&cursor_inode->ch_lock);
                     return 0;
                 }
                 cur_slash = strchr(++path, '/');
                 if (cur_slash == NULL) {
                     cur_slash = path_end;
                 }
+                
+                cursor_inode->in_use--;
+                start->cur_inode->in_use++;
+                pthread_mutex_unlock(&cursor_inode->ch_lock);
+                cursor_inode = start->cur_inode;
+                
                 goto AGAIN;
             }
         }
@@ -54,14 +74,26 @@ AGAIN:
         if (!get) {
             return -1;
         }
+
         path = cur_slash;
         if (path == path_end) {
+            cursor_inode->in_use--;
+            if (start->cur_inode->is_dir) {
+                pthread_mutex_unlock(&cursor_inode->ch_lock);
+                return -1;
+            }
+            start->cur_inode->in_use++;
+            pthread_mutex_unlock(&cursor_inode->ch_lock);
             return 0;
         }
         cur_slash = strchr(++path, '/');
         if (cur_slash == NULL) {
             cur_slash = path_end;
         }
+        
+        cursor_inode->in_use--;
+        start->cur_inode->in_use++;
+        pthread_mutex_unlock(&cursor_inode->ch_lock);
+        cursor_inode = start->cur_inode;
     }
-    
 }

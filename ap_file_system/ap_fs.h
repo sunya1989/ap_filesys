@@ -13,10 +13,13 @@ struct ap_file_operations;
 struct ap_inode{
 	char *name;
 	int is_dir;
+    
+    int links;
     int in_use;
+    
 	void *x_object;
 	struct list_head inodes;
-    pthread_rwlock_t ch_lock;
+    pthread_mutex_t ch_lock;
     struct list_head children;
     struct list_head child;
 	struct ap_file_operations *f_ops;
@@ -52,7 +55,7 @@ struct ap_file_struct{
     struct ap_inode_indicator *m_wd, c_wd;/*work direct*/
     struct ap_file *file_list[_OPEN_MAX];
     unsigned long o_files;
-    
+    pthread_mutex_t files_lock;
 }*file_info;
 
 extern int walk_path(struct ap_inode_indicator *start);
