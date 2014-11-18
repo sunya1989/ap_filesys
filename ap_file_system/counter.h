@@ -28,6 +28,10 @@ static inline int COUNTER_INIT(struct counter *counter)
 static inline void counter_get(struct counter *counter)
 {
     pthread_mutex_lock(&counter->counter_lock);
+    if (counter->in_use<0) {
+        fprintf(stderr, "counter wrong!\n");
+        exit(1);
+    }
     counter->in_use++;
     pthread_mutex_unlock(&counter->counter_lock);
     return;
@@ -37,6 +41,10 @@ static inline void counter_put(struct counter *counter)
 {
     pthread_mutex_lock(&counter->counter_lock);
     counter->in_use--;
+    if (counter->in_use<0) {
+        fprintf(stderr, "counter wrong!\n");
+        exit(1);
+    }
     pthread_mutex_unlock(&counter->counter_lock);
     return;
 }

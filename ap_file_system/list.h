@@ -22,7 +22,7 @@ static inline void INIT_LIST_HEAD(struct list_head *list)
 static inline void list_add(struct list_head *_new, struct list_head *head)
 {
     if (_new == NULL || head == NULL) {
-      perror("list can't be null");
+        fprintf(stderr, "list can't be null\n");
         exit(1);
     }
     _new->prev = head;
@@ -34,7 +34,7 @@ static inline void list_add(struct list_head *_new, struct list_head *head)
 static inline void list_add_tail(struct list_head *_new, struct list_head *head)
 {  
   if (_new == NULL || head == NULL) {
-      perror("list can't be null");
+       fprintf(stderr, "list can't be null\n");
         exit(1);
     }
     _new->next = head;

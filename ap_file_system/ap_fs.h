@@ -17,6 +17,8 @@ struct ap_inode{
     int is_mount_point;
     
     struct ap_inode *real_inode;
+    struct ap_inode *mount_inode;
+    struct ap_inode *parent;
     
     int links;
     struct counter inode_counter;
@@ -74,7 +76,7 @@ struct ap_file_operations{
 };
 
 struct ap_file_struct{
-    struct ap_inode_indicator *m_wd, c_wd;/*work direct*/
+    struct ap_inode_indicator *m_wd, *c_wd;/*work direct*/
     struct ap_file *file_list[_OPEN_MAX];
     unsigned long o_files;
     pthread_mutex_t files_lock;

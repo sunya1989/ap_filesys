@@ -1,4 +1,5 @@
 #include "ap_fs.h"
+#include "ap_pthread.h"
 #include <string.h>
 
 struct ap_file_root f_root = {
@@ -22,7 +23,7 @@ int walk_path(struct ap_inode_indicator *start)
     temp_path = (char *) malloc(str_len + 1);
     
     if (temp_path == NULL) {
-        perror("malloc_faile");
+        fprintf(stderr, "walk_path malloc_faile\n");
         exit(1);
     }
     

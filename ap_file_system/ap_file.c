@@ -34,6 +34,12 @@ static char *regular_path(char *path)
     if (*(path_end-1) == '/') {
         *(path_end-1) = '\0';
     }
+    if (*path == '.') {
+        if (*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/')) {
+            return reg_path;
+        }
+        return NULL;
+    }
     
     return reg_path;
 }
@@ -44,7 +50,7 @@ int ap_open(char *path, int flags)
     int ap_fd;
     
     if (!ap_fs_start) {
-        perror("ap_fs didn't start");
+        fprintf(stderr, "ap_fs didn't start\n");
         exit(1);
     }
     
@@ -57,7 +63,7 @@ int ap_open(char *path, int flags)
     struct ap_inode_indicator *final_inode;
     final_inode = malloc(sizeof(*final_inode));
     if (final_inode == NULL) {
-        perror("ap_open malloc");
+        perror("ap_open malloc\n");
         exit(1);
     }
     
@@ -73,6 +79,18 @@ int ap_open(char *path, int flags)
         path++;
         final_inode->path = path;
         final_inode->cur_inode = file_info->m_wd->cur_inode;
+    }else if(*path == '.'){
+        if (*(path + 1) == '/') {
+            path = path + 2;
+            final_inode->path = path;
+            final_inode->cur_inode = file_info->c_wd->cur_inode;
+        }else{
+            path = path + 3;
+            final_inode->path = path;
+            struct ap_inode *par = file_info->c_wd->cur_inode->parent;
+            struct ap_inode *cur_inode = file_info->c_wd->cur_inode;
+            final_inode->cur_inode = cur_inode->mount_inode == NULL ? par:cur_inode->mount_inode->parent;
+        }
     }
     
     int get = walk_path(final_inode);
@@ -83,7 +101,7 @@ int ap_open(char *path, int flags)
     
     file = malloc(sizeof(*file));
     if (file == NULL) {
-        perror("ap_open malloc");
+        perror("ap_open malloc\n");
         exit(1);
     }
     
