@@ -43,6 +43,8 @@ static inline void list_add_tail(struct list_head *_new, struct list_head *head)
     head->prev->next = _new;
 }
 
+#define LIST_HEAD_INIT(name) { &(name), &(name) }
+
 #define list_entry(ptr, type, member) \
 container_of(ptr, type, member)
 
