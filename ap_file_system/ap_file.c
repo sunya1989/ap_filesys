@@ -11,6 +11,7 @@
 #include <errno.h>
 #include "ap_file.h"
 #include "ap_fs.h"
+#include "ap_pthread.h"
 
 static char *regular_path(char *path)
 {
@@ -30,24 +31,53 @@ static char *regular_path(char *path)
             break;
         }
     }
+    
+    if (*path == '.') {
+        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
+            return NULL;
+        }
+    }
+    
     reg_path = path;
     if (*(path_end-1) == '/') {
         *(path_end-1) = '\0';
-    }
-    if (*path == '.') {
-        if (*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/')) {
-            return reg_path;
-        }
-        return NULL;
     }
     
     return reg_path;
 }
 
+static void initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
+{
+    if (*path == '/') {
+        path++;
+        ind->path = path;
+        ind->cur_inode = ap_fpthr->m_wd->cur_inode;
+    }else if(*path == '.'){
+        if (*(path + 1) == '/' || *(path + 1) == '\0') {
+            path = *(path+1) == '/' ? path + 2 : path + 1;
+            ind->path = path;
+            ind->cur_inode = ap_fpthr->c_wd->cur_inode;
+        }else{
+            path = *(path+2) == '/' ? path + 3 : path + 2;
+            ind->path = path;
+            
+            if (ap_fpthr->c_wd == ap_fpthr->m_wd) {
+                ind->cur_inode = ap_fpthr->c_wd->cur_inode;
+                return;
+            }
+            
+            struct ap_inode *par = ap_fpthr->c_wd->cur_inode->parent;
+            struct ap_inode *cur_inode = ap_fpthr->c_wd->cur_inode;
+            ind->cur_inode = cur_inode->mount_inode == NULL ? par:cur_inode->mount_inode->parent;
+        }
+    }
+   
+}
 
 int ap_open(char *path, int flags)
 {
     int ap_fd;
+    struct ap_file_pthread *ap_fpthr;
     
     if (!ap_fs_start) {
         fprintf(stderr, "ap_fs didn't start\n");
@@ -61,41 +91,29 @@ int ap_open(char *path, int flags)
     
     struct ap_file *file;
     struct ap_inode_indicator *final_inode;
-    final_inode = malloc(sizeof(*final_inode));
-    if (final_inode == NULL) {
-        perror("ap_open malloc\n");
-        exit(1);
-    }
+    final_inode = MALLOC_INODE_INDICATOR();
     
-    AP_INODE_INDICATOR_INIT(final_inode);
-        
     path = regular_path(path);
     if (path == NULL) {
         errno = EINVAL;
         return -1;
     }
     
-    if (*path == '/') {
-        path++;
-        final_inode->path = path;
-        final_inode->cur_inode = file_info->m_wd->cur_inode;
-    }else if(*path == '.'){
-        if (*(path + 1) == '/') {
-            path = path + 2;
-            final_inode->path = path;
-            final_inode->cur_inode = file_info->c_wd->cur_inode;
-        }else{
-            path = path + 3;
-            final_inode->path = path;
-            struct ap_inode *par = file_info->c_wd->cur_inode->parent;
-            struct ap_inode *cur_inode = file_info->c_wd->cur_inode;
-            final_inode->cur_inode = cur_inode->mount_inode == NULL ? par:cur_inode->mount_inode->parent;
-        }
+    ap_fpthr = pthread_getspecific(file_thread_key);
+    if (ap_fpthr == NULL) {
+        fprintf(stderr, "ap_thread didn't find\n");
     }
+    
+    initial_indicator(path, final_inode, ap_fpthr);
     
     int get = walk_path(final_inode);
     if (get == -1) {
         errno = ENOENT;
+        return -1;
+    }
+    
+    if (final_inode->cur_inode->is_dir) {
+        errno = EISDIR;
         return -1;
     }
     
@@ -150,13 +168,68 @@ static struct ap_file_system_type *find_filesystem(char *fsn)
 }
 
 
-extern int ap_mount(char *file_system, char *path)
+int ap_mount(void *mount_info, char *file_system, char *path)
 {
     if (file_system == NULL || path ==NULL) {
         errno = EINVAL;
         return -1;
     }
     
+    struct ap_inode_indicator *par_indic;
+    struct ap_inode *mount_point, *parent, *mount_inode;
+    
+    par_indic = MALLOC_INODE_INDICATOR();
+    mount_point = MALLOC_AP_INODE();
+    
+    mount_point->is_mount_point = 1;
+    
+    struct ap_file_system_type *ap_fst = find_filesystem(path);
+    if (ap_fst == NULL) {
+        fprintf(stderr, "file_system didn't find\n");
+        errno = EINVAL;
+        return -1;
+    }
+    
+    mount_inode = ap_fst->get_initial_inode(ap_fst,mount_info);
+    mount_point->real_inode = mount_inode;
+    
+    struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
+    if (ap_fpthr == NULL) {
+        fprintf(stderr, "ap_thread didn't find\n");
+        exit(1);
+    }
+    
+    path = regular_path(path);
+    char *last_slash = strrchr(path, '/');
+    if (last_slash == path-1) {
+        fprintf(stderr, "need mount path\n");
+        errno = EINVAL;
+        return -1;
+    }
+    
+    last_slash = '\0';
+    last_slash++;
+    
+    initial_indicator(path, par_indic, ap_fpthr);
+    
+    int get = walk_path(par_indic);
+    if (get == -1) {
+        errno = ENOENT;
+        return -1;
+    }
+    
+    parent = par_indic->cur_inode;
+    if (!parent->is_dir) {
+        fprintf(stderr, "mount point isn't dir\n");
+        errno = ENOTDIR;
+        return -1;
+    }
+    pthread_mutex_lock(&parent->ch_lock);
+    list_add(&mount_point->child, &parent->children);
+    mount_point->links++;
+    pthread_mutex_unlock(&parent->ch_lock);
+    
+    ap_inode_put(parent);
     return 0;
 }
 

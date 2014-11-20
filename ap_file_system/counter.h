@@ -8,7 +8,9 @@
 
 #ifndef ap_file_system_counter_h
 #define ap_file_system_counter_h
+#include <stdio.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 struct counter{
     pthread_mutex_t counter_lock;

@@ -6,6 +6,7 @@
 //  Copyright (c) 2014年 sunya. All rights reserved.
 //
 
+#include <stdlib.h>
 #include "ap_pthread.h"
 #include "ap_file.h"
 
@@ -13,14 +14,14 @@ pthread_once_t thread_once = PTHREAD_ONCE_INIT;
 
 static void thread_file_destory(void *my_data)
 {
-    
+    free(my_data);
 }
 
 static void thread_init()
 {
     int err = pthread_key_create(&file_thread_key, thread_file_destory);
     if (err) {
-        perror("ap_thread_init failed");
+        perror("ap_thread_init failed\n");
         exit(1);
     }
 }

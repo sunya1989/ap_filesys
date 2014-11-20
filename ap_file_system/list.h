@@ -1,3 +1,5 @@
+#ifndef ap_file_system_list_h
+#define ap_file_system_list_h
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,3 +66,5 @@ for (pos = (head)->prev; pos != (head); pos = pos->prev)
 for (pos = list_first_entry(head, typeof(*pos), member);	\
 &pos->member != (head);					\
 pos = list_next_entry(pos, member))
+
+#endif

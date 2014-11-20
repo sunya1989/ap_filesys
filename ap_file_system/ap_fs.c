@@ -1,6 +1,7 @@
+#include <string.h>
+#include <errno.h>
 #include "ap_fs.h"
 #include "ap_pthread.h"
-#include <string.h>
 
 struct ap_file_root f_root = {
     .f_root_lock = PTHREAD_MUTEX_INITIALIZER,
@@ -20,6 +21,9 @@ int walk_path(struct ap_inode_indicator *start)
     struct ap_inode *cursor_inode = start->cur_inode;
     
     size_t str_len = strlen(path);
+    if (str_len == 0) {
+        return 1;
+    }
     temp_path = (char *) malloc(str_len + 1);
     
     if (temp_path == NULL) {
@@ -40,6 +44,10 @@ int walk_path(struct ap_inode_indicator *start)
     
 AGAIN:
     while (1){
+        if (!cursor_inode->is_dir) {
+            
+            return -1;
+        }
         struct list_head *_cusor;
         struct ap_inode *temp_inode;
         
@@ -58,19 +66,15 @@ AGAIN:
                 path = cur_slash;
                 if (path == path_end) {
                     ap_inode_put(cursor_inode);
-                    if (start->cur_inode->is_dir) {
-                        pthread_mutex_unlock(&cursor_inode->ch_lock);
-                        return -1;
-                    }
                     ap_inode_get(start->cur_inode);
                     pthread_mutex_unlock(&cursor_inode->ch_lock);
                     return 0;
                 }
+                
                 cur_slash = strchr(++path, '/');
                 if (cur_slash == NULL) {
                     cur_slash = path_end;
                 }
-                
                 ap_inode_put(cursor_inode);
                 ap_inode_get(start->cur_inode);
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
@@ -88,10 +92,6 @@ AGAIN:
         path = cur_slash;
         if (path == path_end) {
             ap_inode_put(cursor_inode);
-            if (start->cur_inode->is_dir) {
-                pthread_mutex_unlock(&cursor_inode->ch_lock);
-                return -1;
-            }
             ap_inode_get(start->cur_inode);
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             return 0;
