@@ -3,8 +3,15 @@
 #include "ap_fs.h"
 #include "ap_pthread.h"
 
+static struct ap_inode root_dir = {
+    .name = "",
+    .is_dir = 1,
+    
+};
+
 struct ap_file_root f_root = {
     .f_root_lock = PTHREAD_MUTEX_INITIALIZER,
+    .f_root_inode = &root_dir,
 };
 
 struct ap_file_systems f_systems = {
@@ -16,14 +23,14 @@ int walk_path(struct ap_inode_indicator *start)
     char *temp_path;
     char *cur_slash;
     char *path_end;
-    
 	char *path = start->path;
-    struct ap_inode *cursor_inode = start->cur_inode;
     
     size_t str_len = strlen(path);
     if (str_len == 0) {
         return 1;
     }
+
+    struct ap_inode *cursor_inode = start->cur_inode;
     temp_path = (char *) malloc(str_len + 1);
     
     if (temp_path == NULL) {
@@ -45,7 +52,6 @@ int walk_path(struct ap_inode_indicator *start)
 AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
-            
             return -1;
         }
         struct list_head *_cusor;
@@ -88,6 +94,9 @@ AGAIN:
         if (!get) {
             return -1;
         }
+        
+        list_add(&start->cur_inode->child, &cursor_inode->children);
+        start->cur_inode->links++;
 
         path = cur_slash;
         if (path == path_end) {

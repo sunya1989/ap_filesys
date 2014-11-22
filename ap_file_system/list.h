@@ -45,6 +45,19 @@ static inline void list_add_tail(struct list_head *_new, struct list_head *head)
     head->prev->next = _new;
 }
 
+static inline void __list_del(struct list_head *prev, struct list_head *next)
+{
+    next->prev = prev;
+    prev->next = next;
+}
+
+static inline void list_del(struct list_head *entry)
+{
+    __list_del(entry->prev, entry->next);
+    entry->next = entry;
+    entry->prev = entry;
+}
+
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 
 #define list_entry(ptr, type, member) \

@@ -20,6 +20,9 @@ static char *regular_path(char *path)
     char *reg_path;
     
     size_t path_len = strlen(path);
+    if (path_len == 0) {
+        return NULL;
+    }
     char *path_end = path + path_len;
     
     while ((slash = strchr(path_cursor, '/')) != NULL) {
@@ -176,7 +179,14 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     }
     
     struct ap_inode_indicator *par_indic;
-    struct ap_inode *mount_point, *parent, *mount_inode;
+    struct ap_inode *mount_point, *parent, *mount_inode, *temp_node;
+    struct list_head *cusor;
+    
+    path = regular_path(path);
+    if (path == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
     
     par_indic = MALLOC_INODE_INDICATOR();
     mount_point = MALLOC_AP_INODE();
@@ -199,9 +209,9 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         exit(1);
     }
     
-    path = regular_path(path);
+    
     char *last_slash = strrchr(path, '/');
-    if (last_slash == path-1) {
+    if (last_slash!=NULL && last_slash == path-1) {
         fprintf(stderr, "need mount path\n");
         errno = EINVAL;
         return -1;
@@ -210,12 +220,25 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     last_slash = '\0';
     last_slash++;
     
+    ssize_t len = strlen(last_slash);
+    
+    char *name = malloc(sizeof(len+1));
+    if (name == NULL) {
+        perror("malloc failed");
+        return -1;
+    }
+    strlcpy(name, last_slash, len+1);
+    
     initial_indicator(path, par_indic, ap_fpthr);
     
     int get = walk_path(par_indic);
     if (get == -1) {
         errno = ENOENT;
         return -1;
+    }
+    if (par_indic->cur_inode == NULL) {
+        par_indic->cur_inode = f_root.f_root_inode;
+        name = "/";
     }
     
     parent = par_indic->cur_inode;
@@ -225,9 +248,19 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         return -1;
     }
     pthread_mutex_lock(&parent->ch_lock);
+    list_for_each(cusor, &parent->children){
+        temp_node = list_entry(cusor, struct ap_inode, child);
+        if (strcmp(name, temp_node->name) == 0) {
+            list_add_tail(&mount_point->prev_mpoints, &temp_node->prev_mpoints);
+            list_del(&temp_node->child);
+            break;
+        }
+    }
+    
     list_add(&mount_point->child, &parent->children);
     mount_point->links++;
     pthread_mutex_unlock(&parent->ch_lock);
+    mount_point->name = name;
     
     ap_inode_put(parent);
     return 0;

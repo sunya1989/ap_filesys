@@ -31,6 +31,7 @@ struct ap_inode{
     pthread_mutex_t ch_lock;
     struct list_head children;
     struct list_head child;
+    struct list_head prev_mpoints;
 	struct ap_file_operations *f_ops;
     struct ap_inode_operations *i_ops;
 };
@@ -48,6 +49,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     INIT_LIST_HEAD(&inode->inodes);
     INIT_LIST_HEAD(&inode->child);
     INIT_LIST_HEAD(&inode->children);
+    INIT_LIST_HEAD(&inode->prev_mpoints);
     
     int init = pthread_mutex_init(&inode->ch_lock, NULL);
     if (init != 0) {
@@ -122,6 +124,7 @@ struct ap_file{
 	int real_fd;
     unsigned long mod;
 	struct ap_file_operations *f_ops;
+    void *x_object;
 };
 
 struct ap_file_operations{
@@ -147,7 +150,7 @@ static inline void AP_FILE_INIT(struct ap_file *file)
 
 struct ap_file_root{
     pthread_mutex_t f_root_lock;
-    struct list_head f_root_inode;
+    struct ap_inode *f_root_inode;
 };
 
 extern struct ap_file_root f_root;
