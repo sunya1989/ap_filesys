@@ -123,18 +123,22 @@ struct ap_file{
 	struct ap_inode *relate_i;
 	int real_fd;
     unsigned long mod;
+    pthread_mutex_t file_lock;
 	struct ap_file_operations *f_ops;
+    off_t off_size;
     void *x_object;
 };
 
 struct ap_file_operations{
 	ssize_t (*read) (struct ap_file *, char *, off_t, size_t);
 	ssize_t (*write) (struct ap_file *, char *, off_t, size_t);
+    off_t (*llseek) (struct ap_file *, off_t, int);
+    int (*release) (struct ap_file *,struct ap_inode *);
+    int (*open) (struct ap_file *, struct ap_inode *, int );
 	int (*readdir) (struct ap_file *, void *);
 };
 
 struct ap_file_struct{
-    struct ap_inode_indicator *m_wd, *c_wd;/*work direct*/
     struct ap_file *file_list[_OPEN_MAX];
     unsigned long o_files;
     pthread_mutex_t files_lock;
@@ -145,6 +149,14 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     file->f_ops = NULL;
     file->real_fd = -1;
     file->mod = 0;
+    file->off_size = 0;
+    int init = pthread_mutex_init(&file->file_lock, NULL);
+    if (init != 0) {
+        perror("file init fialed\n");
+        exit(1);
+    }
+    file->ap_file_will_close = NULL;
+
     file->f_ops = NULL;
 }
 
@@ -171,9 +183,7 @@ struct ap_file_systems{
 };
 
 extern struct ap_file_systems f_systems;
-
 extern int walk_path(struct ap_inode_indicator *start);
-
 #endif
 
 

@@ -12,7 +12,9 @@
 #include "ap_file.h"
 #include "ap_fs.h"
 #include "ap_pthread.h"
-
+/*检查路径使得路径具有^[/](.*\/)*
+ *的形式
+ */
 static char *regular_path(char *path)
 {
     char *slash;
@@ -76,7 +78,9 @@ static void initial_indicator(char *path, struct ap_inode_indicator *ind, struct
     }
    
 }
-
+/*每当一个独立线程调用ap_open时都会产生新的file结构
+ *以后能使用hash使得同一个文件对应一个fd（相对于不同线程来说）
+ */
 int ap_open(char *path, int flags)
 {
     int ap_fd;
@@ -127,6 +131,9 @@ int ap_open(char *path, int flags)
     }
     
     AP_FILE_INIT(file);
+    if (final_inode->cur_inode->f_ops->open != NULL) {
+        final_inode->cur_inode->f_ops->open(file, final_inode->cur_inode, flags);
+    }
     
     file->f_ops = final_inode->cur_inode->f_ops;
     file->relate_i = final_inode->cur_inode;
@@ -265,18 +272,127 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     ap_inode_put(parent);
     return 0;
 }
+/*任何一个线程调用close都会立即关闭描述符释放file结构
+ *这样其它的线程用同一fd就访问不到此文件了
+ */
+int ap_close(int fd)
+{
+    if (fd < 0 || fd > _OPEN_MAX) {
+        errno = EBADF;
+        return -1;
+    }
+    
+    struct ap_file *file;
+    
+    pthread_mutex_lock(&file_info->files_lock);
+    if (file_info->file_list[fd] == NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+    file = file_info->file_list[fd];
+    pthread_mutex_lock(&file->file_lock);
+    file_info->file_list[fd] = NULL;
+    pthread_mutex_unlock(&file->file_lock);
+    pthread_mutex_destroy(&file->file_lock);
+    pthread_mutex_unlock(&file_info->files_lock);
+    
+    if (file->f_ops->release != NULL) {
+        file->f_ops->release(file, file->relate_i);
+    }
+    free(file);
+    return 0;
+}
 
+ssize_t ap_read(int fd, void *buf, size_t len)
+{
+    if (fd < 0 || fd > _OPEN_MAX) {
+        errno = EBADF;
+        return -1;
+    }
+    if (buf == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    struct ap_file *file;
+    ssize_t h_read;
+    
+    pthread_mutex_lock(&file_info->files_lock);
+    if (file_info->file_list[fd] == NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+    file = file_info->file_list[fd];
+    pthread_mutex_lock(&file->file_lock);
+    pthread_mutex_unlock(&file_info->files_lock);
+    
+    if (file->f_ops->read == NULL) {
+        pthread_mutex_unlock(&file->file_lock);
+        errno = EINVAL;
+        return -1;
+    }
+    h_read = file->f_ops->read(file, buf, file->off_size, len);
+    pthread_mutex_unlock(&file->file_lock);
+    return h_read;
+}
 
+ssize_t ap_write(int fd, void *buf, size_t len)
+{
+    if (fd < 0 || fd > _OPEN_MAX) {
+        errno = EBADF;
+        return -1;
+    }
+    if (buf == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    struct ap_file *file;
+    ssize_t h_write;
+    
+    pthread_mutex_lock(&file_info->files_lock);
+    if (file_info->file_list[fd] == NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+    file = file_info->file_list[fd];
+    pthread_mutex_lock(&file->file_lock);
+    pthread_mutex_unlock(&file_info->files_lock);
+    if (file->f_ops->write == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    h_write = file->f_ops->write(file, buf, file->off_size, len);
+    pthread_mutex_unlock(&file->file_lock);
+    return h_write;
+}
 
-
-
-
-
-
-
-
-
-
+off_t ap_lseek(int fd, off_t ops, int origin)
+{
+    if (fd < 0 || fd > _OPEN_MAX) {
+        errno = EBADF;
+        return -1;
+    }
+    struct ap_file *file;
+    off_t now_off;
+    
+    pthread_mutex_lock(&file_info->files_lock);
+    if (file_info->file_list[fd] == NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+    file = file_info->file_list[fd];
+    pthread_mutex_lock(&file->file_lock);
+    pthread_mutex_unlock(&file_info->files_lock);
+    if (file->f_ops->llseek == NULL) {
+        errno = ESPIPE;
+        return -1;
+    }
+    now_off = file->f_ops->llseek(file, ops, origin);
+    pthread_mutex_unlock(&file->file_lock);
+    return now_off;
+}
 
 
 
