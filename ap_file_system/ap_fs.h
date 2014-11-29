@@ -26,11 +26,15 @@ struct ap_inode{
     int links;
     struct counter inode_counter;
     
+    unsigned long mode; //权限检查暂时还没有
+    
 	void *x_object;
 	struct list_head inodes;
+    
     pthread_mutex_t ch_lock;
     struct list_head children;
     struct list_head child;
+    
     struct list_head prev_mpoints;
 	struct ap_file_operations *f_ops;
     struct ap_inode_operations *i_ops;
@@ -87,6 +91,7 @@ static inline void ap_inode_put(struct ap_inode *inode)
 struct ap_inode_indicator{
 	char *path;
     int ker_fs, real_fd;
+    struct ap_inode *par;
 	struct ap_inode *cur_inode;
 };
 
@@ -155,8 +160,6 @@ static inline void AP_FILE_INIT(struct ap_file *file)
         perror("file init fialed\n");
         exit(1);
     }
-    file->ap_file_will_close = NULL;
-
     file->f_ops = NULL;
 }
 

@@ -26,6 +26,7 @@ int walk_path(struct ap_inode_indicator *start)
 	char *path = start->path;
     
     size_t str_len = strlen(path);
+    //当strlen为零时认为寻找的是工作目录 所以返回 1
     if (str_len == 0) {
         return 1;
     }
@@ -67,6 +68,7 @@ AGAIN:
                 if (temp_inode->is_mount_point) {
                     temp_inode = temp_inode->real_inode;
                 }
+                start->par = start->cur_inode;
                 start->cur_inode = temp_inode;
                 
                 path = cur_slash;
@@ -90,6 +92,7 @@ AGAIN:
             }
         }
         
+        start->par = start->cur_inode;
         int get = cursor_inode->i_ops->get_inode(start);
         if (!get) {
             return -1;

@@ -53,6 +53,9 @@ static char *regular_path(char *path)
 
 static void initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
 {
+    ind->path = path;
+    ind->cur_inode = ap_fpthr->c_wd->cur_inode;
+    
     if (*path == '/') {
         path++;
         ind->path = path;
@@ -109,6 +112,7 @@ int ap_open(char *path, int flags)
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
         fprintf(stderr, "ap_thread didn't find\n");
+        exit(1);
     }
     
     initial_indicator(path, final_inode, ap_fpthr);
@@ -184,10 +188,11 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         errno = EINVAL;
         return -1;
     }
-    
+    int get;
     struct ap_inode_indicator *par_indic;
     struct ap_inode *mount_point, *parent, *mount_inode, *temp_node;
     struct list_head *cusor;
+    char *name = NULL;
     
     path = regular_path(path);
     if (path == NULL) {
@@ -216,36 +221,38 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         exit(1);
     }
     
-    
-    char *last_slash = strrchr(path, '/');
-    if (last_slash!=NULL && last_slash == path-1) {
-        fprintf(stderr, "need mount path\n");
-        errno = EINVAL;
-        return -1;
+    if (strlen(path) == 0) {
+        par_indic->cur_inode = f_root.f_root_inode;
+        name = "/";
+        get = 1;
+    }else{
+        char *last_slash = strrchr(path, '/');
+        initial_indicator(path, par_indic, ap_fpthr);
+        if (last_slash != NULL) {
+            if (last_slash == path-1) {
+                fprintf(stderr, "need mount path\n");
+                errno = EINVAL;
+                return -1;
+            }
+            last_slash = '\0';
+            last_slash++;
+
+            ssize_t len = strlen(last_slash);
+            name = malloc(sizeof(len+1));
+            if (name == NULL) {
+                perror("malloc failed");
+                return -1;
+            }
+            strlcpy(name, last_slash, len+1);
+            get = walk_path(par_indic);
+        }else{
+            get = 1;
+        }
     }
     
-    last_slash = '\0';
-    last_slash++;
-    
-    ssize_t len = strlen(last_slash);
-    
-    char *name = malloc(sizeof(len+1));
-    if (name == NULL) {
-        perror("malloc failed");
-        return -1;
-    }
-    strlcpy(name, last_slash, len+1);
-    
-    initial_indicator(path, par_indic, ap_fpthr);
-    
-    int get = walk_path(par_indic);
     if (get == -1) {
         errno = ENOENT;
         return -1;
-    }
-    if (par_indic->cur_inode == NULL) {
-        par_indic->cur_inode = f_root.f_root_inode;
-        name = "/";
     }
     
     parent = par_indic->cur_inode;
@@ -394,8 +401,63 @@ off_t ap_lseek(int fd, off_t ops, int origin)
     return now_off;
 }
 
+int ap_mkdir(char *path, unsigned long mode)
+{
+    if (path == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    struct ap_inode_indicator *par_indic;
+    struct ap_file_pthread *ap_fpthr;
+    struct list_head *cusor;
+    
+    struct ap_inode_indicator *final_inode;
+    final_inode = MALLOC_INODE_INDICATOR();
+    
+    path = regular_path(path);
+    if (path == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    char *last_slash = strrchr(path, '/');
+    if (last_slash!=NULL && last_slash == path-1) {
+        fprintf(stderr, "need mount path\n");
+        errno = EINVAL;
+        return -1;
+    }
+    
+    last_slash = '\0';
+    last_slash++;
+    
+    ssize_t len = strlen(last_slash);
+    
+    char *name = malloc(sizeof(len+1));
+    if (name == NULL) {
+        perror("malloc failed");
+        return -1;
+    }
+    strlcpy(name, last_slash, len+1);
 
-
+    
+    ap_fpthr = pthread_getspecific(file_thread_key);
+    if (ap_fpthr == NULL) {
+        fprintf(stderr, "ap_thread didn't find\n");
+        exit(1);
+    }
+    
+    
+    
+    initial_indicator(path, final_inode, ap_fpthr);
+    
+    int get = walk_path(final_inode);
+    if (get == -1) {
+        errno = ENOENT;
+        return -1;
+    }
+    
+    return 0;
+}
 
 
 
