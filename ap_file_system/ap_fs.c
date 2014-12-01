@@ -27,9 +27,9 @@ int walk_path(struct ap_inode_indicator *start)
 	char *path = start->path;
     
     size_t str_len = strlen(path);
-    //当strlen为零时认为寻找的是工作目录 所以返回 1
+    //当strlen为零时认为寻找的是当前工作目录 所以返回 0
     if (str_len == 0) {
-        return 1;
+        return 0;
     }
 
     struct ap_inode *cursor_inode = start->cur_inode;
@@ -49,12 +49,11 @@ int walk_path(struct ap_inode_indicator *start)
     if (cur_slash == NULL) {
         cur_slash = path_end;
     }
-    ap_inode_get(start->cur_inode);
     
 AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
-            
+            errno = AP_EINVAL;
             return -1;
         }
         struct list_head *_cusor;
@@ -70,13 +69,14 @@ AGAIN:
                 if (temp_inode->is_mount_point) {
                     temp_inode = temp_inode->real_inode;
                 }
+                ap_inode_put(start->cur_inode);
                 start->cur_inode = temp_inode;
+                ap_inode_get(start->cur_inode);
                 
                 path = cur_slash;
                 if (path == path_end) {
-                    ap_inode_put(cursor_inode);
-                    ap_inode_get(start->cur_inode);
                     pthread_mutex_unlock(&cursor_inode->ch_lock);
+                    start->working_path = path;
                     return 0;
                 }
                 
@@ -84,22 +84,20 @@ AGAIN:
                 if (cur_slash == NULL) {
                     cur_slash = path_end;
                 }
-                ap_inode_put(cursor_inode);
-                ap_inode_get(start->cur_inode);
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
                 cursor_inode = start->cur_inode;
                 
                 goto AGAIN;
             }
         }
-        start->path = path;
+        start->working_path = path;
         int get = cursor_inode->i_ops->get_inode(start);
         if (!get) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             if (cur_slash == path_end) {
-                errno = AP_ENOFILE;
+                start->p_state = stop_in_par;
             }else{
-                errno = AP_ENODIR;
+                start->p_state = stop_in_ance;
             }
             return -1;
         }
@@ -109,9 +107,8 @@ AGAIN:
 
         path = cur_slash;
         if (path == path_end) {
-            ap_inode_put(cursor_inode);
-            ap_inode_get(start->cur_inode);
             pthread_mutex_unlock(&cursor_inode->ch_lock);
+            start->working_path = path;
             return 0;
         }
         cur_slash = strchr(++path, '/');
@@ -119,8 +116,6 @@ AGAIN:
             cur_slash = path_end;
         }
         
-        ap_inode_put(cursor_inode);
-        ap_inode_get(start->cur_inode);
         pthread_mutex_unlock(&cursor_inode->ch_lock);
         cursor_inode = start->cur_inode;
     }

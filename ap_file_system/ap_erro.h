@@ -11,5 +11,7 @@
 
 #define AP_ENOFILE 1
 #define AP_ENODIR 2
+#define AP_NOINODE 3
+#define AP_EINVAL 4
 
 #endif

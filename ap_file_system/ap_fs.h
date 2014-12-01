@@ -88,9 +88,17 @@ static inline void ap_inode_put(struct ap_inode *inode)
     counter_put(&inode->inode_counter);
 }
 
+enum indic_path_state{
+    find_name =1,
+    stop_in_par,
+    stop_in_ance,
+};
+
 struct ap_inode_indicator{
 	char *path;
+    char *working_path;
     int ker_fs, real_fd;
+    enum indic_path_state p_state;
     struct ap_inode *par;
 	struct ap_inode *cur_inode;
 };

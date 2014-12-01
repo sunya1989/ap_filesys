@@ -80,7 +80,7 @@ static void initial_indicator(char *path, struct ap_inode_indicator *ind, struct
             ind->cur_inode = cur_inode->mount_inode == NULL ? par:cur_inode->mount_inode->parent;
         }
     }
-   
+    ap_inode_get(ind->cur_inode);
 }
 /*每当一个独立线程调用ap_open时都会产生新的file结构
  *以后能使用hash使得同一个文件对应一个fd（相对于不同线程来说）
@@ -224,18 +224,19 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     if (strlen(path) == 0) {
         par_indic->cur_inode = f_root.f_root_inode;
         name = "/";
-        get = 1;
+        get = 0;
     }else{
         initial_indicator(path, par_indic, ap_fpthr);
         get = walk_path(par_indic);
     }
     
-    if (get == -1 && errno != AP_ENOFILE) {
+    if ((get == -1 && par_indic->p_state == stop_in_ance) || !par_indic->cur_inode->is_dir) {
         errno = ENOENT;
         return -1;
     }
     
-    if (get == 1) {
+    if (!get) {
+        //由于在还有子目录的情况下是不会释放结构的并且parent是本地变量 所以这里无需增加引用计数器
          parent = par_indic->cur_inode->parent;
     }else{
         parent = par_indic->cur_inode;
@@ -243,7 +244,7 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     
     pthread_mutex_lock(&parent->ch_lock);
  
-    if (get == 1){
+    if (!get){
         list_add_tail(&mount_point->prev_mpoints, &par_indic->cur_inode->prev_mpoints);
         list_del(&par_indic->cur_inode->child);
     }
@@ -386,36 +387,15 @@ int ap_mkdir(char *path, unsigned long mode)
     }
     struct ap_inode_indicator *par_indic;
     struct ap_file_pthread *ap_fpthr;
-    struct list_head *cusor;
+    int get, s_make;
     
-    struct ap_inode_indicator *final_inode;
-    final_inode = MALLOC_INODE_INDICATOR();
+    par_indic = MALLOC_INODE_INDICATOR();
     
     path = regular_path(path);
-    if (path == NULL) {
+    if (path == NULL || strlen(path) == 0) {
         errno = EINVAL;
         return -1;
     }
-    
-    char *last_slash = strrchr(path, '/');
-    if (last_slash!=NULL && last_slash == path-1) {
-        fprintf(stderr, "need mount path\n");
-        errno = EINVAL;
-        return -1;
-    }
-    
-    last_slash = '\0';
-    last_slash++;
-    
-    ssize_t len = strlen(last_slash);
-    
-    char *name = malloc(sizeof(len+1));
-    if (name == NULL) {
-        perror("malloc failed");
-        return -1;
-    }
-    strlcpy(name, last_slash, len+1);
-
     
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
@@ -423,13 +403,31 @@ int ap_mkdir(char *path, unsigned long mode)
         exit(1);
     }
     
+    initial_indicator(path, par_indic, ap_fpthr);
+    get = walk_path(par_indic);
     
+    if (!get) {
+        errno = EEXIST;
+        return -1;
+    }
+    if (!par_indic->cur_inode->is_dir) {
+        errno = ENOTDIR;
+        return -1;
+    }
     
-    initial_indicator(path, final_inode, ap_fpthr);
+    if (par_indic->p_state != stop_in_par) {
+        errno = EACCES;
+        return -1;
+    }
     
-    int get = walk_path(final_inode);
-    if (get == -1) {
-        errno = ENOENT;
+    if (!par_indic->cur_inode->i_ops) {
+        errno = EPERM;
+        return -1;
+    }
+    
+    s_make = par_indic->cur_inode->i_ops->mkdir(par_indic);
+    if (s_make == -1) {
+        errno = EPERM;
         return -1;
     }
     
