@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include "ap_erro.h"
 #include "ap_file.h"
 #include "ap_fs.h"
 #include "ap_pthread.h"
@@ -190,8 +191,7 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     }
     int get;
     struct ap_inode_indicator *par_indic;
-    struct ap_inode *mount_point, *parent, *mount_inode, *temp_node;
-    struct list_head *cusor;
+    struct ap_inode *mount_point, *parent, *mount_inode;
     char *name = NULL;
     
     path = regular_path(path);
@@ -226,49 +226,26 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         name = "/";
         get = 1;
     }else{
-        char *last_slash = strrchr(path, '/');
         initial_indicator(path, par_indic, ap_fpthr);
-        if (last_slash != NULL) {
-            if (last_slash == path-1) {
-                fprintf(stderr, "need mount path\n");
-                errno = EINVAL;
-                return -1;
-            }
-            last_slash = '\0';
-            last_slash++;
-
-            ssize_t len = strlen(last_slash);
-            name = malloc(sizeof(len+1));
-            if (name == NULL) {
-                perror("malloc failed");
-                return -1;
-            }
-            strlcpy(name, last_slash, len+1);
-            get = walk_path(par_indic);
-        }else{
-            get = 1;
-        }
+        get = walk_path(par_indic);
     }
     
-    if (get == -1) {
+    if (get == -1 && errno != AP_ENOFILE) {
         errno = ENOENT;
         return -1;
     }
     
-    parent = par_indic->cur_inode;
-    if (!parent->is_dir) {
-        fprintf(stderr, "mount point isn't dir\n");
-        errno = ENOTDIR;
-        return -1;
+    if (get == 1) {
+         parent = par_indic->cur_inode->parent;
+    }else{
+        parent = par_indic->cur_inode;
     }
+    
     pthread_mutex_lock(&parent->ch_lock);
-    list_for_each(cusor, &parent->children){
-        temp_node = list_entry(cusor, struct ap_inode, child);
-        if (strcmp(name, temp_node->name) == 0) {
-            list_add_tail(&mount_point->prev_mpoints, &temp_node->prev_mpoints);
-            list_del(&temp_node->child);
-            break;
-        }
+ 
+    if (get == 1){
+        list_add_tail(&mount_point->prev_mpoints, &par_indic->cur_inode->prev_mpoints);
+        list_del(&par_indic->cur_inode->child);
     }
     
     list_add(&mount_point->child, &parent->children);
@@ -276,7 +253,7 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     pthread_mutex_unlock(&parent->ch_lock);
     mount_point->name = name;
     
-    ap_inode_put(parent);
+    ap_inode_put(par_indic->cur_inode);
     return 0;
 }
 /*任何一个线程调用close都会立即关闭描述符释放file结构

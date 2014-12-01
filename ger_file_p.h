@@ -8,6 +8,9 @@
 
 #ifndef ap_file_system_ger_file_p_h
 #define ap_file_system_ger_file_p_h
-
+enum file_state{
+    fileno = 0,
+    stream,
+};
 
 #endif

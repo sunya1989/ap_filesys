@@ -1,6 +1,7 @@
 #include <string.h>
 #include <errno.h>
 #include "ap_fs.h"
+#include "ap_erro.h"
 #include "ap_pthread.h"
 
 static struct ap_inode root_dir = {
@@ -53,6 +54,7 @@ int walk_path(struct ap_inode_indicator *start)
 AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
+            
             return -1;
         }
         struct list_head *_cusor;
@@ -68,7 +70,6 @@ AGAIN:
                 if (temp_inode->is_mount_point) {
                     temp_inode = temp_inode->real_inode;
                 }
-                start->par = start->cur_inode;
                 start->cur_inode = temp_inode;
                 
                 path = cur_slash;
@@ -91,10 +92,15 @@ AGAIN:
                 goto AGAIN;
             }
         }
-        
-        start->par = start->cur_inode;
+        start->path = path;
         int get = cursor_inode->i_ops->get_inode(start);
         if (!get) {
+            pthread_mutex_unlock(&cursor_inode->ch_lock);
+            if (cur_slash == path_end) {
+                errno = AP_ENOFILE;
+            }else{
+                errno = AP_ENODIR;
+            }
             return -1;
         }
         
