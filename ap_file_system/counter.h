@@ -27,6 +27,11 @@ static inline int COUNTER_INIT(struct counter *counter)
     return 0;
 }
 
+static inline void COUNTER_FREE(struct counter *counter)
+{
+    pthread_mutex_destroy(&counter->counter_lock);
+}
+
 static inline void counter_get(struct counter *counter)
 {
     pthread_mutex_lock(&counter->counter_lock);

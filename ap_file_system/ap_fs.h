@@ -13,6 +13,7 @@ int ap_fs_start = 0;
 
 struct ap_inode_operations;
 struct ap_file_operations;
+struct ap_inode_indicator;
 
 struct ap_inode{
 	char *name;
@@ -31,6 +32,7 @@ struct ap_inode{
 	void *x_object;
 	struct list_head inodes;
     
+    pthread_mutex_t data_lock;
     pthread_mutex_t ch_lock;
     struct list_head children;
     struct list_head child;
@@ -39,6 +41,15 @@ struct ap_inode{
 	struct ap_file_operations *f_ops;
     struct ap_inode_operations *i_ops;
 };
+
+struct ap_inode_operations{
+    int (*get_inode) (struct ap_inode_indicator *);
+    int (*creat) (struct ap_inode_indicator *);
+    int (*rmdir) (struct ap_inode_indicator *);
+    int (*mkdir) (struct ap_inode_indicator *);
+    int (*destory)(struct ap_inode *);
+};
+
 static inline int AP_INODE_INIT(struct ap_inode *inode)
 {
     inode->name = NULL;
@@ -60,10 +71,26 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
         return -1;
     }
     
+    init = pthread_mutex_init(&inode->data_lock, NULL);
+    if (init != 0) {
+        return -1;
+    }
+    
     inode->f_ops = NULL;
     inode->i_ops = NULL;
 
     return 1;
+}
+static inline void AP_INODE_FREE(struct ap_inode *inode)
+{
+    if (inode->i_ops->destory != NULL) {
+        inode->i_ops->destory(inode);
+    }
+    pthread_mutex_destroy(&inode->ch_lock);
+    COUNTER_FREE(&inode->inode_counter);
+    free(inode->name);
+    free(inode);
+    
 }
 
 static inline struct ap_inode *MALLOC_AP_INODE()
@@ -96,8 +123,8 @@ enum indic_path_state{
 
 struct ap_inode_indicator{
 	char *path;
-    char *working_path;
     int ker_fs, real_fd;
+    int slash_remain;
     enum indic_path_state p_state;
     struct ap_inode *par;
 	struct ap_inode *cur_inode;
@@ -109,6 +136,14 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *ind)
     ind->path = NULL;
     ind->ker_fs = ind->real_fd = 0;
     ind->cur_inode = NULL;
+}
+
+static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *ind)
+{
+    if (ind->cur_inode != NULL) {
+         ap_inode_put(ind->cur_inode);
+    }
+    free(ind);
 }
 
 static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
@@ -123,14 +158,6 @@ static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
     AP_INODE_INDICATOR_INIT(indic);
     return indic;
 }
-
-
-struct ap_inode_operations{
-	int (*get_inode) (struct ap_inode_indicator *);
-	int (*creat) (struct ap_inode_indicator *);
-	int (*rmdir) (struct ap_inode_indicator *);
-	int (*mkdir) ( struct ap_inode_indicator *);
-};
 
 struct ap_file{
 	struct ap_inode *relate_i;

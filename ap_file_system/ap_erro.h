@@ -13,5 +13,6 @@
 #define AP_ENODIR 2
 #define AP_NOINODE 3
 #define AP_EINVAL 4
+#define AP_NOTDIR 5
 
 #endif
