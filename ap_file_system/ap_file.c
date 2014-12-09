@@ -696,6 +696,11 @@ int ap_rmdir(char *path)
     pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
     pthread_mutex_unlock(&op_inode->ch_lock);
     
+    if (op_inode->i_ops->rmdir == NULL) {
+        errno = EPERM;
+        return -1;
+    }
+    
     op_inode->i_ops->rmdir(final_indc);
     AP_INODE_INICATOR_FREE(final_indc);
     AP_INODE_FREE(op_inode);
