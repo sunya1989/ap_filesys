@@ -189,7 +189,7 @@ int ap_open(char *path, int flags)
     return ap_fd;
 }
 
-static struct ap_file_system_type *find_filesystem(char *fsn)
+struct ap_file_system_type *find_filesystem(char *fsn)
 {
     struct list_head *cursor;
     struct ap_file_system_type *temp_sys;

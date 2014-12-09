@@ -116,7 +116,7 @@ static inline void ap_inode_put(struct ap_inode *inode)
 }
 
 enum indic_path_state{
-    find_name =1,
+    find_name = 1,
     stop_in_par,
     stop_in_ance,
 };
@@ -212,6 +212,8 @@ struct ap_file_system_type{
     
     struct ap_inode *(*get_initial_inode)(struct ap_file_system_type *, void *);
     void (*off_the_tree)(struct ap_inode *);
+    int  (*insert_raw_data)(struct ap_file_system_type *, void *);
+
 };
 
 struct ap_file_systems{
@@ -222,6 +224,7 @@ struct ap_file_systems{
 
 extern struct ap_file_systems f_systems;
 extern int walk_path(struct ap_inode_indicator *start);
+extern struct ap_file_system_type *find_filesystem(char *fsn);
 #endif
 
 
