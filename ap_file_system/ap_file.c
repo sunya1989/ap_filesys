@@ -55,6 +55,14 @@ static char *regular_path(char *path, int *slash_no)
     return reg_path;
 }
 
+static void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
+{
+    pthread_mutex_lock(&parent->ch_lock);
+    list_add(&child->child, &parent->children);
+    pthread_mutex_unlock(&parent->ch_lock);
+    
+}
+
 static int initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
 {
     int slash_no;
@@ -474,7 +482,7 @@ int ap_mkdir(char *path, unsigned long mode)
         return -1;
     }
     
-    if (!par_indic->cur_inode->i_ops) {
+    if (!par_indic->cur_inode->i_ops->mkdir) {
         errno = EPERM;
         return -1;
     }
@@ -484,7 +492,7 @@ int ap_mkdir(char *path, unsigned long mode)
         errno = EPERM;
         return -1;
     }
-    
+    AP_INODE_INICATOR_FREE(par_indic);
     return 0;
 }
 
@@ -496,7 +504,7 @@ int ap_unlik(char *path)
     }
     
     if (path == NULL) {
-        errno = EINVAL;
+        errno = EFAULT;
         return -1;
     }
     
@@ -504,6 +512,12 @@ int ap_unlik(char *path)
     struct ap_inode *op_inode;
     struct ap_file_pthread *ap_fpthr;
     int link;
+    
+    ap_fpthr = pthread_getspecific(file_thread_key);
+    if (ap_fpthr == NULL) {
+        fprintf(stderr, "ap_thread didn't find\n");
+        exit(1);
+    }
     
     int set = initial_indicator(path, final_indc, ap_fpthr);
     if (set == -1) {
@@ -540,9 +554,154 @@ int ap_unlik(char *path)
     return 0;
 }
 
+int ap_link(char *l_path, char *t_path)
+{
+    if (!ap_fs_start) {
+        fprintf(stderr, "ap_fs didn't start\n");
+        exit(1);
+    }
+    if (l_path == NULL || t_path == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+    
+    struct ap_inode_indicator *final_indc;
+    struct ap_inode *op_inode;
+    struct ap_file_pthread *ap_fpthr;
+    
+    final_indc = MALLOC_INODE_INDICATOR();
+    
+    ap_fpthr = pthread_getspecific(file_thread_key);
+    if (ap_fpthr == NULL) {
+        fprintf(stderr, "ap_thread didn't find\n");
+        exit(1);
+    }
+    
+    int set = initial_indicator(l_path, final_indc, ap_fpthr);
+    if (set == -1) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    int get = walk_path(final_indc);
+    if (get == -1) {
+        errno = ENOENT;
+        return -1;
+    }
+    
+    op_inode = final_indc->cur_inode;
+    if (op_inode->is_dir) {
+        errno = EISDIR;
+        return -1;
+    }
+    
+    pthread_mutex_lock(&op_inode->data_lock);
+    op_inode->links++;
+    pthread_mutex_unlock(&op_inode->data_lock);
+    
+    ap_inode_get(op_inode);
+    ap_inode_put(final_indc->cur_inode);
+    final_indc->cur_inode = NULL;
+    
+    set = initial_indicator(t_path, final_indc, ap_fpthr);
+    if (set == -1) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    get = walk_path(final_indc);
+    
+    if (!get) {
+        errno = EEXIST;
+        return -1;
+    }
+    if (!final_indc->cur_inode->is_dir) {
+        errno = ENOTDIR;
+        return -1;
+    }
+    if (final_indc->p_state != stop_in_par) {
+        errno = EACCES;
+        return -1;
+    }
+    
+    inode_add_child(final_indc->cur_inode, op_inode);
+   
+    ap_inode_put(op_inode);
+    AP_INODE_INICATOR_FREE(final_indc);
+    
+    return 0;
+}
 
+int ap_rmdir(char *path)
+{
+    if (!ap_fs_start) {
+        fprintf(stderr, "ap_fs didn't start\n");
+        exit(1);
+    }
+    if (path == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+    
+    struct ap_inode_indicator *final_indc;
+    struct ap_inode *op_inode;
+    struct ap_file_pthread *ap_fpthr;
+    
+    final_indc = MALLOC_INODE_INDICATOR();
+    
+    ap_fpthr = pthread_getspecific(file_thread_key);
+    if (ap_fpthr == NULL) {
+        fprintf(stderr, "ap_thread didn't find\n");
+        exit(1);
+    }
+    
+    int set = initial_indicator(path, final_indc, ap_fpthr);
+    if (set == -1) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    int get = walk_path(final_indc);
+    if (get == -1) {
+        errno = ENOENT;
+        return -1;
+    }
+    
+    op_inode = final_indc->cur_inode;
+    
+    if (!op_inode->is_dir) {
+        errno = ENOTDIR;
+        return -1;
+    }
+    
+    pthread_mutex_lock(&op_inode->ch_lock);
+    if (!list_empty(&op_inode->children)){
+        errno = EBUSY;
+        return -1;
+    }
+    pthread_mutex_unlock(&op_inode->ch_lock);
+    
+    pthread_mutex_lock(&op_inode->parent->ch_lock);
+    pthread_mutex_lock(&op_inode->inode_counter.counter_lock);
+    if (op_inode->inode_counter.in_use > 1) {
+        pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
+        pthread_mutex_unlock(&op_inode->ch_lock);
+        AP_INODE_INICATOR_FREE(final_indc);
+        errno = EBUSY;
+        return -1;
+    }
+    
+    list_del(&op_inode->child);
 
-
+    pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
+    pthread_mutex_unlock(&op_inode->ch_lock);
+    
+    op_inode->i_ops->rmdir(final_indc);
+    AP_INODE_INICATOR_FREE(final_indc);
+    AP_INODE_FREE(op_inode);
+    
+    return 0;
+}
 
 
 
