@@ -27,6 +27,18 @@ static inline int COUNTER_INIT(struct counter *counter)
     return 0;
 }
 
+static inline struct counter *MALLOC_COUNTER()
+{
+    struct counter *counter;
+    counter = malloc(sizeof(*counter));
+    if (counter == NULL) {
+        perror("counter malloc failed\n");
+        exit(1);
+    }
+    COUNTER_INIT(counter);
+    return counter;
+}
+
 static inline void COUNTER_FREE(struct counter *counter)
 {
     pthread_mutex_destroy(&counter->counter_lock);

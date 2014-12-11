@@ -8,10 +8,11 @@
 
 #ifndef ap_file_system_ger_file_p_h
 #define ap_file_system_ger_file_p_h
+#define GER_HASH_MAX 512
 #include <pthread.h>
+#include "counter.h"
 #include "list.h"
 #include "ger_fs.h"
-
 
 struct ger_file_struct{
     char *name;
@@ -27,9 +28,10 @@ struct ger_dir{
     struct list_head child;
 };
 
-
 struct ger_raw_hash_table{
-    
+    pthread_rwlock_t table_lock;
+    struct ger_con_file *hash_table[GER_HASH_MAX];
+    unsigned int (*hash_func) (struct ger_con_file *);
 };
 
 

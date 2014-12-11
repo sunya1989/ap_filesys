@@ -8,18 +8,22 @@
 #ifndef ap_file_system_ger_fs_h
 #define ap_file_system_ger_fs_h
 #include <stdio.h>
+struct counter;
 
 enum file_state{
     g_fileno = 0,
     g_stream,
 };
 
-struct con_file{
+struct ger_con_file{
     char *path;
     char *name;
     char *target_file;
+    struct counter *in_use;
+    enum file_state state;
+    struct ger_con_file *ger_con_next;
 };
 
-
+extern struct ger_con_file *MALLOC_GER_CON();
 
 #endif
