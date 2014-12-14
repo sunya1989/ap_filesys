@@ -9,8 +9,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "ger_fs.h"
-#include "ger_file_p.h"
 #include "ap_fs.h"
+#include "ger_file_p.h"
 
 static unsigned int ger_hash(struct ger_con_file *con);
 
@@ -51,7 +51,7 @@ static struct ger_con_file *ger_get_raw_data(struct ger_con_file *con)
   
     while (p != NULL) {
         if (strcmp(path, p->path) == 0) {
-            counter_put(p->in_use);
+            counter_get(p->in_use);
             pthread_rwlock_unlock(&ger_table.table_lock);
             return p;
         }
@@ -92,10 +92,58 @@ struct ger_con_file *MALLOC_GER_CON()
     return con;
 }
 
+static struct ap_inode *ger_alloc_ap_inode(struct ger_inode *ger_ind)
+{
+    return NULL;
+}
+
+static struct ger_inode *find_from_raw_data(struct ap_inode_indicator *indc)
+{
+    return NULL;
+}
 
 static int ger_get_inode(struct ap_inode_indicator *indc)
 {
+    struct ger_inode *ger_ind = (struct ger_inode *)indc->cur_inode->x_object;
+    if (!ger_ind->is_dir) {
+        return -1;
+    }
     
+    int finding_dir = indc->slash_remain == 0? 0:1;
+    struct list_head *cusor;
+    struct ger_inode *temp_inode;
+    struct ap_inode *ap_inode;
+    
+    pthread_mutex_lock(&ger_ind->ch_lock);
+    list_for_each(cusor, &ger_ind->children){
+        temp_inode = list_entry(cusor, struct ger_inode, child);
+        counter_get(temp_inode->in_use);
+        if (strcmp(temp_inode->name, indc->the_name) == 0) {
+            if (finding_dir^temp_inode->is_dir) {
+                return -1;
+            }
+            goto FINED;
+        }
+    }
+    if (!finding_dir) {
+        temp_inode = find_from_raw_data(indc);
+        if (temp_inode == NULL) {
+            pthread_mutex_unlock(&ger_ind->ch_lock);
+            return -1;
+        }
+        list_add(&temp_inode->child, &ger_ind->children);
+        
+    }else{
+        pthread_mutex_unlock(&ger_ind->ch_lock);
+        return -1;
+    }
+    
+FINED:
+    pthread_mutex_unlock(&ger_ind->ch_lock);
+    ap_inode = ger_alloc_ap_inode(temp_inode);
+    indc->cur_inode = ap_inode;
+    counter_put(temp_inode->in_use);
+    return 0;
 }
 
 

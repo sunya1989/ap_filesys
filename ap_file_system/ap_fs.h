@@ -125,6 +125,7 @@ struct ap_inode_indicator{
 	char *path;
     int ker_fs, real_fd;
     int slash_remain;
+    char *the_name;
     enum indic_path_state p_state;
     struct ap_inode *par;
 	struct ap_inode *cur_inode;
@@ -134,8 +135,11 @@ struct ap_inode_indicator{
 static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *ind)
 {
     ind->path = NULL;
-    ind->ker_fs = ind->real_fd = 0;
+    ind->ker_fs = 0;
+    ind->real_fd = -1;
     ind->cur_inode = NULL;
+    ind->par = NULL;
+    ind ->the_name = NULL;
 }
 
 static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *ind)
@@ -215,6 +219,27 @@ struct ap_file_system_type{
     int  (*insert_raw_data)(struct ap_file_system_type *, void *);
 
 };
+
+static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
+{
+    struct ap_file_system_type *fsyst = malloc(sizeof(struct ap_file_system_type));
+    if (fsyst == NULL) {
+        perror("file_sys_type malloc filed\n");
+        exit(1);
+    }
+    COUNTER_INIT(&fsyst->fs_type_counter);
+    fsyst->name = NULL;
+    fsyst->get_initial_inode =  NULL;
+    fsyst->off_the_tree = NULL;
+    fsyst->insert_raw_data = NULL;
+    return fsyst;
+}
+
+static inline void FILE_SYS_TYPE_FREE(struct ap_file_system_type *fsyst)
+{
+    COUNTER_FREE(&fsyst->fs_type_counter);
+    free(fsyst);
+}
 
 struct ap_file_systems{
     pthread_mutex_t f_system_lock;

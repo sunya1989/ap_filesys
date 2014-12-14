@@ -14,18 +14,18 @@
 #include "list.h"
 #include "ger_fs.h"
 
-struct ger_file_struct{
-    char *name;
-    enum file_state state;
-    int fd;
-    FILE *file_stream;
-};
-
-struct ger_dir{
+struct ger_inode{
+    int is_dir;
+    
     char *name;
     pthread_mutex_t ch_lock;
     struct list_head children;
     struct list_head child;
+    struct counter *in_use;
+    
+    enum file_state state;
+    int fd;
+    FILE *file_stream;
 };
 
 struct ger_raw_hash_table{

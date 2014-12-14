@@ -164,7 +164,7 @@ int ap_open(char *path, int flags)
     
     file->f_ops = final_inode->cur_inode->f_ops;
     file->relate_i = final_inode->cur_inode;
-    ap_inode_put(final_inode->cur_inode);
+    ap_inode_get(final_inode->cur_inode);
     
     if (final_inode->ker_fs) {
         file->real_fd = final_inode->real_fd;

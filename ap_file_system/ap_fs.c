@@ -56,11 +56,14 @@ AGAIN:
             errno = AP_NOTDIR;
             return -1;
         }
+        
         struct list_head *_cusor;
         struct ap_inode *temp_inode;
         
         *cur_slash = '\0';
         start->slash_remain--;
+        
+        start->the_name = path;
         
         pthread_mutex_lock(&cursor_inode->ch_lock);
         
