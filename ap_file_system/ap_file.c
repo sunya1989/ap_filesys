@@ -151,11 +151,7 @@ int ap_open(char *path, int flags)
         return -1;
     }
     
-    file = malloc(sizeof(*file));
-    if (file == NULL) {
-        perror("ap_open malloc\n");
-        exit(1);
-    }
+    file = AP_FILE_MALLOC();
     
     AP_FILE_INIT(file);
     if (final_inode->cur_inode->f_ops->open != NULL) {

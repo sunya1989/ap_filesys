@@ -12,11 +12,19 @@
 #include "ap_fs.h"
 #include "ger_file_p.h"
 
-static unsigned int ger_hash(struct ger_con_file *con);
+static unsigned int ger_hash(char *path);
 
 static struct ger_raw_hash_table ger_table = {
     .hash_func = ger_hash,
     .table_lock = PTHREAD_RWLOCK_INITIALIZER,
+};
+
+static struct ap_file_operations ger_file_operations = {
+    
+};
+
+static struct ap_inode_operations ger_inode_operations = {
+    
 };
 
 static unsigned int BKDRHash(char *str)
@@ -32,31 +40,34 @@ static unsigned int BKDRHash(char *str)
     return (hash & 0x7FFFFFFF) % GER_HASH_MAX;
 }
 
-static unsigned int ger_hash(struct ger_con_file *con)
+static unsigned int ger_hash(char *path)
 {
     unsigned int hash;
-   
-    char *path = con->path;
     hash = BKDRHash(path);
     return hash;
 }
 
-static struct ger_con_file *ger_get_raw_data(struct ger_con_file *con)
+
+static struct ger_con_file *ger_getrm_raw_data(char *path)
 {
-    unsigned int hash = ger_table.hash_func(con);
-    struct ger_con_file *p;
-    char *path = con->path;
-    pthread_rwlock_rdlock(&ger_table.table_lock);
-    p = ger_table.hash_table[hash];
-  
-    while (p != NULL) {
-        if (strcmp(path, p->path) == 0) {
-            counter_get(p->in_use);
-            pthread_rwlock_unlock(&ger_table.table_lock);
-            return p;
+    struct ger_con_file **p;
+    struct ger_con_file *get;
+    unsigned int hash = ger_table.hash_func(path);
+    
+    pthread_mutex_lock(&ger_table.table_lock);
+    p = &ger_table.hash_table[hash];
+    
+    while (*p != NULL) {
+        if (strcmp(path, (*p)->path) == 0) {
+            get = *p;
+           *p = (*p)->ger_con_next;
+            get->ger_con_next = NULL;
+            pthread_mutex_unlock(&ger_table.table_lock);
+            return get;
         }
+        p = &(*p)->ger_con_next;
     }
-    pthread_rwlock_unlock(&ger_table.table_lock);
+    pthread_mutex_unlock(&ger_table.table_lock);
     return NULL;
 }
 
@@ -64,16 +75,13 @@ static int ger_insert_raw_date(struct ap_file_system_type *f_type, void *info)
 {
     struct ger_con_file *con = (struct ger_con_file*)info;//需要类型检查？
     struct ger_con_file **pp;
-    unsigned int hash = ger_table.hash_func(con);
+    unsigned int hash = ger_table.hash_func(con->path);
     
-    pthread_rwlock_rdlock(&ger_table.table_lock);
+    pthread_mutex_lock(&ger_table.table_lock);
     pp = &ger_table.hash_table[hash];
-    
-    while (*pp != NULL) {
-        pp = &((*pp)->ger_con_next);
-    }
+    con->ger_con_next = *pp;
     *pp = con;
-    pthread_rwlock_unlock(&ger_table.table_lock);
+    pthread_mutex_unlock(&ger_table.table_lock);
     
     return 0;
 }
@@ -88,23 +96,67 @@ struct ger_con_file *MALLOC_GER_CON()
     }
     con->ger_con_next = NULL;
     con->name = con->path = con->target_file = NULL;
-    con->in_use = MALLOC_COUNTER();
     return con;
 }
 
 static struct ap_inode *ger_alloc_ap_inode(struct ger_inode *ger_ind)
 {
-    return NULL;
+    struct ap_inode *ap_ind = MALLOC_AP_INODE();
+    char *name;
+    ssize_t n_len =strlen(ger_ind->name);
+    name = malloc(n_len + 1);
+    
+    ap_ind->x_object = ger_ind;
+    counter_get(ger_ind->in_use);
+    
+    ap_ind->is_dir = ger_ind->is_dir;
+    if (ger_ind->is_dir) {
+        ap_ind->i_ops = &ger_inode_operations;
+    }else{
+        ap_ind->f_ops = &ger_file_operations;
+    }
+    
+    ap_ind->name = name;
+    ap_inode_get(ap_ind);
+    
+    return ap_ind;
 }
 
 static struct ger_inode *find_from_raw_data(struct ap_inode_indicator *indc)
 {
-    return NULL;
+    struct ger_con_file *con = ger_getrm_raw_data(indc->the_name);
+    struct ger_inode *ind;
+    char *name, *target_file;
+    if (con == NULL) {
+        return NULL;
+    }
+    
+    ind = GER_INODE_MALLOC();
+    ssize_t n_len = strlen(con->name);
+    ssize_t tar_len = strlen(con->target_file);
+    
+    name = malloc(n_len + 1);
+    target_file = malloc(tar_len + 1);
+    
+    if (name == NULL || target_file == NULL) {
+        perror("targer_file name malloc failed");
+        exit(1);
+    }
+    
+    strncpy(name, con->name, n_len + 1);
+    strncpy(target_file, con->target_file, tar_len + 1);
+    ind->target_file = target_file;
+    ind->name = name;
+    ind->state = con->state;
+    
+    free(con); //con_file 是一次性使用的;
+    counter_get(ind->in_use);
+    return ind;
 }
 
 static int ger_get_inode(struct ap_inode_indicator *indc)
 {
-    struct ger_inode *ger_ind = (struct ger_inode *)indc->cur_inode->x_object;
+    struct ger_inode *ger_ind = (struct ger_inode *)indc->cur_inode->x_object; //类型检查
     if (!ger_ind->is_dir) {
         return -1;
     }
@@ -112,7 +164,6 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     int finding_dir = indc->slash_remain == 0? 0:1;
     struct list_head *cusor;
     struct ger_inode *temp_inode;
-    struct ap_inode *ap_inode;
     
     pthread_mutex_lock(&ger_ind->ch_lock);
     list_for_each(cusor, &ger_ind->children){
@@ -140,8 +191,7 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     
 FINED:
     pthread_mutex_unlock(&ger_ind->ch_lock);
-    ap_inode = ger_alloc_ap_inode(temp_inode);
-    indc->cur_inode = ap_inode;
+    indc->cur_inode = ger_alloc_ap_inode(temp_inode);;
     counter_put(temp_inode->in_use);
     return 0;
 }

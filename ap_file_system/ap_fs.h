@@ -173,6 +173,28 @@ struct ap_file{
     void *x_object;
 };
 
+static inline struct ap_file *AP_FILE_MALLOC()
+{
+    struct ap_file *apf;
+    apf = malloc(sizeof(*apf));
+    if (apf == NULL) {
+        perror("ap_File malloc failed\n");
+        exit(1);
+    }
+    apf->real_fd = -1;
+    apf->relate_i = NULL;
+    pthread_mutex_init(&apf->file_lock, NULL);
+    apf->x_object = NULL;
+    apf->f_ops = NULL;
+    return apf;
+}
+
+static inline void AP_FILE_FREE(struct ap_file *apf)
+{
+    pthread_mutex_destroy(&apf->file_lock);
+    free(apf);
+}
+
 struct ap_file_operations{
 	ssize_t (*read) (struct ap_file *, char *, off_t, size_t);
 	ssize_t (*write) (struct ap_file *, char *, off_t, size_t);

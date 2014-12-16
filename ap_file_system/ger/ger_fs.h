@@ -14,12 +14,11 @@ enum file_state{
     g_fileno = 0,
     g_stream,
 };
-
+//因为ger_con_file 只访问一次并删除 所以并不需要引用计数器
 struct ger_con_file{
     char *path;
     char *name;
     char *target_file;
-    struct counter *in_use;
     enum file_state state;
     struct ger_con_file *ger_con_next;
 };
