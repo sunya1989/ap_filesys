@@ -8,11 +8,15 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
 #include "ger_fs.h"
 #include "ap_fs.h"
 #include "ger_file_p.h"
 
 static unsigned int ger_hash(char *path);
+static int ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long flags);
 
 static struct ger_raw_hash_table ger_table = {
     .hash_func = ger_hash,
@@ -20,7 +24,7 @@ static struct ger_raw_hash_table ger_table = {
 };
 
 static struct ap_file_operations ger_file_operations = {
-    
+    .open = ger_open,
 };
 
 static struct ap_inode_operations ger_inode_operations = {
@@ -77,6 +81,10 @@ static int ger_insert_raw_date(struct ap_file_system_type *f_type, void *info)
     struct ger_con_file **pp;
     unsigned int hash = ger_table.hash_func(con->path);
     
+    if ( con->path == NULL ||con->name == NULL || con->target_file == NULL) {
+        return -1;
+    }
+    
     pthread_mutex_lock(&ger_table.table_lock);
     pp = &ger_table.hash_table[hash];
     con->ger_con_next = *pp;
@@ -96,7 +104,7 @@ struct ger_con_file *MALLOC_GER_CON()
     }
     con->ger_con_next = NULL;
     con->name = con->path = con->target_file = NULL;
-    return con;
+        return con;
 }
 
 static struct ap_inode *ger_alloc_ap_inode(struct ger_inode *ger_ind)
@@ -125,13 +133,13 @@ static struct ap_inode *ger_alloc_ap_inode(struct ger_inode *ger_ind)
 static struct ger_inode *find_from_raw_data(struct ap_inode_indicator *indc)
 {
     struct ger_con_file *con = ger_getrm_raw_data(indc->the_name);
-    struct ger_inode *ind;
+    struct ger_inode *ger_ind;
     char *name, *target_file;
     if (con == NULL) {
         return NULL;
     }
     
-    ind = GER_INODE_MALLOC();
+    ger_ind = GER_INODE_MALLOC();
     ssize_t n_len = strlen(con->name);
     ssize_t tar_len = strlen(con->target_file);
     
@@ -145,13 +153,14 @@ static struct ger_inode *find_from_raw_data(struct ap_inode_indicator *indc)
     
     strncpy(name, con->name, n_len + 1);
     strncpy(target_file, con->target_file, tar_len + 1);
-    ind->target_file = target_file;
-    ind->name = name;
-    ind->state = con->state;
+    ger_ind->target_file = target_file;
+    ger_ind->name = name;
+    ger_ind->state = con->state;
+  
     
     free(con); //con_file 是一次性使用的;
-    counter_get(ind->in_use);
-    return ind;
+    counter_get(ger_ind->in_use);
+    return ger_ind;
 }
 
 static int ger_get_inode(struct ap_inode_indicator *indc)
@@ -195,5 +204,83 @@ FINED:
     counter_put(temp_inode->in_use);
     return 0;
 }
+
+static int ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long flags)
+{
+    struct ger_inode *ger_ind = (struct ger_inode *)ind->x_object; //类型jiancha
+   
+    file->real_fd = open(ger_ind->target_file, (int)flags);
+    if (file->real_fd == -1) {
+        perror("ger_open failed\n");
+        return -1;
+    }
+    
+    file->x_object = ger_ind;
+    counter_get(ger_ind->in_use);
+    return 0;
+}
+
+static ssize_t ger_read(struct ap_file *file, char *buf, off_t off_set, size_t len)
+{
+    ssize_t nr;
+    nr = read(file->real_fd, buf, len);
+    return nr;
+}
+
+static ssize_t ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
+{
+    ssize_t nr;
+    nr = write(file->real_fd, buf, len);
+    return nr;
+}
+
+int covert_to_real_fd(int fd)
+{
+    struct ap_file *file;
+    int real_fd;
+    
+    pthread_mutex_lock(&file_info->files_lock);
+    if (file_info->file_list[fd] == NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+    file = file_info->file_list[fd];
+    real_fd = file->real_fd;
+    pthread_mutex_unlock(&file_info->files_lock);
+    return real_fd;
+}
+
+FILE *convert_to_fs(int fd, char *flags)
+{
+    struct ap_file *file;
+    int real_fd;
+    FILE *fs;
+    
+    pthread_mutex_lock(&file_info->files_lock);
+    if (file_info->file_list[fd] == NULL) {
+        errno = ENOENT;
+        return NULL;
+    }
+    file = file_info->file_list[fd];
+    real_fd = file->real_fd;
+    if (real_fd == -1) {
+        return NULL;
+    }
+    
+    if (file->real_fs != NULL) {
+        return file->real_fs;
+    }
+    
+    fs = fdopen(real_fd, flags);
+    file->real_fs = fs;
+    
+    return fs;
+}
+
+
+
+
+
+
 
 

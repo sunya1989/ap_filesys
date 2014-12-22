@@ -24,5 +24,7 @@ struct ger_con_file{
 };
 
 extern struct ger_con_file *MALLOC_GER_CON();
+extern int covert_to_real_fd(int fd);
+extern FILE *convert_to_fs(int fd, char *flags);
 
 #endif

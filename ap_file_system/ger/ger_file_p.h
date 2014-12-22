@@ -25,8 +25,6 @@ struct ger_inode{
     struct counter *in_use;
     
     enum file_state state;
-    int fd;
-    FILE *file_stream;
 };
 
 static inline struct ger_inode *GER_INODE_MALLOC()
@@ -40,8 +38,6 @@ static inline struct ger_inode *GER_INODE_MALLOC()
     ger_ind->name = NULL;
     ger_ind->is_dir = 0;
     ger_ind->in_use = MALLOC_COUNTER();
-    ger_ind->fd = -1;
-    ger_ind->file_stream = NULL;
     INIT_LIST_HEAD(&ger_ind->child);
     INIT_LIST_HEAD(&ger_ind->children);
     

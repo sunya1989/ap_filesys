@@ -7,7 +7,10 @@
 static struct ap_inode root_dir = {
     .name = "",
     .is_dir = 1,
-    
+    .data_lock = PTHREAD_MUTEX_INITIALIZER,
+    .ch_lock = PTHREAD_MUTEX_INITIALIZER,
+    .children = LIST_HEAD_INIT(root_dir.children),
+    .child = LIST_HEAD_INIT(root_dir.child),
 };
 
 struct ap_file_root f_root = {
@@ -17,6 +20,11 @@ struct ap_file_root f_root = {
 
 struct ap_file_systems f_systems = {
     .f_system_lock = PTHREAD_MUTEX_INITIALIZER,
+    .i_file_system = LIST_HEAD_INIT(f_systems.i_file_system),
+};
+
+static struct ap_inode_operations mount_point_operations = {
+
 };
 
 int walk_path(struct ap_inode_indicator *start)

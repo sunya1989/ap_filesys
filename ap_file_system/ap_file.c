@@ -162,10 +162,6 @@ int ap_open(char *path, int flags)
     file->relate_i = final_inode->cur_inode;
     ap_inode_get(final_inode->cur_inode);
     
-    if (final_inode->ker_fs) {
-        file->real_fd = final_inode->real_fd;
-    }
-    
     pthread_mutex_lock(&file_info->files_lock);
     if (file_info->o_files >= _OPEN_MAX) {
         errno = EMFILE;
@@ -232,15 +228,16 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     
     mount_point->is_mount_point = 1;
     
-    struct ap_file_system_type *ap_fst = find_filesystem(file_system);
-    if (ap_fst == NULL) {
+    struct ap_file_system_type *fsyst = find_filesystem(file_system);
+    if (fsyst == NULL) {
         fprintf(stderr, "file_system didn't find\n");
         errno = EINVAL;
         return -1;
     }
     
-    mount_inode = ap_fst->get_initial_inode(ap_fst,mount_info);
+    mount_inode = fsyst->get_initial_inode(fsyst,mount_info);
     mount_point->real_inode = mount_inode;
+    mount_point->mount_inode = mount_point;
     
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
@@ -272,7 +269,7 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     pthread_mutex_lock(&parent->ch_lock);
  
     if (!get){
-        list_add_tail(&mount_point->prev_mpoints, &par_indic->cur_inode->prev_mpoints);
+        mount_point->prev_mpoints = par_indic->cur_inode;
         list_del(&par_indic->cur_inode->child);
     }
     
@@ -280,6 +277,9 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     mount_point->links++;
     pthread_mutex_unlock(&parent->ch_lock);
     mount_point->name = name;
+    
+    add_inodes_to_fsys(fsyst, mount_point);
+    
     
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;
@@ -316,7 +316,7 @@ int ap_close(int fd)
     if (file->f_ops->release != NULL) {
         file->f_ops->release(file, file->relate_i);
     }
-    free(file);
+    AP_FILE_FREE(file);
     return 0;
 }
 
@@ -640,7 +640,7 @@ int ap_rmdir(char *path)
     }
     
     struct ap_inode_indicator *final_indc;
-    struct ap_inode *op_inode;
+    struct ap_inode *op_inode, *parent;
     struct ap_file_pthread *ap_fpthr;
     
     final_indc = MALLOC_INODE_INDICATOR();
@@ -677,20 +677,24 @@ int ap_rmdir(char *path)
     }
     pthread_mutex_unlock(&op_inode->ch_lock);
     
-    pthread_mutex_lock(&op_inode->parent->ch_lock);
+    parent = op_inode->mount_inode == NULL? op_inode->parent:op_inode->mount_inode->parent;
+    
+    pthread_mutex_lock(&parent->ch_lock);
     pthread_mutex_lock(&op_inode->inode_counter.counter_lock);
     if (op_inode->inode_counter.in_use > 1) {
         pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
-        pthread_mutex_unlock(&op_inode->ch_lock);
+        pthread_mutex_unlock(&parent->ch_lock);
         AP_INODE_INICATOR_FREE(final_indc);
         errno = EBUSY;
         return -1;
     }
     
+    op_inode = op_inode->mount_inode == NULL? op_inode:op_inode->mount_inode;
+    
     list_del(&op_inode->child);
 
     pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
-    pthread_mutex_unlock(&op_inode->ch_lock);
+    pthread_mutex_unlock(&parent->ch_lock);
     
     if (op_inode->i_ops->rmdir == NULL) {
         errno = EPERM;

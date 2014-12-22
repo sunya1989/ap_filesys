@@ -30,14 +30,14 @@ struct ap_inode{
     unsigned long mode; //权限检查暂时还没有
     
 	void *x_object;
-	struct list_head inodes;
+	struct list_head inodes;//把inode链接到文件系统的inode列表
     
     pthread_mutex_t data_lock;
     pthread_mutex_t ch_lock;
     struct list_head children;
     struct list_head child;
     
-    struct list_head prev_mpoints;
+    struct ap_inode *prev_mpoints;
 	struct ap_file_operations *f_ops;
     struct ap_inode_operations *i_ops;
 };
@@ -55,7 +55,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     inode->name = NULL;
     inode->is_dir = inode->is_mount_point = 0;
     
-    inode->real_inode = inode->mount_inode = inode->parent = NULL;
+    inode->real_inode = inode->mount_inode = inode->parent = inode->prev_mpoints = NULL;
     inode->links = 0;
     
     COUNTER_INIT(&inode->inode_counter);
@@ -64,7 +64,6 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     INIT_LIST_HEAD(&inode->inodes);
     INIT_LIST_HEAD(&inode->child);
     INIT_LIST_HEAD(&inode->children);
-    INIT_LIST_HEAD(&inode->prev_mpoints);
     
     int init = pthread_mutex_init(&inode->ch_lock, NULL);
     if (init != 0) {
@@ -123,7 +122,6 @@ enum indic_path_state{
 
 struct ap_inode_indicator{
 	char *path;
-    int ker_fs, real_fd;
     int slash_remain;
     char *the_name;
     enum indic_path_state p_state;
@@ -132,14 +130,12 @@ struct ap_inode_indicator{
 };
 
 
-static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *ind)
+static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
 {
-    ind->path = NULL;
-    ind->ker_fs = 0;
-    ind->real_fd = -1;
-    ind->cur_inode = NULL;
-    ind->par = NULL;
-    ind ->the_name = NULL;
+    indc->path = NULL;
+    indc->cur_inode = NULL;
+    indc->par = NULL;
+    indc ->the_name = NULL;
 }
 
 static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *ind)
@@ -166,49 +162,13 @@ static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
 struct ap_file{
 	struct ap_inode *relate_i;
 	int real_fd;
+    FILE *real_fs;
     unsigned long mod;
     pthread_mutex_t file_lock;
 	struct ap_file_operations *f_ops;
     off_t off_size;
     void *x_object;
 };
-
-static inline struct ap_file *AP_FILE_MALLOC()
-{
-    struct ap_file *apf;
-    apf = malloc(sizeof(*apf));
-    if (apf == NULL) {
-        perror("ap_File malloc failed\n");
-        exit(1);
-    }
-    apf->real_fd = -1;
-    apf->relate_i = NULL;
-    pthread_mutex_init(&apf->file_lock, NULL);
-    apf->x_object = NULL;
-    apf->f_ops = NULL;
-    return apf;
-}
-
-static inline void AP_FILE_FREE(struct ap_file *apf)
-{
-    pthread_mutex_destroy(&apf->file_lock);
-    free(apf);
-}
-
-struct ap_file_operations{
-	ssize_t (*read) (struct ap_file *, char *, off_t, size_t);
-	ssize_t (*write) (struct ap_file *, char *, off_t, size_t);
-    off_t (*llseek) (struct ap_file *, off_t, int);
-    int (*release) (struct ap_file *,struct ap_inode *);
-    int (*open) (struct ap_file *, struct ap_inode *, int );
-	int (*readdir) (struct ap_file *, void *);
-};
-
-struct ap_file_struct{
-    struct ap_file *file_list[_OPEN_MAX];
-    unsigned long o_files;
-    pthread_mutex_t files_lock;
-}*file_info;
 
 static inline void AP_FILE_INIT(struct ap_file *file)
 {
@@ -224,6 +184,41 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     file->f_ops = NULL;
 }
 
+
+static inline struct ap_file *AP_FILE_MALLOC()
+{
+    struct ap_file *apf;
+    apf = malloc(sizeof(*apf));
+    if (apf == NULL) {
+        perror("ap_File malloc failed\n");
+        exit(1);
+    }
+    AP_FILE_INIT(apf);
+    return apf;
+}
+
+static inline void AP_FILE_FREE(struct ap_file *apf)
+{
+    pthread_mutex_destroy(&apf->file_lock);
+    free(apf);
+}
+
+struct ap_file_operations{
+	ssize_t (*read) (struct ap_file *, char *, off_t, size_t);
+	ssize_t (*write) (struct ap_file *, char *, off_t, size_t);
+    off_t (*llseek) (struct ap_file *, off_t, int);
+    int (*release) (struct ap_file *,struct ap_inode *);
+    int (*open) (struct ap_file *, struct ap_inode *, unsigned long);
+	int (*readdir) (struct ap_file *, void *);
+};
+
+struct ap_file_struct{
+    struct ap_file *file_list[_OPEN_MAX];
+    unsigned long o_files;
+    pthread_mutex_t files_lock;
+}*file_info;
+
+
 struct ap_file_root{
     pthread_mutex_t f_root_lock;
     struct ap_inode *f_root_inode;
@@ -234,6 +229,10 @@ extern struct ap_file_root f_root;
 struct ap_file_system_type{
     const char *name;
     struct list_head systems;
+    struct list_head i_inodes;
+    
+    pthread_mutex_t inode_lock;
+    
     struct counter fs_type_counter;
     
     struct ap_inode *(*get_initial_inode)(struct ap_file_system_type *, void *);
@@ -254,6 +253,9 @@ static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
     fsyst->get_initial_inode =  NULL;
     fsyst->off_the_tree = NULL;
     fsyst->insert_raw_data = NULL;
+    
+    pthread_mutex_init(&fsyst->inode_lock, NULL);
+    
     return fsyst;
 }
 
@@ -266,10 +268,18 @@ static inline void FILE_SYS_TYPE_FREE(struct ap_file_system_type *fsyst)
 struct ap_file_systems{
     pthread_mutex_t f_system_lock;
     struct list_head i_file_system;
-    struct list_head i_inodes;
+    
 };
 
+static inline void add_inodes_to_fsys(struct ap_file_system_type *fsyst, struct ap_inode *ind)
+{
+    pthread_mutex_lock(&fsyst->inode_lock);
+    list_add(&ind->inodes, &fsyst->i_inodes);
+    pthread_mutex_unlock(&fsyst->inode_lock);
+}
+
 extern struct ap_file_systems f_systems;
+
 extern int walk_path(struct ap_inode_indicator *start);
 extern struct ap_file_system_type *find_filesystem(char *fsn);
 #endif
