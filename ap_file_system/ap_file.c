@@ -60,7 +60,6 @@ static void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
     pthread_mutex_lock(&parent->ch_lock);
     list_add(&child->child, &parent->children);
     pthread_mutex_unlock(&parent->ch_lock);
-    
 }
 
 static int initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
@@ -199,7 +198,6 @@ struct ap_file_system_type *find_filesystem(char *fsn)
     return NULL;
 }
 
-
 int ap_mount(void *mount_info, char *file_system, char *path)
 {
     if (!ap_fs_start) {
@@ -277,9 +275,6 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     mount_point->links++;
     pthread_mutex_unlock(&parent->ch_lock);
     mount_point->name = name;
-    
-    add_inodes_to_fsys(fsyst, mount_point);
-    
     
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;
@@ -628,6 +623,16 @@ int ap_link(char *l_path, char *t_path)
     return 0;
 }
 
+static inline struct ap_inode *convert_to_mountp(struct ap_inode *ind)
+{
+    return ind->mount_inode == NULL? ind:ind->mount_inode;
+}
+
+static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
+{
+    return ind->real_inode == NULL? ind:ind->real_inode;
+}
+
 int ap_rmdir(char *path)
 {
     if (!ap_fs_start) {
@@ -677,7 +682,7 @@ int ap_rmdir(char *path)
     }
     pthread_mutex_unlock(&op_inode->ch_lock);
     
-    parent = op_inode->mount_inode == NULL? op_inode->parent:op_inode->mount_inode->parent;
+    parent = convert_to_mountp(op_inode)->parent;
     
     pthread_mutex_lock(&parent->ch_lock);
     pthread_mutex_lock(&op_inode->inode_counter.counter_lock);
@@ -688,13 +693,17 @@ int ap_rmdir(char *path)
         errno = EBUSY;
         return -1;
     }
-    
-    op_inode = op_inode->mount_inode == NULL? op_inode:op_inode->mount_inode;
+    pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
+
+    op_inode = convert_to_mountp(op_inode);
     
     list_del(&op_inode->child);
-
-    pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
+    if (op_inode->prev_mpoints != NULL) {
+        inode_add_child(parent, op_inode->prev_mpoints);
+    }
     pthread_mutex_unlock(&parent->ch_lock);
+    
+    op_inode = convert_to_real_ind(op_inode);
     
     if (op_inode->i_ops->rmdir == NULL) {
         errno = EPERM;
@@ -703,8 +712,11 @@ int ap_rmdir(char *path)
     
     op_inode->i_ops->rmdir(final_indc);
     AP_INODE_INICATOR_FREE(final_indc);
-    AP_INODE_FREE(op_inode);
     
+    if (op_inode->mount_inode != NULL) {
+        AP_INODE_FREE(op_inode->mount_inode);
+    }
+    AP_INODE_FREE(op_inode);
     return 0;
 }
 

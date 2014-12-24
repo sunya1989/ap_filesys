@@ -82,7 +82,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
 }
 static inline void AP_INODE_FREE(struct ap_inode *inode)
 {
-    if (inode->i_ops->destory != NULL) {
+    if (inode->i_ops != NULL && inode->i_ops->destory != NULL) {
         inode->i_ops->destory(inode);
     }
     pthread_mutex_destroy(&inode->ch_lock);

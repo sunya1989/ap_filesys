@@ -23,9 +23,6 @@ struct ap_file_systems f_systems = {
     .i_file_system = LIST_HEAD_INIT(f_systems.i_file_system),
 };
 
-static struct ap_inode_operations mount_point_operations = {
-
-};
 
 int walk_path(struct ap_inode_indicator *start)
 {
