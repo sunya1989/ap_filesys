@@ -99,7 +99,7 @@ AGAIN:
             }
         }
         int get = cursor_inode->i_ops->get_inode(start);
-        if (!get) {
+        if (get) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             if (cur_slash == path_end) {
                 start->p_state = stop_in_par;
@@ -109,7 +109,9 @@ AGAIN:
             return -1;
         }
         
+        
         list_add(&start->cur_inode->child, &cursor_inode->children);
+        start->par = cursor_inode;
         start->cur_inode->links++;
 
         path = cur_slash;
