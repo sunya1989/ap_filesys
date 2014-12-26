@@ -161,8 +161,6 @@ static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
 
 struct ap_file{
 	struct ap_inode *relate_i;
-	int real_fd;
-    FILE *real_fs;
     unsigned long mod;
     pthread_mutex_t file_lock;
 	struct ap_file_operations *f_ops;
@@ -173,7 +171,6 @@ struct ap_file{
 static inline void AP_FILE_INIT(struct ap_file *file)
 {
     file->f_ops = NULL;
-    file->real_fd = -1;
     file->mod = 0;
     file->off_size = 0;
     int init = pthread_mutex_init(&file->file_lock, NULL);
@@ -234,11 +231,7 @@ struct ap_file_system_type{
     pthread_mutex_t inode_lock;
     
     struct counter fs_type_counter;
-    
     struct ap_inode *(*get_initial_inode)(struct ap_file_system_type *, void *);
-    void (*off_the_tree)(struct ap_inode *);
-    int  (*insert_raw_data)(struct ap_file_system_type *, void *);
-
 };
 
 static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
@@ -251,8 +244,6 @@ static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
     COUNTER_INIT(&fsyst->fs_type_counter);
     fsyst->name = NULL;
     fsyst->get_initial_inode =  NULL;
-    fsyst->off_the_tree = NULL;
-    fsyst->insert_raw_data = NULL;
     
     pthread_mutex_init(&fsyst->inode_lock, NULL);
     
@@ -268,7 +259,6 @@ static inline void FILE_SYS_TYPE_FREE(struct ap_file_system_type *fsyst)
 struct ap_file_systems{
     pthread_mutex_t f_system_lock;
     struct list_head i_file_system;
-    
 };
 
 static inline void add_inodes_to_fsys(struct ap_file_system_type *fsyst, struct ap_inode *ind)

@@ -34,6 +34,25 @@ struct ger_dir{
     struct ger_stem;
 };
 
+
+
+static inline void STEM_INIT(struct ger_stem *stem)
+{
+    stem->name = NULL;
+    INIT_LIST_HEAD(&stem->children);
+    INIT_LIST_HEAD(&stem->child);
+    
+    pthread_mutex_init(&stem->ch_lock, NULL);
+
+}
+
+static inline void STEM_FREE(struct ger_stem *stem)
+{
+    COUNTER_FREE(&stem->stem_inuse);
+    pthread_mutex_destroy(&stem->ch_lock);
+    free(stem);
+}
+
 static inline struct ger_stem *MALLOC_STEM()
 {
     struct ger_stem *stem;
@@ -43,20 +62,8 @@ static inline struct ger_stem *MALLOC_STEM()
         exit(1);
     }
     
-    stem->name = NULL;
-    INIT_LIST_HEAD(&stem->children);
-    INIT_LIST_HEAD(&stem->child);
-    
-    pthread_mutex_init(&stem->ch_lock, NULL);
-    
+    STEM_INIT(stem);
     return stem;
-}
-
-static inline void STEM_FREE(struct ger_stem *stem)
-{
-    COUNTER_FREE(&stem->stem_inuse);
-    pthread_mutex_destroy(&stem->ch_lock);
-    free(stem);
 }
 
 struct stem_file_operations{

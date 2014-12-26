@@ -164,7 +164,6 @@ static int ger_destory(struct ap_inode *ind)
     return 0;
 }
 
-
 static struct ap_file_operations ger_file_operations = {
     .read = ger_read,
     .write = ger_write,
