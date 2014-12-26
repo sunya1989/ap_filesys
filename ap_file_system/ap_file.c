@@ -55,7 +55,7 @@ static char *regular_path(char *path, int *slash_no)
     return reg_path;
 }
 
-static void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
+void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
 {
     pthread_mutex_lock(&parent->ch_lock);
     list_add(&child->child, &parent->children);
@@ -305,7 +305,6 @@ int ap_close(int fd)
     pthread_mutex_lock(&file->file_lock);
     file_info->file_list[fd] = NULL;
     pthread_mutex_unlock(&file->file_lock);
-    pthread_mutex_destroy(&file->file_lock);
     pthread_mutex_unlock(&file_info->files_lock);
     
     if (file->f_ops->release != NULL) {
@@ -647,6 +646,7 @@ int ap_rmdir(char *path)
     struct ap_inode_indicator *final_indc;
     struct ap_inode *op_inode, *parent;
     struct ap_file_pthread *ap_fpthr;
+    int rm_s;
     
     final_indc = MALLOC_INODE_INDICATOR();
     
@@ -682,6 +682,11 @@ int ap_rmdir(char *path)
     }
     pthread_mutex_unlock(&op_inode->ch_lock);
     
+    rm_s = op_inode->i_ops->rmdir(final_indc);
+    if (rm_s != 0) {
+        return rm_s;
+    }
+    
     parent = convert_to_mountp(op_inode)->parent;
     
     pthread_mutex_lock(&parent->ch_lock);
@@ -710,7 +715,6 @@ int ap_rmdir(char *path)
         return -1;
     }
     
-    op_inode->i_ops->rmdir(final_indc);
     AP_INODE_INICATOR_FREE(final_indc);
     
     if (op_inode->mount_inode != NULL) {

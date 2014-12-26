@@ -17,13 +17,8 @@ static struct ger_stem stem_root = {
     
 };
 
-static struct ap_file_operations ger_file_operations = {
-    
-};
-
-static struct ap_inode_operations ger_inode_operations = {
-    
-};
+static struct ap_file_operations ger_file_operations;
+static struct ap_inode_operations ger_inode_operations;
 
 static struct ap_inode *ger_alloc_inode(struct ger_stem *stem)
 {
@@ -82,31 +77,31 @@ FINDED:
 static ssize_t ger_read(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem *stem = (struct ger_stem *)file->x_object; //类型检查？
-    if (stem->s_ops->stem_read == NULL) {
+    if (stem->sf_ops->stem_read == NULL) {
         errno = EINVAL;
         return -1;
     }
-    return stem->s_ops->stem_read(stem, buf, off_set, len);
+    return stem->sf_ops->stem_read(stem, buf, off_set, len);
 }
 
 static ssize_t ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem *stem = (struct ger_stem *)file->x_object;
-    if (stem->s_ops->stem_read == NULL) {
+    if (stem->sf_ops->stem_read == NULL) {
         errno = EINVAL;
         return -1;
     }
-    return stem->s_ops->stem_write(stem, buf, off_set, len);
+    return stem->sf_ops->stem_write(stem, buf, off_set, len);
 }
 
-static int release(struct ap_file *file,struct ap_inode *ind)
+static int ger_release(struct ap_file *file,struct ap_inode *ind)
 {
     struct ger_stem *stem = (struct ger_stem *)file->x_object;
     counter_put(&stem->stem_inuse);
     file->x_object = NULL;
     
-    if (stem->s_ops->stem_release != NULL) {
-        return stem->s_ops->stem_release(stem);
+    if (stem->sf_ops->stem_release != NULL) {
+        return stem->sf_ops->stem_release(stem);
     }
     return 0;
 }
@@ -114,19 +109,76 @@ static int release(struct ap_file *file,struct ap_inode *ind)
 static int ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long flags)
 {
     struct ger_stem *stem = (struct ger_stem *)ind->x_object; //类型检查？
-    int o = 0;
     
     file->x_object = stem;
     counter_get(&stem->stem_inuse);
     
-    if (stem->s_ops->stem_open != NULL) {
-       o = stem->s_ops->stem_open(stem);
+    if (stem->sf_ops->stem_open != NULL) {
+      return stem->sf_ops->stem_open(stem);
     }
     
-    return o;
+    return 0;
+}
+
+static off_t ger_llseek(struct ap_file *file, off_t off_set, int origin)
+{
+    struct ger_stem *stem = (struct ger_stem *)file->x_object; //类型检查？
+    
+    if (stem->sf_ops->stem_llseek == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    return stem->sf_ops->stem_llseek(stem, off_set, origin);
+}
+
+static int ger_rmdir(struct ap_inode_indicator *indc)
+{
+    struct ap_inode *ind = indc->cur_inode;
+    struct ger_stem *stem = ind->x_object; //类型检查??
+    
+    return stem->si_ops->stem_rmdir(stem);
+}
+
+static int ger_mkdir(struct ap_inode_indicator *indc)
+{
+    struct ap_inode *ind = indc->cur_inode;
+    struct ger_stem *stem = (struct ger_stem *)ind->x_object; //类型检查？
+    struct ger_stem *new_stem;
+    struct ap_inode *new_ind;
+    
+    new_stem = stem->si_ops->stem_mkdir(stem);
+    if (new_stem == NULL) {
+        return -1;
+    }
+    new_ind = ger_alloc_inode(new_stem);
+    inode_add_child(indc->cur_inode, new_ind);
+    return 0;
+}
+
+static int ger_destory(struct ap_inode *ind)
+{
+    struct ger_stem *stem = (struct ger_stem *)ind->x_object; //类型检查？
+    if (stem->si_ops->stem_destory != NULL) {
+        return stem->si_ops->stem_destory(stem);
+    }
+    return 0;
 }
 
 
+static struct ap_file_operations ger_file_operations = {
+    .read = ger_read,
+    .write = ger_write,
+    .llseek = ger_llseek,
+    .release = ger_release,
+    .open = ger_open,
+};
+
+static struct ap_inode_operations ger_inode_operations = {
+    .get_inode = ger_get_inode,
+    .rmdir = ger_rmdir,
+    .mkdir = ger_mkdir,
+    .destory = ger_destory,
+};
 
 
 
