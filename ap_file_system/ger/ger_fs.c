@@ -12,15 +12,10 @@
 #include <string.h>
 #include <stdio.h>
 
-
-static struct ger_stem stem_root = {
-    
-};
-
 static struct ap_file_operations ger_file_operations;
 static struct ap_inode_operations ger_inode_operations;
 
-static struct ap_inode *ger_alloc_inode(struct ger_stem *stem)
+static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
 {
     struct ap_inode *ind;
     char *name;
@@ -50,15 +45,15 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem *stem)
 
 static int ger_get_inode(struct ap_inode_indicator *indc)
 {
-    struct ger_stem *stem = (struct ger_stem *)indc->cur_inode->x_object; //类型检查？
-    struct ger_stem *temp_stem;
+    struct ger_stem_node *stem = (struct ger_stem_node *)indc->cur_inode->x_object; //类型检查？
+    struct ger_stem_node *temp_stem;
     char *name = indc->the_name;
     
     struct list_head *cusor;
     
     pthread_mutex_lock(&stem->ch_lock);
     list_for_each(cusor, &stem->children){
-        temp_stem = list_entry(cusor, struct ger_stem, child);
+        temp_stem = list_entry(cusor, struct ger_stem_node, child);
         if (strcmp(temp_stem->name, name)) {
             counter_get(&temp_stem->stem_inuse);
             pthread_mutex_unlock(&stem->ch_lock);
@@ -76,7 +71,7 @@ FINDED:
 
 static ssize_t ger_read(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
-    struct ger_stem *stem = (struct ger_stem *)file->x_object; //类型检查？
+    struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object; //类型检查？
     if (stem->sf_ops->stem_read == NULL) {
         errno = EINVAL;
         return -1;
@@ -86,7 +81,7 @@ static ssize_t ger_read(struct ap_file *file, char *buf, off_t off_set, size_t l
 
 static ssize_t ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
-    struct ger_stem *stem = (struct ger_stem *)file->x_object;
+    struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object;
     if (stem->sf_ops->stem_read == NULL) {
         errno = EINVAL;
         return -1;
@@ -96,7 +91,7 @@ static ssize_t ger_write(struct ap_file *file, char *buf, off_t off_set, size_t 
 
 static int ger_release(struct ap_file *file,struct ap_inode *ind)
 {
-    struct ger_stem *stem = (struct ger_stem *)file->x_object;
+    struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object;
     counter_put(&stem->stem_inuse);
     file->x_object = NULL;
     
@@ -108,7 +103,7 @@ static int ger_release(struct ap_file *file,struct ap_inode *ind)
 
 static int ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long flags)
 {
-    struct ger_stem *stem = (struct ger_stem *)ind->x_object; //类型检查？
+    struct ger_stem_node *stem = (struct ger_stem_node *)ind->x_object; //类型检查？
     
     file->x_object = stem;
     counter_get(&stem->stem_inuse);
@@ -122,7 +117,7 @@ static int ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long fl
 
 static off_t ger_llseek(struct ap_file *file, off_t off_set, int origin)
 {
-    struct ger_stem *stem = (struct ger_stem *)file->x_object; //类型检查？
+    struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object; //类型检查？
     
     if (stem->sf_ops->stem_llseek == NULL) {
         errno = EINVAL;
@@ -134,7 +129,7 @@ static off_t ger_llseek(struct ap_file *file, off_t off_set, int origin)
 static int ger_rmdir(struct ap_inode_indicator *indc)
 {
     struct ap_inode *ind = indc->cur_inode;
-    struct ger_stem *stem = ind->x_object; //类型检查??
+    struct ger_stem_node *stem = ind->x_object; //类型检查??
     int o = 0;
     
     pthread_mutex_lock(&stem->ch_lock);
@@ -163,8 +158,8 @@ static int ger_rmdir(struct ap_inode_indicator *indc)
 static int ger_mkdir(struct ap_inode_indicator *indc)
 {
     struct ap_inode *ind = indc->cur_inode;
-    struct ger_stem *stem = (struct ger_stem *)ind->x_object; //类型检查？
-    struct ger_stem *new_stem;
+    struct ger_stem_node *stem = (struct ger_stem_node *)ind->x_object; //类型检查？
+    struct ger_stem_node *new_stem;
     struct ap_inode *new_ind;
     
     new_stem = stem->si_ops->stem_mkdir(stem);
@@ -178,7 +173,7 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
 
 static int ger_destory(struct ap_inode *ind)
 {
-    struct ger_stem *stem = (struct ger_stem *)ind->x_object; //类型检查？
+    struct ger_stem_node *stem = (struct ger_stem_node *)ind->x_object; //类型检查？
     if (stem->si_ops->stem_destory != NULL) {
         return stem->si_ops->stem_destory(stem);
     }
@@ -199,6 +194,37 @@ static struct ap_inode_operations ger_inode_operations = {
     .mkdir = ger_mkdir,
     .destory = ger_destory,
 };
+
+static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
+{
+    struct ger_stem_node *root_stem = (struct ger_stem_node *)x_object; //类型检查？
+    struct ap_inode *ind = MALLOC_AP_INODE();
+    char *name;
+    ssize_t n_len;
+    
+    ind->x_object = root_stem;
+    counter_get(&root_stem->stem_inuse);
+    ind->is_dir = 1;
+    
+    n_len = strlen(root_stem->name);
+    name = malloc(n_len + 1);
+    strncpy(name, root_stem->name, n_len+1);
+    
+    root_stem->name = name;
+    
+    ind->i_ops = &ger_inode_operations;
+    return ind;
+}
+
+
+int init_fs_ger()
+{
+    struct ap_file_system_type *ger_fsyst = MALLOC_FILE_SYS_TYPE();
+    ger_fsyst->name = "ger";
+    
+    ger_fsyst->get_initial_inode = gget_initial_inode;
+    return register_fsyst(ger_fsyst);
+}
 
 
 

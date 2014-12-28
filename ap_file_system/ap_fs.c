@@ -23,7 +23,6 @@ struct ap_file_systems f_systems = {
     .i_file_system = LIST_HEAD_INIT(f_systems.i_file_system),
 };
 
-
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;
@@ -128,3 +127,38 @@ AGAIN:
         cursor_inode = start->cur_inode;
     }
 }
+
+
+struct ap_file_system_type *find_filesystem(char *fsn)
+{
+    struct list_head *cursor;
+    struct ap_file_system_type *temp_sys;
+    
+    pthread_mutex_lock(&f_systems.f_system_lock);
+    list_for_each(cursor, &f_systems.i_file_system){
+        temp_sys = list_entry(cursor, struct ap_file_system_type, systems);
+        if (strcmp(fsn, temp_sys->name) == 0) {
+            counter_get(&temp_sys->fs_type_counter);
+            pthread_mutex_unlock(&f_systems.f_system_lock);
+            return temp_sys;
+        }
+    }
+    
+    return NULL;
+}
+
+void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
+{
+    pthread_mutex_lock(&parent->ch_lock);
+    list_add(&child->child, &parent->children);
+    pthread_mutex_unlock(&parent->ch_lock);
+}
+
+int register_fsyst(struct ap_file_system_type *fsyst)
+{
+    pthread_mutex_lock(&f_systems.f_system_lock);
+    list_add(&fsyst->systems, &f_systems.i_file_system);
+    pthread_mutex_unlock(&f_systems.f_system_lock);
+    return 0;
+}
+

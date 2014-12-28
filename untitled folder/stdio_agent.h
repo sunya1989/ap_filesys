@@ -19,7 +19,7 @@ enum file_state{
 };
 
 struct std_age{
-    struct ger_stem stem;
+    struct ger_stem_node stem;
     char *target_file;
     int fd;
     FILE *fs;

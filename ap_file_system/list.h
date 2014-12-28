@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 #define container_of(ptr, type, member) ({                      \
           const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
           (type *)( (char *)__mptr - _offsetof(type,member) );})
@@ -87,5 +88,32 @@ for (pos = (head)->prev; pos != (head); pos = pos->prev)
 for (pos = list_first_entry(head, typeof(*pos), member);	\
 &pos->member != (head);					\
 pos = list_next_entry(pos, member))
+
+
+struct list_chain_node{
+    pthread_mutex_t lsc_ch_lock;
+    struct list_head children;
+    struct list_head child;
+};
+
+struct list_chain_root{
+    int (*is_this_obj) (struct list_chain_node*);
+    struct list_chain_node root;
+};
+
+extern struct list_chain_node lsc_find_obj(struct list_chain_root *root);
+
+static inline void lsc_add(struct list_chain_node *child, struct list_chain_node *par)
+{
+    list_add(&child->child, &par->children);
+}
+
+static inline void lsc_del(struct list_chain_node *entry)
+{
+    list_del(&entry->child);
+}
+
+
+
 
 #endif

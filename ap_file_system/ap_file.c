@@ -55,12 +55,6 @@ static char *regular_path(char *path, int *slash_no)
     return reg_path;
 }
 
-void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
-{
-    pthread_mutex_lock(&parent->ch_lock);
-    list_add(&child->child, &parent->children);
-    pthread_mutex_unlock(&parent->ch_lock);
-}
 
 static int initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
 {
@@ -184,23 +178,6 @@ int ap_open(char *path, int flags)
     return ap_fd;
 }
 
-struct ap_file_system_type *find_filesystem(char *fsn)
-{
-    struct list_head *cursor;
-    struct ap_file_system_type *temp_sys;
-    
-    pthread_mutex_lock(&f_systems.f_system_lock);
-    list_for_each(cursor, &f_systems.i_file_system){
-        temp_sys = list_entry(cursor, struct ap_file_system_type, systems);
-        if (strcmp(fsn, temp_sys->name) == 0) {
-            counter_get(&temp_sys->fs_type_counter);
-            pthread_mutex_unlock(&f_systems.f_system_lock);
-            return temp_sys;
-        }
-    }
-    
-    return NULL;
-}
 
 int ap_mount(void *mount_info, char *file_system, char *path)
 {

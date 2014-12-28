@@ -19,7 +19,7 @@ static struct stem_inode_operations std_age_inode_operations={
 };
 
 
-ssize_t stdio_age_read(struct ger_stem *stem, char *buf, off_t off_set, size_t len)
+ssize_t stdio_age_read(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     ssize_t n_read;
@@ -28,7 +28,7 @@ ssize_t stdio_age_read(struct ger_stem *stem, char *buf, off_t off_set, size_t l
     return n_read;
 }
 
-ssize_t stdio_age_write(struct ger_stem *stem, char *buf, off_t off_set, size_t len)
+ssize_t stdio_age_write(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     ssize_t n_write;
@@ -37,7 +37,7 @@ ssize_t stdio_age_write(struct ger_stem *stem, char *buf, off_t off_set, size_t 
     return n_write;
 }
 
-off_t stdio_age_llseek(struct ger_stem *stem, off_t off_set, int origin)
+off_t stdio_age_llseek(struct ger_stem_node *stem, off_t off_set, int origin)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     off_t off_size;
@@ -46,7 +46,7 @@ off_t stdio_age_llseek(struct ger_stem *stem, off_t off_set, int origin)
     return off_size;
 }
 
-int stdio_age_open(struct ger_stem *stem, unsigned long flags)
+int stdio_age_open(struct ger_stem_node *stem, unsigned long flags)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     
@@ -57,7 +57,7 @@ int stdio_age_open(struct ger_stem *stem, unsigned long flags)
     return sa->fd;
 }
 
-int stdio_age_destory(struct ger_stem *stem)
+int stdio_age_destory(struct ger_stem_node *stem)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     STD_AGE_FREE(sa);

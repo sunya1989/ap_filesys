@@ -15,11 +15,11 @@
 struct stem_file_operations;
 struct stem_inode_operations;
 
-struct ger_stem{
+struct ger_stem_node{
     char *name;
     int is_dir;
     
-    struct ger_stem *parent;
+    struct ger_stem_node *parent;
     struct list_head children;
     struct list_head child;
     pthread_mutex_t ch_lock;
@@ -31,12 +31,10 @@ struct ger_stem{
 };
 
 struct ger_dir{
-    struct ger_stem;
+    struct ger_stem_node;
 };
 
-
-
-static inline void STEM_INIT(struct ger_stem *stem)
+static inline void STEM_INIT(struct ger_stem_node *stem)
 {
     stem->name = NULL;
     INIT_LIST_HEAD(&stem->children);
@@ -46,16 +44,16 @@ static inline void STEM_INIT(struct ger_stem *stem)
 
 }
 
-static inline void STEM_FREE(struct ger_stem *stem)
+static inline void STEM_FREE(struct ger_stem_node *stem)
 {
     COUNTER_FREE(&stem->stem_inuse);
     pthread_mutex_destroy(&stem->ch_lock);
     free(stem);
 }
 
-static inline struct ger_stem *MALLOC_STEM()
+static inline struct ger_stem_node *MALLOC_STEM()
 {
-    struct ger_stem *stem;
+    struct ger_stem_node *stem;
     stem = malloc(sizeof(*stem));
     if (stem == NULL) {
         perror("ger_stem malloc failed\n");
@@ -67,19 +65,19 @@ static inline struct ger_stem *MALLOC_STEM()
 }
 
 struct stem_file_operations{
-    ssize_t (*stem_read) (struct ger_stem *, char *, off_t, size_t);
-    ssize_t (*stem_write) (struct ger_stem *, char *, off_t, size_t);
-    off_t (*stem_llseek) (struct ger_stem *, off_t, int);
-    int (*stem_release) (struct ger_stem *);
-    int (*stem_open) (struct ger_stem *, unsigned long);
+    ssize_t (*stem_read) (struct ger_stem_node *, char *, off_t, size_t);
+    ssize_t (*stem_write) (struct ger_stem_node *, char *, off_t, size_t);
+    off_t (*stem_llseek) (struct ger_stem_node *, off_t, int);
+    int (*stem_release) (struct ger_stem_node *);
+    int (*stem_open) (struct ger_stem_node *, unsigned long);
 };
 
 struct stem_inode_operations{
-    int (*stem_rmdir) (struct ger_stem *);
-    struct ger_stem *(*stem_mkdir) (struct ger_stem *);
-    int (*stem_destory)(struct ger_stem *);
+    int (*stem_rmdir) (struct ger_stem_node *);
+    struct ger_stem_node *(*stem_mkdir) (struct ger_stem_node *);
+    int (*stem_destory)(struct ger_stem_node *);
 };
 
-extern int hook_to_stem(struct ger_stem *root_stem, struct ger_stem *stem);
-
+extern int init_fs_ger();
+extern int hook_to_stem(struct ger_stem_node *root_stem, struct ger_stem_node *stem);
 #endif
