@@ -154,7 +154,11 @@ int ap_open(char *path, int flags)
     
     AP_FILE_INIT(file);
     if (final_inode->cur_inode->f_ops->open != NULL) {
-        final_inode->cur_inode->f_ops->open(file, final_inode->cur_inode, flags);
+        int open_s;
+        open_s = final_inode->cur_inode->f_ops->open(file, final_inode->cur_inode, flags);
+        if (open_s == -1) {
+            return -1;
+        }
     }
     
     file->f_ops = final_inode->cur_inode->f_ops;
@@ -677,19 +681,19 @@ int ap_rmdir(char *path)
     
     pthread_mutex_lock(&op_inode->ch_lock);
     if (!list_empty(&op_inode->children)){
+        pthread_mutex_unlock(&op_inode->ch_lock);
         errno = EBUSY;
         return -1;
     }
-    pthread_mutex_unlock(&op_inode->ch_lock);
     
     rm_s = op_inode->i_ops->rmdir(final_indc);
     if (rm_s != 0) {
+        pthread_mutex_unlock(&op_inode->ch_lock);
         return rm_s;
     }
     
     parent = convert_to_mountp(op_inode)->parent;
     
-    pthread_mutex_lock(&parent->ch_lock);
     pthread_mutex_lock(&op_inode->inode_counter.counter_lock);
     if (op_inode->inode_counter.in_use > 1) {
         pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);

@@ -114,7 +114,7 @@ static int ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long fl
     counter_get(&stem->stem_inuse);
     
     if (stem->sf_ops->stem_open != NULL) {
-      return stem->sf_ops->stem_open(stem);
+      return stem->sf_ops->stem_open(stem, flags);
     }
     
     return 0;
@@ -135,8 +135,29 @@ static int ger_rmdir(struct ap_inode_indicator *indc)
 {
     struct ap_inode *ind = indc->cur_inode;
     struct ger_stem *stem = ind->x_object; //类型检查??
+    int o = 0;
     
-    return stem->si_ops->stem_rmdir(stem);
+    pthread_mutex_lock(&stem->ch_lock);
+    if (!list_empty(&stem->children)) {
+        pthread_mutex_unlock(&stem->ch_lock);
+        errno = EBUSY;
+        return -1;
+    }
+    pthread_mutex_lock(&stem->stem_inuse.counter_lock);
+    if (stem->stem_inuse.in_use > 0) {
+        pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
+        pthread_mutex_unlock(&stem->ch_lock);
+        errno = EBUSY;
+        return -1;
+    }
+    
+    list_del(&stem->child);
+    
+    if (stem->si_ops->stem_rmdir != NULL) {
+        o = stem->si_ops->stem_rmdir(stem);
+    }
+    
+    return o;
 }
 
 static int ger_mkdir(struct ap_inode_indicator *indc)

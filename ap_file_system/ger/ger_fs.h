@@ -71,7 +71,7 @@ struct stem_file_operations{
     ssize_t (*stem_write) (struct ger_stem *, char *, off_t, size_t);
     off_t (*stem_llseek) (struct ger_stem *, off_t, int);
     int (*stem_release) (struct ger_stem *);
-    int (*stem_open) (struct ger_stem *);
+    int (*stem_open) (struct ger_stem *, unsigned long);
 };
 
 struct stem_inode_operations{
