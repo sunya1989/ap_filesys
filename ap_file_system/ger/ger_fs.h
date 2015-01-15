@@ -25,13 +25,11 @@ struct ger_stem_node{
     pthread_mutex_t ch_lock;
     
     struct counter stem_inuse;
-
+    
+    void (*prepare_raw_data) (struct ger_stem_node *);
+    
     struct stem_file_operations *sf_ops;
     struct stem_inode_operations *si_ops;
-};
-
-struct ger_dir{
-    struct ger_stem_node;
 };
 
 static inline void STEM_INIT(struct ger_stem_node *stem)
@@ -41,7 +39,6 @@ static inline void STEM_INIT(struct ger_stem_node *stem)
     INIT_LIST_HEAD(&stem->child);
     
     pthread_mutex_init(&stem->ch_lock, NULL);
-
 }
 
 static inline void STEM_FREE(struct ger_stem_node *stem)
@@ -74,10 +71,12 @@ struct stem_file_operations{
 
 struct stem_inode_operations{
     int (*stem_rmdir) (struct ger_stem_node *);
+    int (*stem_unlink) (struct ger_stem_node *);
     struct ger_stem_node *(*stem_mkdir) (struct ger_stem_node *);
     int (*stem_destory)(struct ger_stem_node *);
 };
 
 extern int init_fs_ger();
-extern int hook_to_stem(struct ger_stem_node *root_stem, struct ger_stem_node *stem);
+extern struct ger_stem_node *find_stem(struct ger_stem_node *root_stem, char **names, int counts);
+extern void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem);
 #endif

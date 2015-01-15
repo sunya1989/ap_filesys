@@ -510,6 +510,7 @@ int ap_unlik(char *path)
     pthread_mutex_lock(&op_inode->parent->ch_lock); //因为父目录不为空所以不会被删除
     ap_inode_put(op_inode);
     if (op_inode->inode_counter.in_use != 0) {
+        pthread_mutex_unlock(&op_inode->parent->ch_lock);
         errno = EPERM;
         return -1;
     }
@@ -519,10 +520,19 @@ int ap_unlik(char *path)
     link = op_inode->links--;
     pthread_mutex_unlock(&op_inode->data_lock);
     
+    int o = 0;
+    
     if (link == 0) {
+        if (op_inode->i_ops->unlink != NULL) {
+            int unlik_s = op_inode->i_ops->unlink(op_inode);
+            if (unlik_s == -1) {
+                errno = EPERM;
+                o = -1;
+            }
+        }
         AP_INODE_FREE(op_inode);
     }
-    return 0;
+    return o;
 }
 
 int ap_link(char *l_path, char *t_path)

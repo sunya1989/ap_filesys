@@ -47,7 +47,8 @@ struct ap_inode_operations{
     int (*creat) (struct ap_inode_indicator *);
     int (*rmdir) (struct ap_inode_indicator *);
     int (*mkdir) (struct ap_inode_indicator *);
-    int (*destory)(struct ap_inode *);
+    int (*destory) (struct ap_inode *);
+    int (*unlink) (struct ap_inode *);
 };
 
 static inline int AP_INODE_INIT(struct ap_inode *inode)

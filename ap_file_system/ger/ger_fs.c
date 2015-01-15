@@ -29,8 +29,8 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
         exit(1);
     }
     ind->name = name;
-    
     ind->x_object = stem;
+    
     counter_get(&stem->stem_inuse);
     
     ind->is_dir = stem->is_dir;
@@ -50,6 +50,10 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     char *name = indc->the_name;
     
     struct list_head *cusor;
+    
+    if (stem->prepare_raw_data != NULL) {
+        stem->prepare_raw_data(stem);
+    }
     
     pthread_mutex_lock(&stem->ch_lock);
     list_for_each(cusor, &stem->children){
@@ -126,33 +130,30 @@ static off_t ger_llseek(struct ap_file *file, off_t off_set, int origin)
     return stem->sf_ops->stem_llseek(stem, off_set, origin);
 }
 
+static int ger_unlink(struct ap_inode *ind)
+{
+    struct ger_stem_node *stem = ind->x_object; //类型检查??
+    int o;
+
+    if (stem->si_ops->stem_unlink == NULL) {
+        errno = EPERM;
+        return -1;
+    }
+    o = stem->si_ops->stem_unlink(stem);
+    ind->x_object = NULL;
+    return o;
+}
+
 static int ger_rmdir(struct ap_inode_indicator *indc)
 {
     struct ap_inode *ind = indc->cur_inode;
     struct ger_stem_node *stem = ind->x_object; //类型检查??
-    int o = 0;
-    
-    pthread_mutex_lock(&stem->ch_lock);
-    if (!list_empty(&stem->children)) {
-        pthread_mutex_unlock(&stem->ch_lock);
-        errno = EBUSY;
+   
+    if (stem->si_ops == NULL || stem->si_ops->stem_rmdir == NULL) {
+        errno = EPERM;
         return -1;
     }
-    pthread_mutex_lock(&stem->stem_inuse.counter_lock);
-    if (stem->stem_inuse.in_use > 0) {
-        pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
-        pthread_mutex_unlock(&stem->ch_lock);
-        errno = EBUSY;
-        return -1;
-    }
-    
-    list_del(&stem->child);
-    
-    if (stem->si_ops->stem_rmdir != NULL) {
-        o = stem->si_ops->stem_rmdir(stem);
-    }
-    
-    return o;
+    return stem->si_ops->stem_rmdir(stem);
 }
 
 static int ger_mkdir(struct ap_inode_indicator *indc)
@@ -162,6 +163,11 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
     struct ger_stem_node *new_stem;
     struct ap_inode *new_ind;
     
+    if (stem->si_ops == NULL || stem->si_ops->stem_mkdir == NULL) {
+        errno = EPERM;
+        return -1;
+    }
+
     new_stem = stem->si_ops->stem_mkdir(stem);
     if (new_stem == NULL) {
         return -1;
@@ -174,7 +180,7 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
 static int ger_destory(struct ap_inode *ind)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)ind->x_object; //类型检查？
-    if (stem->si_ops->stem_destory != NULL) {
+    if (stem != NULL && stem->si_ops->stem_destory != NULL) {
         return stem->si_ops->stem_destory(stem);
     }
     return 0;
@@ -193,6 +199,7 @@ static struct ap_inode_operations ger_inode_operations = {
     .rmdir = ger_rmdir,
     .mkdir = ger_mkdir,
     .destory = ger_destory,
+    .unlink = ger_unlink,
 };
 
 static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
@@ -216,6 +223,47 @@ static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, vo
     return ind;
 }
 
+struct ger_stem_node *find_stem(struct ger_stem_node *root_stem, char **names, int counts)
+{
+    int i = 0;
+    char *name_cusor;
+    struct ger_stem_node *stem_cusor = root_stem;
+    struct ger_stem_node *temp_stem;
+    struct list_head *child_cusor;
+
+AGAIN:
+    while (i<counts) {
+        name_cusor = names[i];
+       
+        pthread_mutex_lock(&stem_cusor->ch_lock);
+        list_for_each(child_cusor, &stem_cusor->children){
+            temp_stem = list_entry(child_cusor, struct ger_stem_node, child);
+            if (strcmp(temp_stem->name, name_cusor) == 0) {
+                if (i == counts-1) {
+                    counter_get(&temp_stem->stem_inuse);
+                    pthread_mutex_unlock(&stem_cusor->ch_lock);
+                    return temp_stem;
+                }
+                counter_put(&stem_cusor->stem_inuse);
+                stem_cusor = temp_stem;
+                counter_get(&stem_cusor->stem_inuse);
+                i++;
+                goto AGAIN;
+            }
+        }
+        pthread_mutex_unlock(&stem_cusor->ch_lock);
+        return NULL;
+    }
+    pthread_mutex_unlock(&stem_cusor->ch_lock);
+    return NULL;
+}
+
+void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem)
+{
+    pthread_mutex_lock(&par->ch_lock);
+    list_add(&stem->child, &par->children);
+    pthread_mutex_unlock(&par->ch_lock);
+}
 
 int init_fs_ger()
 {
@@ -225,6 +273,3 @@ int init_fs_ger()
     ger_fsyst->get_initial_inode = gget_initial_inode;
     return register_fsyst(ger_fsyst);
 }
-
-
-
