@@ -8,9 +8,6 @@
 #include "list.h"
 
 #define _OPEN_MAX 1024
-
-int ap_fs_start = 0;
-
 struct ap_inode_operations;
 struct ap_file_operations;
 struct ap_inode_indicator;

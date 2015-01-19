@@ -26,7 +26,6 @@ static void thread_init()
     }
 }
 
-
 int ap_file_thread_init()
 {
     struct ap_file_pthread *file_pthr;

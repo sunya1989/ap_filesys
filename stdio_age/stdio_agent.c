@@ -135,30 +135,32 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
     if (dp == NULL) {
         return;
     }
-    
-    while ((dirp = readdir(dp)) != NULL) {
-        path = dirp->d_name;
-        if (strcmp(path, ".") == 0 ||
-            strcmp(path, "..") == 0) {
-            continue;
+    if (stem->raw_data_isset == 0) {
+        while ((dirp = readdir(dp)) != NULL) {
+            path = dirp->d_name;
+            if (strcmp(path, ".") == 0 ||
+                strcmp(path, "..") == 0) {
+                continue;
+            }
+            str_len = strlen(path) + 1;
+            char *cp_path = malloc(str_len);
+            strncpy(cp_path, path, str_len);
+            
+            lstat(cp_path, &stat_buf);
+            
+            if (S_ISREG(stat_buf.st_mode)) {
+                sa_temp = MALLOC_STD_AGE(cp_path, g_fileno);
+                sa_temp->stem.name = cp_path;
+                hook_to_stem(stem, &sa_temp->stem);
+            }else if(S_ISDIR(stat_buf.st_mode)){
+                sa_dir_temp = MALLOC_STD_AGE_DIR(cp_path);
+                sa_dir_temp->stem.name = cp_path;
+                hook_to_stem(stem, &sa_dir_temp->stem);
+            }else {
+                continue;
+            }
         }
-        str_len = strlen(path) + 1;
-        char *cp_path = malloc(str_len);
-        strncpy(cp_path, path, str_len);
-        
-        lstat(cp_path, &stat_buf);
-        
-        if (S_ISREG(stat_buf.st_mode)) {
-            sa_temp = MALLOC_STD_AGE(cp_path, g_fileno);
-            sa_temp->stem.name = cp_path;
-            hook_to_stem(stem, &sa_temp->stem);
-        }else if(S_ISDIR(stat_buf.st_mode)){
-            sa_dir_temp = MALLOC_STD_AGE_DIR(cp_path);
-            sa_dir_temp->stem.name = cp_path;
-            hook_to_stem(stem, &sa_dir_temp->stem);
-        }else {
-            continue;
-        }
+        stem->raw_data_isset = 1;
     }
     
     if(closedir(dp) < 0){

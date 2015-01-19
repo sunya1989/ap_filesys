@@ -1,7 +1,6 @@
 #include <string.h>
 #include <errno.h>
 #include "ap_fs.h"
-#include "ap_erro.h"
 #include "ap_pthread.h"
 
 static struct ap_inode root_dir = {
@@ -45,7 +44,6 @@ int walk_path(struct ap_inode_indicator *start)
     }
     
     path_end = temp_path + str_len;
-    
     strncpy(temp_path, path, str_len+1);
     path = temp_path;
     
@@ -57,7 +55,7 @@ int walk_path(struct ap_inode_indicator *start)
 AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
-            errno = AP_NOTDIR;
+            errno = ENOTDIR;
             return -1;
         }
         
@@ -66,7 +64,6 @@ AGAIN:
         
         *cur_slash = '\0';
         start->slash_remain--;
-        
         start->the_name = path;
         
         pthread_mutex_lock(&cursor_inode->ch_lock);
@@ -108,7 +105,6 @@ AGAIN:
             return -1;
         }
         
-        
         list_add(&start->cur_inode->child, &cursor_inode->children);
         start->par = cursor_inode;
         start->cur_inode->links++;
@@ -143,7 +139,6 @@ struct ap_file_system_type *find_filesystem(char *fsn)
             return temp_sys;
         }
     }
-    
     return NULL;
 }
 

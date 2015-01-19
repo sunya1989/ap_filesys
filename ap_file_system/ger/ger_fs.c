@@ -218,8 +218,8 @@ static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, vo
     strncpy(name, root_stem->name, n_len+1);
     
     root_stem->name = name;
-    
     ind->i_ops = &ger_inode_operations;
+    
     return ind;
 }
 

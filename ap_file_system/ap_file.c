@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include "ap_erro.h"
 #include "ap_file.h"
 #include "ap_fs.h"
 #include "ap_pthread.h"
@@ -65,7 +64,7 @@ static int initial_indicator(char *path, struct ap_inode_indicator *ind, struct 
     
     path = regular_path(path, &slash_no);
     if (path == NULL) {
-        errno = AP_EINVAL;
+        errno = EINVAL;
         return -1;
     }
     
@@ -106,11 +105,6 @@ int ap_open(char *path, int flags)
 {
     int ap_fd;
     struct ap_file_pthread *ap_fpthr;
-    
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
     
     if (path == NULL) {
         errno = EINVAL;
@@ -181,11 +175,6 @@ int ap_open(char *path, int flags)
 
 int ap_mount(void *mount_info, char *file_system, char *path)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
-
     if (file_system == NULL || path ==NULL) {
         errno = EINVAL;
         return -1;
@@ -265,11 +254,6 @@ int ap_mount(void *mount_info, char *file_system, char *path)
  */
 int ap_close(int fd)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
-    
     if (fd < 0 || fd > _OPEN_MAX) {
         errno = EBADF;
         return -1;
@@ -297,12 +281,6 @@ int ap_close(int fd)
 
 ssize_t ap_read(int fd, void *buf, size_t len)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
-
-    
     if (fd < 0 || fd > _OPEN_MAX) {
         errno = EBADF;
         return -1;
@@ -336,11 +314,6 @@ ssize_t ap_read(int fd, void *buf, size_t len)
 
 ssize_t ap_write(int fd, void *buf, size_t len)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
-    
     if (fd < 0 || fd > _OPEN_MAX) {
         errno = EBADF;
         return -1;
@@ -373,12 +346,6 @@ ssize_t ap_write(int fd, void *buf, size_t len)
 
 off_t ap_lseek(int fd, off_t ops, int origin)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
-
-    
     if (fd < 0 || fd > _OPEN_MAX) {
         errno = EBADF;
         return -1;
@@ -405,12 +372,6 @@ off_t ap_lseek(int fd, off_t ops, int origin)
 
 int ap_mkdir(char *path, unsigned long mode)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
-
-    
     if (path == NULL) {
         errno = EINVAL;
         return -1;
@@ -469,11 +430,6 @@ int ap_mkdir(char *path, unsigned long mode)
 
 int ap_unlik(char *path)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
-    
     if (path == NULL) {
         errno = EFAULT;
         return -1;
@@ -537,10 +493,6 @@ int ap_unlik(char *path)
 
 int ap_link(char *l_path, char *t_path)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
     if (l_path == NULL || t_path == NULL) {
         errno = EFAULT;
         return -1;
@@ -625,10 +577,6 @@ static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
 
 int ap_rmdir(char *path)
 {
-    if (!ap_fs_start) {
-        fprintf(stderr, "ap_fs didn't start\n");
-        exit(1);
-    }
     if (path == NULL) {
         errno = EFAULT;
         return -1;
