@@ -153,25 +153,24 @@ int ap_open(char *path, int flags)
     file->relate_i = final_inode->cur_inode;
     ap_inode_get(final_inode->cur_inode);
     
-    pthread_mutex_lock(&file_info->files_lock);
-    if (file_info->o_files >= _OPEN_MAX) {
+    pthread_mutex_lock(&file_info.files_lock);
+    if (file_info.o_files >= _OPEN_MAX) {
         errno = EMFILE;
-        pthread_mutex_unlock(&file_info->files_lock);
+        pthread_mutex_unlock(&file_info.files_lock);
         return -1;
     }
     for (int i=0; i<_OPEN_MAX; i++) {
-        if (file_info->file_list[i] == NULL) {
-            file_info->file_list[i] = file;
+        if (file_info.file_list[i] == NULL) {
+            file_info.file_list[i] = file;
             ap_fd = i;
             break;
         }
     }
     file->mod = flags;
-    pthread_mutex_unlock(&file_info->files_lock);
+    pthread_mutex_unlock(&file_info.files_lock);
     AP_INODE_INICATOR_FREE(final_inode);
     return ap_fd;
 }
-
 
 int ap_mount(void *mount_info, char *file_system, char *path)
 {
@@ -261,16 +260,16 @@ int ap_close(int fd)
     
     struct ap_file *file;
     
-    pthread_mutex_lock(&file_info->files_lock);
-    if (file_info->file_list[fd] == NULL) {
+    pthread_mutex_lock(&file_info.files_lock);
+    if (file_info.file_list[fd] == NULL) {
         errno = ENOENT;
         return -1;
     }
-    file = file_info->file_list[fd];
+    file = file_info.file_list[fd];
     pthread_mutex_lock(&file->file_lock);
-    file_info->file_list[fd] = NULL;
+    file_info.file_list[fd] = NULL;
     pthread_mutex_unlock(&file->file_lock);
-    pthread_mutex_unlock(&file_info->files_lock);
+    pthread_mutex_unlock(&file_info.files_lock);
     
     if (file->f_ops->release != NULL) {
         file->f_ops->release(file, file->relate_i);
@@ -293,14 +292,14 @@ ssize_t ap_read(int fd, void *buf, size_t len)
     struct ap_file *file;
     ssize_t h_read;
     
-    pthread_mutex_lock(&file_info->files_lock);
-    if (file_info->file_list[fd] == NULL) {
+    pthread_mutex_lock(&file_info.files_lock);
+    if (file_info.file_list[fd] == NULL) {
         errno = ENOENT;
         return -1;
     }
-    file = file_info->file_list[fd];
+    file = file_info.file_list[fd];
     pthread_mutex_lock(&file->file_lock);
-    pthread_mutex_unlock(&file_info->files_lock);
+    pthread_mutex_unlock(&file_info.files_lock);
     
     if (file->f_ops->read == NULL) {
         pthread_mutex_unlock(&file->file_lock);
@@ -326,14 +325,14 @@ ssize_t ap_write(int fd, void *buf, size_t len)
     struct ap_file *file;
     ssize_t h_write;
     
-    pthread_mutex_lock(&file_info->files_lock);
-    if (file_info->file_list[fd] == NULL) {
+    pthread_mutex_lock(&file_info.files_lock);
+    if (file_info.file_list[fd] == NULL) {
         errno = ENOENT;
         return -1;
     }
-    file = file_info->file_list[fd];
+    file = file_info.file_list[fd];
     pthread_mutex_lock(&file->file_lock);
-    pthread_mutex_unlock(&file_info->files_lock);
+    pthread_mutex_unlock(&file_info.files_lock);
     if (file->f_ops->write == NULL) {
         errno = EINVAL;
         return -1;
@@ -353,14 +352,14 @@ off_t ap_lseek(int fd, off_t ops, int origin)
     struct ap_file *file;
     off_t now_off;
     
-    pthread_mutex_lock(&file_info->files_lock);
-    if (file_info->file_list[fd] == NULL) {
+    pthread_mutex_lock(&file_info.files_lock);
+    if (file_info.file_list[fd] == NULL) {
         errno = ENOENT;
         return -1;
     }
-    file = file_info->file_list[fd];
+    file = file_info.file_list[fd];
     pthread_mutex_lock(&file->file_lock);
-    pthread_mutex_unlock(&file_info->files_lock);
+    pthread_mutex_unlock(&file_info.files_lock);
     if (file->f_ops->llseek == NULL) {
         errno = ESPIPE;
         return -1;

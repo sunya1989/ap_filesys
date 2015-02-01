@@ -65,6 +65,7 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
         }
     }
     pthread_mutex_unlock(&stem->ch_lock);
+    errno = ENOENT;
     return -1;
     
 FINDED:

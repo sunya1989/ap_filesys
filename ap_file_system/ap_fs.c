@@ -12,6 +12,11 @@ static struct ap_inode root_dir = {
     .child = LIST_HEAD_INIT(root_dir.child),
 };
 
+struct ap_file_struct file_info = {
+    .o_files = 0,
+    .files_lock = PTHREAD_MUTEX_INITIALIZER,
+};
+
 struct ap_file_root f_root = {
     .f_root_lock = PTHREAD_MUTEX_INITIALIZER,
     .f_root_inode = &root_dir,
@@ -67,7 +72,6 @@ AGAIN:
         start->the_name = path;
         
         pthread_mutex_lock(&cursor_inode->ch_lock);
-        
         list_for_each(_cusor, &cursor_inode->children){
            temp_inode = list_entry(_cusor, struct ap_inode, child);
             if (strcmp(temp_inode->name, path) == 0) {
@@ -123,7 +127,6 @@ AGAIN:
         cursor_inode = start->cur_inode;
     }
 }
-
 
 struct ap_file_system_type *find_filesystem(char *fsn)
 {

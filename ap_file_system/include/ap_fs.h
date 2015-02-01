@@ -211,8 +211,9 @@ struct ap_file_struct{
     struct ap_file *file_list[_OPEN_MAX];
     unsigned long o_files;
     pthread_mutex_t files_lock;
-}*file_info;
+};
 
+extern struct ap_file_struct file_info;
 
 struct ap_file_root{
     pthread_mutex_t f_root_lock;
