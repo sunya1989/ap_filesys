@@ -14,7 +14,6 @@
 #include <string.h>
 #include <sys/stat.h>
 
-
 static void age_dirprepare_raw_data(struct ger_stem_node *stem);
 static struct stem_inode_operations std_age_inode_operations;
 static struct stem_file_operations std_age_file_operations;

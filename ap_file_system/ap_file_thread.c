@@ -7,8 +7,8 @@
 //
 
 #include <stdlib.h>
-#include "ap_pthread.h"
-#include "ap_file.h"
+#include <ap_pthread.h>
+#include <ap_file.h>
 
 pthread_once_t thread_once = PTHREAD_ONCE_INIT;
 

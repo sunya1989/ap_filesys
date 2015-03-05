@@ -8,9 +8,10 @@
 
 #ifndef ap_file_system_ger_fs_h
 #define ap_file_system_ger_fs_h
-#include"list.h"
-#include "counter.h"
+
 #include <pthread.h>
+#include <list.h>
+#include <counter.h>
 
 struct stem_file_operations;
 struct stem_inode_operations;

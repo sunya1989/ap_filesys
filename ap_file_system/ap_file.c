@@ -9,9 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include "ap_file.h"
-#include "ap_fs.h"
-#include "ap_pthread.h"
+#include <ap_file.h>
+#include <ap_fs.h>
+#include <ap_pthread.h>
 /*检查路径使得路径具有^[/](.*\/)*
  *的形式
  */
@@ -72,29 +72,26 @@ static int initial_indicator(char *path, struct ap_inode_indicator *ind, struct 
     
     if (*path == '/') {
         path++;
-        ind->path = path;
         ind->cur_inode = ap_fpthr->m_wd->cur_inode;
         ind->slash_remain--;
     }else if(*path == '.'){
         if (*(path + 1) == '/' || *(path + 1) == '\0') {  // path 可能为./ ../ ../* ./*
             path = *(path+1) == '/' ? path + 2 : path + 1;
-            ind->path = path;
             ind->cur_inode = ap_fpthr->c_wd->cur_inode;
             ind->slash_remain--;
         }else{
             path = *(path+2) == '/' ? path + 3 : path + 2;
-            ind->path = path;
             ind->slash_remain--;
             if (ap_fpthr->c_wd == ap_fpthr->m_wd) {
                 ind->cur_inode = ap_fpthr->c_wd->cur_inode;
                 return 0;
             }
-            
             struct ap_inode *par = ap_fpthr->c_wd->cur_inode->parent;
             struct ap_inode *cur_inode = ap_fpthr->c_wd->cur_inode;
             ind->cur_inode = cur_inode->mount_inode == NULL ? par:cur_inode->mount_inode->parent;
         }
     }
+    ind->path = path;
     ap_inode_get(ind->cur_inode);
     return 0;
 }
