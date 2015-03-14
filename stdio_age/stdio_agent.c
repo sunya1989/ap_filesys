@@ -5,7 +5,6 @@
 //  Created by sunya on 14/12/26.
 //  Copyright (c) 2014年 sunya. All rights reserved.
 //
-
 #include "stdio_agent.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -37,7 +36,7 @@ void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, char *tard)
     age_dir->stem.prepare_raw_data = age_dirprepare_raw_data;
 }
 
-ssize_t stdio_age_read(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
+static ssize_t stdio_age_read(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     ssize_t n_read;
@@ -46,7 +45,7 @@ ssize_t stdio_age_read(struct ger_stem_node *stem, char *buf, off_t off_set, siz
     return n_read;
 }
 
-ssize_t stdio_age_write(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
+static ssize_t stdio_age_write(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     ssize_t n_write;
@@ -55,7 +54,7 @@ ssize_t stdio_age_write(struct ger_stem_node *stem, char *buf, off_t off_set, si
     return n_write;
 }
 
-off_t stdio_age_llseek(struct ger_stem_node *stem, off_t off_set, int origin)
+static off_t stdio_age_llseek(struct ger_stem_node *stem, off_t off_set, int origin)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     off_t off_size;
@@ -64,7 +63,7 @@ off_t stdio_age_llseek(struct ger_stem_node *stem, off_t off_set, int origin)
     return off_size;
 }
 
-int stdio_age_open(struct ger_stem_node *stem, unsigned long flags)
+static int stdio_age_open(struct ger_stem_node *stem, unsigned long flags)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     
@@ -75,7 +74,7 @@ int stdio_age_open(struct ger_stem_node *stem, unsigned long flags)
     return sa->fd;
 }
 
-int stdio_age_unlink(struct ger_stem_node *stem)
+static int stdio_age_unlink(struct ger_stem_node *stem)
 {
     pthread_mutex_lock(&stem->parent->ch_lock);
     counter_put(&stem->stem_inuse);
@@ -92,7 +91,7 @@ int stdio_age_unlink(struct ger_stem_node *stem)
     return 0;
 }
 
-int stdio_age_rmdir(struct ger_stem_node *stem)
+static int stdio_age_rmdir(struct ger_stem_node *stem)
 {
     pthread_mutex_lock(&stem->ch_lock);
     if (!list_empty(&stem->children)) {
@@ -180,6 +179,3 @@ static struct stem_inode_operations std_age_inode_operations={
     .stem_rmdir = stdio_age_rmdir,
     .stem_unlink = stdio_age_unlink,
 };
-
-
-

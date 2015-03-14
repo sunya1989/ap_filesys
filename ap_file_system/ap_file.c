@@ -29,7 +29,7 @@ static char *regular_path(char *path, int *slash_no)
     char *path_end = path + path_len;
     
     while ((slash = strchr(path_cursor, '/')) != NULL) {
-        if (*(slash++) == '/') {
+        if (*(++slash) == '/') {
             return NULL;
         }
         (*slash_no)++;
@@ -95,12 +95,23 @@ static int initial_indicator(char *path, struct ap_inode_indicator *ind, struct 
     ap_inode_get(ind->cur_inode);
     return 0;
 }
+#ifdef DEBUG
+int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
+{
+    return initial_indicator(path, ind, ap_fpthr);
+}
+extern void deug_regular_path(char *path, int *slash_no)
+{
+    regular_path(path, slash_no);
+}
+
+#endif
 /*每当一个独立线程调用ap_open时都会产生新的file结构
  *以后能使用hash使得同一个文件对应一个fd（相对于不同线程来说）
  */
 int ap_open(char *path, int flags)
 {
-    int ap_fd;
+    int ap_fd = 0;
     struct ap_file_pthread *ap_fpthr;
     
     if (path == NULL) {
@@ -435,6 +446,7 @@ int ap_unlik(char *path)
     struct ap_inode *op_inode;
     struct ap_file_pthread *ap_fpthr;
     int link;
+    final_indc = MALLOC_INODE_INDICATOR();
     
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {

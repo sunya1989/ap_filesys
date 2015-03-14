@@ -61,6 +61,11 @@ AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
             errno = ENOTDIR;
+            if (cur_slash == path_end) {
+                start->p_state = stop_in_par;
+            }else{
+                start->p_state = stop_in_ance;
+            }
             return -1;
         }
         

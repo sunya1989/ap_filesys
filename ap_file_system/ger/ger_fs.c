@@ -42,6 +42,12 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     
     return ind;
 }
+#ifdef DEBUG
+extern  struct ap_inode *export_ger_alloc_inode(struct ger_stem_node *stem)
+{
+   return ger_alloc_inode(stem);
+}
+#endif
 
 static int ger_get_inode(struct ap_inode_indicator *indc)
 {
