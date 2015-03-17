@@ -469,7 +469,7 @@ int ap_unlik(char *path)
         errno = EISDIR;
         return -1;
     }
-    op_inode = final_indc->cur_inode;
+    op_inode = final_indc->cur_inode; //op_inode is a inode_gate or a real_inode
     
     pthread_mutex_lock(&op_inode->parent->ch_lock); //因为父目录不为空所以不会被删除
     ap_inode_put(op_inode);
@@ -494,6 +494,9 @@ int ap_unlik(char *path)
                 o = -1;
             }
         }
+        AP_INODE_FREE(op_inode->real_inode);
+    }
+    if (op_inode->is_gate) {
         AP_INODE_FREE(op_inode);
     }
     return o;
@@ -509,6 +512,7 @@ int ap_link(char *l_path, char *t_path)
     struct ap_inode_indicator *final_indc;
     struct ap_inode *op_inode;
     struct ap_file_pthread *ap_fpthr;
+    struct ap_inode *inode_gate;
     
     final_indc = MALLOC_INODE_INDICATOR();
     
@@ -564,8 +568,11 @@ int ap_link(char *l_path, char *t_path)
         errno = EACCES;
         return -1;
     }
+    inode_gate = MALLOC_AP_INODE();
+    inode_gate->is_gate = 1;
+    inode_gate->real_inode = op_inode->is_gate? op_inode->real_inode:op_inode;
     
-    inode_add_child(final_indc->cur_inode, op_inode);
+    inode_add_child(final_indc->cur_inode, inode_gate);
    
     ap_inode_put(op_inode);
     AP_INODE_INICATOR_FREE(final_indc);

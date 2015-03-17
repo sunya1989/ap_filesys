@@ -5,7 +5,7 @@
 //  Created by sunya on 14/12/24.
 //  Copyright (c) 2014年 sunya. All rights reserved.
 //
-#include "ger_fs.h"
+#include <ger_fs.h>
 #include <ap_fs.h>
 #include <counter.h>
 #include <errno.h>
@@ -156,6 +156,23 @@ static int ger_rmdir(struct ap_inode_indicator *indc)
     struct ap_inode *ind = indc->cur_inode;
     struct ger_stem_node *stem = ind->x_object; //类型检查??
    
+    pthread_mutex_lock(&stem->ch_lock);
+    if (!list_empty(&stem->children)) {
+        pthread_mutex_unlock(&stem->ch_lock);
+        errno = EBUSY;
+        return -1;
+    }
+    
+    pthread_mutex_lock(&stem->stem_inuse.counter_lock);
+    if (stem->stem_inuse.in_use > 0) {
+        pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
+        pthread_mutex_unlock(&stem->ch_lock);
+        errno = EBUSY;
+        return -1;
+    }
+    list_del(&stem->child);
+    pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
+    pthread_mutex_unlock(&stem->ch_lock);
     if (stem->si_ops == NULL || stem->si_ops->stem_rmdir == NULL) {
         errno = EPERM;
         return -1;
@@ -271,6 +288,7 @@ void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem)
     list_add(&stem->child, &par->children);
     pthread_mutex_unlock(&par->ch_lock);
 }
+
 
 int init_fs_ger()
 {

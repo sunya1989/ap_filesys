@@ -15,9 +15,9 @@ struct ap_inode_indicator;
 struct ap_inode{
 	char *name;
 	int is_dir;
-    int is_mount_point;
+    int is_mount_point,is_gate;
     
-    struct ap_inode *real_inode; //point to the real entry of a mountpoint
+    struct ap_inode *real_inode; //point to the real entry
     struct ap_inode *mount_inode;
     struct ap_inode *parent;
     
@@ -51,9 +51,10 @@ struct ap_inode_operations{
 static inline int AP_INODE_INIT(struct ap_inode *inode)
 {
     inode->name = NULL;
-    inode->is_dir = inode->is_mount_point = 0;
+    inode->is_dir = inode->is_mount_point = inode->is_gate = 0;
     
-    inode->real_inode = inode->mount_inode = inode->parent = inode->prev_mpoints = NULL;
+    inode->mount_inode = inode->parent = inode->prev_mpoints = NULL;
+    inode->real_inode = inode;
     inode->links = 0;
     
     COUNTER_INIT(&inode->inode_counter);

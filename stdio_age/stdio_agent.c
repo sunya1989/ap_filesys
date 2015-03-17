@@ -93,22 +93,6 @@ static int stdio_age_unlink(struct ger_stem_node *stem)
 
 static int stdio_age_rmdir(struct ger_stem_node *stem)
 {
-    pthread_mutex_lock(&stem->ch_lock);
-    if (!list_empty(&stem->children)) {
-         pthread_mutex_unlock(&stem->ch_lock);
-         errno = EBUSY;
-         return -1;
-    }
-    
-    pthread_mutex_lock(&stem->stem_inuse.counter_lock);
-    if (stem->stem_inuse.in_use > 0) {
-        pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
-        pthread_mutex_unlock(&stem->ch_lock);
-        errno = EBUSY;
-        return -1;
-    }
-    pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
-    pthread_mutex_unlock(&stem->ch_lock);
     struct std_age_dir *sa_dir = container_of(stem, struct std_age_dir, stem);
     STD_AGE_DIR_FREE(sa_dir);
     return 0;
