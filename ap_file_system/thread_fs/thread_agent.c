@@ -8,6 +8,24 @@
 
 #include <stdio.h>
 #include "thread_agent.h"
+static struct stem_file_operations thr_age_file_operations;
+static struct stem_inode_operations thr_age_inode_operations;
+
+void THREAD_AGE_DIR_INIT(struct thread_age_dir *thr_dir)
+{
+    STEM_INIT(&thr_dir->thr_dir_stem);
+    thr_dir->thr_dir_stem.sf_ops = &thr_age_file_operations;
+    return;
+}
+
+void THREAD_AGE_ATTR_INIT(struct thread_age_attribute *thr_attr)
+{
+    STEM_INIT(&thr_attr->thr_stem);
+    thr_attr->thr_stem.si_ops = &thr_age_inode_operations;
+    thr_attr->x_object = NULL;
+    return;
+}
+
 static ssize_t thread_age_read(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
 {
     struct thread_age_attribute *thr_attr = container_of(stem, struct thread_age_attribute, thr_stem);
@@ -24,4 +42,27 @@ static ssize_t thread_age_write(struct ger_stem_node *stem, char *buf, off_t off
     return n_write;
 }
 
-static 
+static int thread_age_unlink(struct ger_stem_node *stem)
+{
+    struct thread_age_attribute *thr_attr = container_of(stem, struct thread_age_attribute, thr_stem);
+    THREAD_AGE_ATTR_FREE(thr_attr);
+    return 0;
+}
+
+static int thread_age_rmdir(struct ger_stem_node *stem)
+{
+    struct thread_age_dir *thr_dir = container_of(stem, struct thread_age_dir, thr_dir_stem);
+    THREAD_AGE_DIR_FREE(thr_dir);
+    return 0;
+}
+
+static struct stem_file_operations thr_age_file_operations = {
+    .stem_read = thread_age_read,
+    .stem_write = thread_age_write,
+};
+
+static struct stem_inode_operations thr_age_inode_operations = {
+    .stem_rmdir = thread_age_rmdir,
+    .stem_unlink = thread_age_unlink,
+};
+

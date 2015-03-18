@@ -88,7 +88,6 @@ static inline void AP_INODE_FREE(struct ap_inode *inode)
     COUNTER_FREE(&inode->inode_counter);
     free(inode->name);
     free(inode);
-    
 }
 
 static inline struct ap_inode *MALLOC_AP_INODE()

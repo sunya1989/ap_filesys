@@ -146,8 +146,18 @@ static int ger_unlink(struct ap_inode *ind)
         errno = EPERM;
         return -1;
     }
-    o = stem->si_ops->stem_unlink(stem);
+    pthread_mutex_lock(&stem->parent->ch_lock);
+    counter_put(&stem->stem_inuse);
+    if (stem->stem_inuse.in_use != 0) {
+        pthread_mutex_unlock(&stem->parent->ch_lock);
+        errno = EPERM;
+        return -1;
+    }
+    list_del(&stem->child);
+    pthread_mutex_unlock(&stem->parent->ch_lock);
+    counter_put(&stem->stem_inuse);
     ind->x_object = NULL;
+    o = stem->si_ops->stem_unlink(stem);
     return o;
 }
 
@@ -164,7 +174,7 @@ static int ger_rmdir(struct ap_inode_indicator *indc)
     }
     
     pthread_mutex_lock(&stem->stem_inuse.counter_lock);
-    if (stem->stem_inuse.in_use > 0) {
+    if (stem->stem_inuse.in_use > 1) {
         pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
         pthread_mutex_unlock(&stem->ch_lock);
         errno = EBUSY;
@@ -177,7 +187,10 @@ static int ger_rmdir(struct ap_inode_indicator *indc)
         errno = EPERM;
         return -1;
     }
-    return stem->si_ops->stem_rmdir(stem);
+    counter_put(&stem->stem_inuse);
+    ind->x_object = NULL;
+    int o = stem->si_ops->stem_rmdir(stem);
+    return o;
 }
 
 static int ger_mkdir(struct ap_inode_indicator *indc)

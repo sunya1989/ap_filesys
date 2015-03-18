@@ -55,4 +55,18 @@ static inline struct thread_age_attribute *MALLOC_THREAD_AGE_ATTR(struct thread_
     thr_attr->thr_attr_ops = thr_attr_ops;
     return thr_attr;
 }
+
+static inline void THREAD_AGE_ATTR_FREE(struct thread_age_attribute *thr_attr)
+{
+    COUNTER_FREE(&thr_attr->thr_stem.stem_inuse);
+    pthread_mutex_destroy(&thr_attr->thr_stem.ch_lock);
+    free(thr_attr);
+}
+
+static inline void THREAD_AGE_DIR_FREE(struct thread_age_dir *thr_dir)
+{
+    COUNTER_FREE(&thr_dir->thr_dir_stem.stem_inuse);
+    pthread_mutex_destroy(&thr_dir->thr_dir_stem.ch_lock);
+    free(thr_dir);
+}
 #endif

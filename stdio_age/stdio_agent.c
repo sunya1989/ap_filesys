@@ -76,18 +76,8 @@ static int stdio_age_open(struct ger_stem_node *stem, unsigned long flags)
 
 static int stdio_age_unlink(struct ger_stem_node *stem)
 {
-    pthread_mutex_lock(&stem->parent->ch_lock);
-    counter_put(&stem->stem_inuse);
-    if (stem->stem_inuse.in_use != 0) {
-        pthread_mutex_unlock(&stem->parent->ch_lock);
-        errno = EPERM;
-        return -1;
-    }
-    list_del(&stem->child);
-    pthread_mutex_unlock(&stem->parent->ch_lock);
     struct std_age *sa = container_of(stem, struct std_age, stem);
     STD_AGE_FREE(sa);
-    
     return 0;
 }
 
