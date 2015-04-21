@@ -79,10 +79,14 @@ AGAIN:
         pthread_mutex_lock(&cursor_inode->ch_lock);
         list_for_each(_cusor, &cursor_inode->children){
            temp_inode = list_entry(_cusor, struct ap_inode, child);
-            if (strcmp(temp_inode->name, path) == 0) {
-                if (temp_inode->is_mount_point) {
-                    temp_inode = temp_inode->real_inode;
+            if (temp_inode->is_mount_point || temp_inode->is_gate) {
+                if (temp_inode->is_gate) {
+                    ap_inode_get(temp_inode);
+                    start->gate = temp_inode;
                 }
+                temp_inode = temp_inode->real_inode;
+            }
+            if (strcmp(temp_inode->name, path) == 0) {
                 ap_inode_put(start->cur_inode);
                 start->cur_inode = temp_inode;
                 ap_inode_get(start->cur_inode);

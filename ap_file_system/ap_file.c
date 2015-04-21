@@ -443,9 +443,9 @@ int ap_unlik(char *path)
     }
     
     struct ap_inode_indicator *final_indc;
-    struct ap_inode *op_inode;
+    struct ap_inode *op_inode, *gate;
     struct ap_file_pthread *ap_fpthr;
-    int link,is_gate;
+    int link;
     final_indc = MALLOC_INODE_INDICATOR();
     
     ap_fpthr = pthread_getspecific(file_thread_key);
@@ -470,6 +470,18 @@ int ap_unlik(char *path)
         return -1;
     }
     op_inode = final_indc->cur_inode; //op_inode is a inode_gate or a real_inode
+    gate = final_indc->gate;
+    if (gate!=NULL) {
+        pthread_mutex_lock(&gate->parent->ch_lock);
+        ap_inode_put(gate);
+        if (gate->inode_counter.in_use != 0) {
+            pthread_mutex_unlock(&gate->parent->ch_lock);
+            errno = EPERM;
+            return -1;
+        }
+        list_del(&gate->child);
+        pthread_mutex_unlock(&gate->parent->ch_lock);
+    }
     
     pthread_mutex_lock(&op_inode->parent->ch_lock); //因为父目录不为空所以不会被删除
     ap_inode_put(op_inode);
@@ -478,14 +490,12 @@ int ap_unlik(char *path)
         errno = EPERM;
         return -1;
     }
-    list_del(&op_inode->child);
     pthread_mutex_unlock(&op_inode->parent->ch_lock);
     pthread_mutex_lock(&op_inode->data_lock);
     link = op_inode->links--;
     pthread_mutex_unlock(&op_inode->data_lock);
     
     int o = 0;
-    is_gate = op_inode->is_gate;
     
     if (link == 0) {
         if (op_inode->i_ops->unlink != NULL) {
@@ -495,10 +505,10 @@ int ap_unlik(char *path)
                 o = -1;
             }
         }
-        AP_INODE_FREE(op_inode->real_inode);
-    }
-    if (is_gate) {
         AP_INODE_FREE(op_inode);
+    }
+    if (gate) {
+        AP_INODE_FREE(gate);
     }
     return o;
 }

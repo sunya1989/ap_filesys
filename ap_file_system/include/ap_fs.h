@@ -124,6 +124,7 @@ struct ap_inode_indicator{
     char *the_name;
     enum indic_path_state p_state;
     struct ap_inode *par;
+    struct ap_inode *gate;
 	struct ap_inode *cur_inode;
 };
 
@@ -133,7 +134,8 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
     indc->path = NULL;
     indc->cur_inode = NULL;
     indc->par = NULL;
-    indc ->the_name = NULL;
+    indc->the_name = NULL;
+    indc->gate = NULL;
 }
 
 static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *ind)
@@ -273,6 +275,5 @@ extern int register_fsyst(struct ap_file_system_type *fsyst);
 extern int walk_path(struct ap_inode_indicator *start);
 extern void inode_add_child(struct ap_inode *parent, struct ap_inode *child);
 extern struct ap_file_system_type *find_filesystem(char *fsn);
-
 #endif
 
