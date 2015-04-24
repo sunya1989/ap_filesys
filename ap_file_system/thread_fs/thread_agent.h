@@ -6,8 +6,8 @@
 //  Copyright (c) 2015年 sunya. All rights reserved.
 //
 
-#ifndef ap_editor_thread_age_h
-#define ap_editor_thread_age_h
+#ifndef ap_file_system_thread_age_h
+#define ap_file_system_thread_age_h
 
 #include <ger_fs.h>
 #include <pthread.h>

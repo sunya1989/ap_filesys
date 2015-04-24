@@ -236,7 +236,7 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     
     if (!get) {
         //由于在还有子目录的情况下是不会释放结构的并且parent是本地变量 所以这里无需增加引用计数器
-         parent = par_indic->cur_inode->parent;
+        parent = par_indic->cur_inode->parent;
     }else{
         parent = par_indic->cur_inode;
     }
@@ -497,7 +497,7 @@ int ap_unlik(char *path)
     
     int o = 0;
     
-    if (link == 0) {
+    if (link == 0) {     //已经没有其它目录链接此文件
         if (op_inode->i_ops->unlink != NULL) {
             int unlik_s = op_inode->i_ops->unlink(op_inode);
             if (unlik_s == -1) {

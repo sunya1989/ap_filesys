@@ -122,6 +122,7 @@ struct ap_inode_indicator{
 	char *path;
     int slash_remain;
     char *the_name;
+    char *cur_slash;
     enum indic_path_state p_state;
     struct ap_inode *par;
     struct ap_inode *gate;
