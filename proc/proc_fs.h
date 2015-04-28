@@ -11,8 +11,10 @@
 #include <ap_ipc.h>
 #define AP_PROC_FILE "/var/lock/ap_procs"
 #define MY_DATA_LEN 2048
+#define AP_PNOEXIST 0
+
 struct ap_ipc_info{
-    key_t key;
+    int msgid;
 };
 
 typedef enum op_type{
@@ -24,8 +26,10 @@ typedef enum op_type{
 struct ap_msgbuf{
     long mtype;
     op_type_t op_type;
+    key_t key;
+    int len_t;
     int data_len;
-    unsigned long sqe;
+    unsigned long ch_n;
     char mchar[MY_DATA_LEN];
 };
 

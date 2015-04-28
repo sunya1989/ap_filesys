@@ -9,8 +9,10 @@
 #ifndef ap_file_system_ap_ipc_h
 #define ap_file_system_ap_ipc_h
 
-#define AP_IPC_PATH "/tmp/ap_procs/%ld"
+#define AP_IPC_PATH_CIL "/tmp/ap_procs/%ld_0"
+#define AP_IPC_PATH_SER "/tmp/ap_procs/%ld_1"
 #define AP_IPC_PATH_LEN 512
+
 
 /* our record locking macros */
 #define	read_lock(fd, offset, whence, len) \
