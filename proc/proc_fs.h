@@ -21,16 +21,24 @@ typedef enum op_type{
     g = 0,
     w,
     r,
+    o,
 }op_type_t;
 
 struct ap_msgbuf{
     long mtype;
     op_type_t op_type;
     key_t key;
-    int len_t;
+    size_t len_t;
     int data_len;
     unsigned long ch_n;
+    
     char mchar[MY_DATA_LEN];
+};
+
+struct ap_msgreply{
+    int re_type;
+    errno_t err;
+    char re_struct[1];
 };
 
 #endif

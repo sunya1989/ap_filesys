@@ -18,4 +18,15 @@ static inline void *Malloc(size_t size)
     return buf;
 }
 
+static inline int Msgget(key_t key, int flag)
+{
+    int msgget_s = msgget(key, flag);
+    if (msgget_s == -1) {
+        perror("msgget faild\n");
+        exit(1);
+    }
+    return msgget_s;
+}
+
+
 #endif

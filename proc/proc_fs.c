@@ -15,6 +15,9 @@
 #include <pthread.h>
 #include <sys/msg.h>
 #include <envelop.h>
+#include <ap_file.h>
+#include <ap_pthread.h>
+#include <errno.h>
 #include "proc_fs.h"
 #define IPC_PATH 0
 #define PROC_NAME 1
@@ -72,7 +75,7 @@ static ssize_t ap_msgrcv(int msgid, char **d_buf, unsigned long wait_seq)
             exit(1);
         }
         if (dl == -1) {
-            rv = dl = buf.len_t;
+            rv = dl = (int)buf.len_t;
             if (dl == 0) {
                 goto FINISH;
             }
@@ -89,30 +92,48 @@ FINISH:
     return rv;
 }
 
-static int ap_msgsnd(int msgid, const void *buf, size_t len, int flag, unsigned long ch_n)
+static int ap_msgsnd(key_t key, const void *buf, size_t len, unsigned long ch_n)
 {
     const char *c_p = buf;
     size_t dl = len;
     int msgsnd_s;
     struct ap_msgbuf msg_buf;
-    
+    int msgid = Msgget(key, IPC_W);
+    msg_buf.mtype = ch_n;
+    msg_buf.len_t = len;
     while (dl > 0) {
-        
+        memcpy(msg_buf.mchar, c_p, MSG_LEN);
+        msg_buf.data_len = dl< MSG_LEN ? (int)dl : MSG_LEN;
         msgsnd_s = msgsnd(msgid, c_p, MSG_LEN, 0);
         if (msgsnd_s == -1) {
             perror("msgsnd failed\n");
             exit(1);
         }
+        
         dl -= MSG_LEN;
         if (dl>0) {
-            c_p += MSG_LEN - 1;
+            c_p += MSG_LEN;
         }
     }
+    return 0;
 }
 
-static void client_g(int msgid, struct ap_msgbuf *buf, unsigned long ch_n)
+static void client_g(struct ap_msgbuf *buf, unsigned long ch_n)
 {
+    struct ap_inode_indicator *indic;
+    char *path = buf->mchar;
+    *(path + buf->data_len) = '\0';
+    struct ap_msgreply re;
     
+    indic = MALLOC_INODE_INDICATOR();
+    struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
+    int set = initial_indicator(path, indic, ap_fpthr);
+    if (set == -1) {
+        re.err = EINVAL;
+        re.re_type = -1;
+        ap_msgsnd(buf->key, &re, sizeof(re), buf->ch_n);
+        return;
+    }
 }
 
 
@@ -123,13 +144,14 @@ void *ap_proc_sever(void *arg)
     struct ap_msgbuf buf;
     unsigned long ch_n;
     op_type_t type;
+    ap_file_thread_init();
     while (1) {
         recv_s = msgrcv(*msgid, &buf, MSG_LEN, 0, 0);
         type = buf.op_type;
         ch_n = buf.ch_n;
         switch (type) {
             case g:
-                client_g(*msgid, &buf, ch_n);
+                client_g(&buf, ch_n);
                 break;
             case w:
                 break;
@@ -165,11 +187,7 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
     for (int i=0; i<2; i++) {
         snprintf(ipc_path, AP_IPC_PATH_LEN, "/tmp/ap_procs/%ld_%d",(long)pid,i);
         key[i] = ap_ftok(pid,ipc_path);
-        msgid[i] = msgget(key[i], IPC_CREAT);
-        if (msgid[i] == -1) {
-            perror("msgget error");
-            exit(1);
-        }
+        msgid[i] = Msgget(key[i], IPC_CREAT);
     }
     
     main_msid = msgid[1];
@@ -302,6 +320,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     info = (struct ap_ipc_info *)indc->cur_inode->x_object;
     
     str_len = strlen(indc->the_name);
+    buf.len_t = str_len;
     buf.data_len = (int)str_len;
     buf.mtype = g;
     buf.op_type = g;

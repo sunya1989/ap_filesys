@@ -55,7 +55,7 @@ static char *regular_path(char *path, int *slash_no)
 }
 
 
-static int initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
+static int __initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
 {
     int slash_no;
     
@@ -95,10 +95,18 @@ static int initial_indicator(char *path, struct ap_inode_indicator *ind, struct 
     ap_inode_get(ind->cur_inode);
     return 0;
 }
+
+int initial_indicator(char *path,
+                      struct ap_inode_indicator *ind,
+                      struct ap_file_pthread *ap_fpthr)
+{
+     return __initial_indicator(path, ind, ap_fpthr);
+}
+
 #ifdef DEBUG
 int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
 {
-    return initial_indicator(path, ind, ap_fpthr);
+    return __initial_indicator(path, ind, ap_fpthr);
 }
 extern void deug_regular_path(char *path, int *slash_no)
 {
@@ -129,7 +137,7 @@ int ap_open(char *path, int flags)
         exit(1);
     }
     
-   int set = initial_indicator(path, final_inode, ap_fpthr);
+   int set = __initial_indicator(path, final_inode, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         return -1;
@@ -225,7 +233,7 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         name = "/";
         get = 0;
     }else{
-        initial_indicator(path, par_indic, ap_fpthr);
+        __initial_indicator(path, par_indic, ap_fpthr);
         get = walk_path(par_indic);
     }
     
@@ -400,7 +408,7 @@ int ap_mkdir(char *path, unsigned long mode)
         exit(1);
     }
     
-    int set = initial_indicator(path, par_indic, ap_fpthr);
+    int set = __initial_indicator(path, par_indic, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         return -1;
@@ -454,7 +462,7 @@ int ap_unlik(char *path)
         exit(1);
     }
     
-    int set = initial_indicator(path, final_indc, ap_fpthr);
+    int set = __initial_indicator(path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         return -1;
@@ -533,7 +541,7 @@ int ap_link(char *l_path, char *t_path)
         exit(1);
     }
     
-    int set = initial_indicator(l_path, final_indc, ap_fpthr);
+    int set = __initial_indicator(l_path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         return -1;
@@ -559,7 +567,7 @@ int ap_link(char *l_path, char *t_path)
     ap_inode_put(final_indc->cur_inode);
     final_indc->cur_inode = NULL;
     
-    set = initial_indicator(t_path, final_indc, ap_fpthr);
+    set = __initial_indicator(t_path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         return -1;
@@ -621,7 +629,7 @@ int ap_rmdir(char *path)
         exit(1);
     }
     
-    int set = initial_indicator(path, final_indc, ap_fpthr);
+    int set = __initial_indicator(path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         return -1;

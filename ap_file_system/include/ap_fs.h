@@ -269,12 +269,15 @@ static inline void add_inodes_to_fsys(struct ap_file_system_type *fsyst, struct 
     list_add(&ind->inodes, &fsyst->i_inodes);
     pthread_mutex_unlock(&fsyst->inode_lock);
 }
+struct ap_file_pthread;
 
 extern struct ap_file_systems f_systems;
-
 extern int register_fsyst(struct ap_file_system_type *fsyst);
 extern int walk_path(struct ap_inode_indicator *start);
 extern void inode_add_child(struct ap_inode *parent, struct ap_inode *child);
 extern struct ap_file_system_type *find_filesystem(char *fsn);
+extern int initial_indicator(char *path,
+                             struct ap_inode_indicator *ind,
+                             struct ap_file_pthread *ap_fpthr);
 #endif
 
