@@ -14,7 +14,7 @@
 #define AP_PNOEXIST 0
 
 struct ap_ipc_info{
-    int msgid;
+    key_t key;
 };
 
 typedef enum op_type{
@@ -22,23 +22,26 @@ typedef enum op_type{
     w,
     r,
     o,
+    lock_op,
 }op_type_t;
 
 struct ap_msgbuf{
     long mtype;
     op_type_t op_type;
     key_t key;
+    
     size_t len_t;
     int data_len;
-    unsigned long ch_n;
     
+    unsigned long ch_n;
     char mchar[MY_DATA_LEN];
 };
 
 struct ap_msgreply{
     int re_type;
     errno_t err;
-    char re_struct[1];
+    int struct_l;
+    char re_struct[0];
 };
 
 #endif

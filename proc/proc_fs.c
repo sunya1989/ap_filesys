@@ -18,6 +18,10 @@
 #include <ap_file.h>
 #include <ap_pthread.h>
 #include <errno.h>
+#include <ap_hash.h>
+#include <stdlib.h>
+#include <list.h>
+#include <convert.h>
 #include "proc_fs.h"
 #define IPC_PATH 0
 #define PROC_NAME 1
@@ -25,6 +29,8 @@
 #define MSG_LEN (sizeof(struct ap_msgbuf) - sizeof(long))
 static int main_msid;
 static key_t main_key;
+
+struct ipc_locker_hash ipc_lock_table;
 
 pthread_mutex_t channel_lock = PTHREAD_MUTEX_INITIALIZER;
 unsigned long channel_n;
@@ -131,9 +137,11 @@ static void client_g(struct ap_msgbuf *buf, unsigned long ch_n)
     if (set == -1) {
         re.err = EINVAL;
         re.re_type = -1;
+        re.struct_l = 0;
         ap_msgsnd(buf->key, &re, sizeof(re), buf->ch_n);
         return;
     }
+    struct ap_msgreply *re_m = Malloc(sizeof(*re_m) + sizeof(*indic));
 }
 
 
@@ -314,6 +322,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     size_t str_len;
     struct ap_msgbuf buf;
     unsigned long ch_n;
+    int msgid;
     
     struct ap_ipc_info *info;
     *indc->cur_slash = '/';
@@ -333,7 +342,8 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     pthread_mutex_unlock(&channel_lock);
     strncpy(buf.mchar, indc->the_name, str_len);
     
-    int sent_s = msgsnd(info->msgid, &buf, MSG_LEN, 0);
+    msgid = Msgget(info->key, 0);//不要用包裹函数
+    int sent_s = msgsnd(msgid, &buf, MSG_LEN, 0);
     if (sent_s == -1) {
         perror("msgsent failed\n");
         exit(1);
@@ -347,6 +357,34 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     return 0;
 }
 
+void ipc_lock_hash_insert(struct lock_holder *hl)
+{
+    unsigned hash;
+    char *hasf_str;
+    char str_arr[32];
+    char *str = ultoa(hl->ide.ide_i, str_arr, 10);
+    if (hl->ide.ide_c == NULL) {
+        hasf_str = str;
+    }else{
+        size_t strl = strlen(str) + strlen(hl->ide.ide_c);
+        char *join = Malloc(strl);
+        strcpy(join, str);
+        strcat(join, hl->ide.ide_c);
+        hasf_str = join;
+    }
+    hash = BKDRHash(hasf_str);
+    hash = hash % AP_IPC_LOCK_HASH_LEN;
+    
+    pthread_mutex_t *lock = &ipc_lock_table.hash_table[hash].table_lock;
+    pthread_mutex_lock(lock);
+    if (ipc_lock_table.hash_table[hash].holder == NULL) {
+        ipc_lock_table.hash_table[hash].holder = hl;
+    }else{
+        list_add(&ipc_lock_table.hash_table[hash].holder->hash_lis, &hl->hash_lis);
+    }
+    pthread_mutex_unlock(lock);
+
+}
 
 
 
