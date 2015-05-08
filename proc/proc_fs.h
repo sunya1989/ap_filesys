@@ -15,6 +15,7 @@
 
 struct ap_ipc_info{
     key_t key;
+    struct ipc_inode_hash inde_hash_table;
 };
 
 typedef enum op_type{
@@ -25,13 +26,21 @@ typedef enum op_type{
     lock_op,
 }op_type_t;
 
+struct ap_msgreq_type{
+    op_type_t op_type;
+    size_t read_len;
+    size_t wirte_len;
+    off_t off_size;
+};
+
 struct ap_msgbuf{
     long mtype;
-    op_type_t op_type;
+    struct ap_msgreq_type req_t;
     key_t key;
+    pid_t pid;
     
-    size_t len_t;
-    int data_len;
+    size_t len_t; //the lenth of whole message
+    int data_len; //the lenth of single segment
     
     unsigned long ch_n;
     char mchar[MY_DATA_LEN];

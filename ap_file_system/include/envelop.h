@@ -8,7 +8,8 @@
 
 #ifndef ap_file_system_envelop_h
 #define ap_file_system_envelop_h
-static inline void *Malloc(size_t size)
+
+static inline void *Mallocx(size_t size)
 {
     char *buf = malloc(size);
     if (buf == NULL) {

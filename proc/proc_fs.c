@@ -23,6 +23,7 @@
 #include <list.h>
 #include <convert.h>
 #include "proc_fs.h"
+
 #define IPC_PATH 0
 #define PROC_NAME 1
 #define IPC_KEY 2
@@ -49,7 +50,6 @@ static int ap_ipc_kick_start(int fd, char *path, size_t len)
     Un_lock(fd, curoff, SEEK_SET, len);
     return 1;
 }
-
 
 static key_t ap_ftok(pid_t pid, char *ipc_path)
 {
@@ -85,7 +85,7 @@ static ssize_t ap_msgrcv(int msgid, char **d_buf, unsigned long wait_seq)
             if (dl == 0) {
                 goto FINISH;
             }
-            *d_buf = Malloc(dl);
+            *d_buf = Mallocx(dl);
             c_p = *d_buf;
         }
         data_l = buf.data_len;
@@ -104,21 +104,22 @@ static int ap_msgsnd(key_t key, const void *buf, size_t len, unsigned long ch_n)
     size_t dl = len;
     int msgsnd_s;
     struct ap_msgbuf msg_buf;
+    
     int msgid = Msgget(key, IPC_W);
     msg_buf.mtype = ch_n;
     msg_buf.len_t = len;
     while (dl > 0) {
-        memcpy(msg_buf.mchar, c_p, MSG_LEN);
-        msg_buf.data_len = dl< MSG_LEN ? (int)dl : MSG_LEN;
-        msgsnd_s = msgsnd(msgid, c_p, MSG_LEN, 0);
+        memcpy(msg_buf.mchar, c_p, MY_DATA_LEN);
+        msg_buf.data_len = dl< MY_DATA_LEN ? (int)dl : MY_DATA_LEN;
+        msgsnd_s = msgsnd(msgid, c_p, MY_DATA_LEN, 0);
         if (msgsnd_s == -1) {
             perror("msgsnd failed\n");
             exit(1);
         }
         
-        dl -= MSG_LEN;
+        dl -= MY_DATA_LEN;
         if (dl>0) {
-            c_p += MSG_LEN;
+            c_p += MY_DATA_LEN;
         }
     }
     return 0;
@@ -130,6 +131,7 @@ static void client_g(struct ap_msgbuf *buf, unsigned long ch_n)
     char *path = buf->mchar;
     *(path + buf->data_len) = '\0';
     struct ap_msgreply re;
+    struct holder *hl;
     
     indic = MALLOC_INODE_INDICATOR();
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
@@ -141,9 +143,35 @@ static void client_g(struct ap_msgbuf *buf, unsigned long ch_n)
         ap_msgsnd(buf->key, &re, sizeof(re), buf->ch_n);
         return;
     }
-    struct ap_msgreply *re_m = Malloc(sizeof(*re_m) + sizeof(*indic));
+    
+    struct ap_msgreply *re_m = Mallocx(sizeof(*re_m) + sizeof(*indic));
+    int get = walk_path(indic);
+    
+    re_m->re_type = get;
+    re_m->struct_l = 1;
+    re_m->err = errno;
+    
+    if (!get) {
+        hl = MALLOC_HOLDER();
+        char *ide_c = Mallocx(buf->data_len);
+        strncpy(ide_c, path, buf->data_len);
+        hl->ide.ide_c = ide_c;
+        hl->ide.ide_i = buf->pid;
+        hl->ipc_get = inode_ipc_get;
+        hl->ipc_put = inode_ipc_put;
+        hl->x_object = indic->cur_inode;
+        ipc_holder_hash_insert(hl);
+    }
+    
+    *(struct ap_inode_indicator*)re_m->re_struct = *indic;
+    ap_msgsnd(buf->key, re_m, sizeof(*re_m), buf->ch_n);
+    return;
 }
 
+static void client_r(struct ap_msgbuf *buf, unsigned long ch_n)
+{
+    
+}
 
 void *ap_proc_sever(void *arg)
 {
@@ -155,7 +183,7 @@ void *ap_proc_sever(void *arg)
     ap_file_thread_init();
     while (1) {
         recv_s = msgrcv(*msgid, &buf, MSG_LEN, 0, 0);
-        type = buf.op_type;
+        type = buf.req_t.op_type;
         ch_n = buf.ch_n;
         switch (type) {
             case g:
@@ -317,12 +345,15 @@ static int proc_get_inode(struct ap_inode_indicator *indc)
     }
 }
 
+
 static int get_proc_inode(struct ap_inode_indicator *indc)
 {
     size_t str_len;
     struct ap_msgbuf buf;
     unsigned long ch_n;
     int msgid;
+    char *msg_buf;
+    struct ap_inode *cur_ind;
     
     struct ap_ipc_info *info;
     *indc->cur_slash = '/';
@@ -332,7 +363,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     buf.len_t = str_len;
     buf.data_len = (int)str_len;
     buf.mtype = g;
-    buf.op_type = g;
+    buf.req_t.op_type = g;
     bzero(buf.mchar, MY_DATA_LEN);
     pthread_mutex_lock(&channel_lock);
     ch_n = channel_n;
@@ -345,46 +376,31 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     msgid = Msgget(info->key, 0);//不要用包裹函数
     int sent_s = msgsnd(msgid, &buf, MSG_LEN, 0);
     if (sent_s == -1) {
-        perror("msgsent failed\n");
-        exit(1);
+        errno = ENOENT;
+        return -1;
     }
-    ssize_t recv_s = msgrcv(main_msid, &buf, MSG_LEN, ch_n, 0);
+    ssize_t recv_s = ap_msgrcv(main_msid, &msg_buf, ch_n);
     if (recv_s == -1) {
-        perror("msgrcv failed\n");
-        exit(1);
+        errno = ENOENT;
+        return -1;
     }
     //initialize inode
+    struct ap_msgreply *msgre = (struct ap_msgreply *)msg_buf;
+    if (!msgre->struct_l) {
+        *indc = *(struct ap_inode_indicator*)msgre->re_struct;
+    }
+    if (msgre->re_type != 0) {
+        errno = msgre->err;
+        return -1;
+    }
+    
+    cur_ind = MALLOC_AP_INODE();
+    
     return 0;
 }
 
-void ipc_lock_hash_insert(struct lock_holder *hl)
-{
-    unsigned hash;
-    char *hasf_str;
-    char str_arr[32];
-    char *str = ultoa(hl->ide.ide_i, str_arr, 10);
-    if (hl->ide.ide_c == NULL) {
-        hasf_str = str;
-    }else{
-        size_t strl = strlen(str) + strlen(hl->ide.ide_c);
-        char *join = Malloc(strl);
-        strcpy(join, str);
-        strcat(join, hl->ide.ide_c);
-        hasf_str = join;
-    }
-    hash = BKDRHash(hasf_str);
-    hash = hash % AP_IPC_LOCK_HASH_LEN;
-    
-    pthread_mutex_t *lock = &ipc_lock_table.hash_table[hash].table_lock;
-    pthread_mutex_lock(lock);
-    if (ipc_lock_table.hash_table[hash].holder == NULL) {
-        ipc_lock_table.hash_table[hash].holder = hl;
-    }else{
-        list_add(&ipc_lock_table.hash_table[hash].holder->hash_lis, &hl->hash_lis);
-    }
-    pthread_mutex_unlock(lock);
 
-}
+
 
 
 

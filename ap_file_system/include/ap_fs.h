@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "counter.h"
 #include "list.h"
+#include "ap_hash.h"
 
 #define _OPEN_MAX 1024
 struct ap_inode_operations;
@@ -33,6 +34,8 @@ struct ap_inode{
     pthread_mutex_t ch_lock;
     struct list_head children;
     struct list_head child;
+    
+    struct ipc_hash_uion ipc_path_hash;
     
     struct ap_inode *prev_mpoints;
 	struct ap_file_operations *f_ops;
@@ -63,6 +66,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     INIT_LIST_HEAD(&inode->inodes);
     INIT_LIST_HEAD(&inode->child);
     INIT_LIST_HEAD(&inode->children);
+    INITIALIZE_IPC_HASH_UNION(&inode->ipc_path_hash);
     
     int init = pthread_mutex_init(&inode->ch_lock, NULL);
     if (init != 0) {
@@ -279,5 +283,7 @@ extern struct ap_file_system_type *find_filesystem(char *fsn);
 extern int initial_indicator(char *path,
                              struct ap_inode_indicator *ind,
                              struct ap_file_pthread *ap_fpthr);
+extern void inode_ipc_get(void *ind);
+extern void inode_ipc_put(void *ind);
 #endif
 

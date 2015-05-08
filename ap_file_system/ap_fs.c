@@ -168,3 +168,17 @@ int register_fsyst(struct ap_file_system_type *fsyst)
     return 0;
 }
 
+void inode_ipc_get(void *ind)
+{
+    struct ap_inode *inode = (struct ap_inode *)ind;
+    ap_inode_get(inode);
+    return;
+}
+
+void inode_ipc_put(void *ind)
+{
+    struct ap_inode *inode = (struct ap_inode *)ind;
+    ap_inode_put(inode);
+    return;
+}
+
