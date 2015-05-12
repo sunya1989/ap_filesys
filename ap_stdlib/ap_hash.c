@@ -10,7 +10,7 @@
 #include <ap_hash.h>
 #include <string.h>
 
-static unsigned ipc_get_hash_n(struct ipc_identity *ide)
+static unsigned ipc_get_hash_n(struct hash_identity *ide)
 {
     unsigned hash;
     char *hasf_str;
@@ -34,30 +34,22 @@ void ipc_holer_hash_insert(struct holder *hl)
 {
     unsigned hash = ipc_get_hash_n(&hl->ide);
     hl->hash_n = hash;
-    pthread_mutex_t *lock = &ipc_lock_table.hash_table[hash].table_lock;
+    pthread_mutex_t *lock = &ipc_hold_table.hash_table[hash].table_lock;
     pthread_mutex_lock(lock);
-    if (list_empty(&ipc_lock_table.hash_table[hash].holder)) {
-        list_add(&hl->hash_lis, &ipc_lock_table.hash_table[hash].holder);
-    }else{
-        list_add(&ipc_lock_table.hash_table[hash].holder, &hl->hash_lis);
-    }
+    list_add(&hl->hash_lis, &ipc_hold_table.hash_table->holder);
     pthread_mutex_unlock(lock);
     return;
 }
 
-struct holder *ipc_holder_hash_get(struct ipc_identity ide)
+struct holder *ipc_holder_hash_get(struct hash_identity ide)
 {
     unsigned hash = ipc_get_hash_n(&ide);
     struct list_head *hl_indx;
     struct list_head *pos;
     struct holder *hl;
-    pthread_mutex_t *lock = &ipc_lock_table.hash_table[hash].table_lock;
+    pthread_mutex_t *lock = &ipc_hold_table.hash_table[hash].table_lock;
     pthread_mutex_lock(lock);
-    hl_indx = &ipc_lock_table.hash_table[hash].holder;
-    if (hl_indx == NULL) {
-        pthread_mutex_unlock(lock);
-        return NULL;
-    }
+    hl_indx = &ipc_hold_table.hash_table[hash].holder;
     list_for_each(pos, hl_indx){
         hl = list_entry(pos, struct holder, hash_lis);
         if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 && hl->ide.ide_i == ide.ide_i) {
@@ -66,35 +58,47 @@ struct holder *ipc_holder_hash_get(struct ipc_identity ide)
             return hl;
         }
     }
+    pthread_mutex_unlock(lock);
     return NULL;
 }
 
-void ipc_uinon_insert(struct ipc_hash_uion *un)
+void hash_uinon_insert(struct ap_hash *table, struct hash_uion *un)
 {
-    
+    unsigned hash_n = ipc_get_hash_n(&un->ide);
+    if (hash_n > table->size) {
+        printf("hash table size erro\n");
+        exit(1);
+    }
+    pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
+    pthread_mutex_lock(lock);
+    list_add(&un->union_lis, &table->hash_table[hash_n].hash_union_entry);
+    pthread_mutex_unlock(lock);
+    return;
 }
 
-struct ipc_hash_uion *ipc_uinon_get(struct ipc_hash *table, struct ipc_identity ide)
+struct hash_uion *hash_uinon_get(struct ap_hash *table, struct hash_identity ide)
 {
     unsigned hash_n = ipc_get_hash_n(&ide);
+    if (hash_n > table->size) {
+        printf("hash table size erro\n");
+        exit(1);
+    }
+
     struct list_head *pos;
-    struct ipc_hash_uion *un;
+    struct list_head *un;
+    struct hash_uion *hun;
     
     pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
     pthread_mutex_lock(lock);
-    un = table->hash_table[hash_n].hash_union;
-    if (un == NULL) {
-        pthread_mutex_unlock(lock);
-        return NULL;
-    }
-    list_for_each(pos, &un->union_lis){
-        un = list_entry(pos, struct ipc_hash_uion, union_lis);
-        if (strcmp(un->ide.ide_c, ide.ide_c) == 0 && un->ide.ide_i == ide.ide_i) {
+    un = &table->hash_table[hash_n].hash_union_entry;
+    list_for_each(pos, un){
+        hun = list_entry(pos, struct hash_uion, union_lis);
+        if (strcmp(hun->ide.ide_c, ide.ide_c) == 0 && hun->ide.ide_i == ide.ide_i) {
             pthread_mutex_unlock(lock);
-            return un;
+            return hun;
         }
     }
-
+    pthread_mutex_unlock(lock);
     return NULL;
 }
 

@@ -49,4 +49,9 @@ Lock_test(fd, F_WRLCK, offset, whence, len)
 int lock_reg(int, int, int, off_t, int, off_t);
 void Lock_reg(int, int, int, off_t, int, off_t);
 
+struct ipc_sock{
+    char *sever_name;
+    key_t key;
+};
+
 #endif

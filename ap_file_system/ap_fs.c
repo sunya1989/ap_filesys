@@ -32,6 +32,7 @@ int walk_path(struct ap_inode_indicator *start)
     char *temp_path;
     char *path_end;
 	char *path = start->path;
+    int get;
     
     size_t str_len = strlen(path);
     //当strlen为零时认为寻找的是当前工作目录 所以返回 0
@@ -106,10 +107,18 @@ AGAIN:
                 goto AGAIN;
             }
         }
-        int get = cursor_inode->i_ops->get_inode(start);
+        if(cursor_inode->i_ops->find_inode != NULL){
+            get = cursor_inode->i_ops->find_inode(start);
+            if (!get) {
+                return 0;
+            }
+            return -1;
+        }
+        
+        get = cursor_inode->i_ops->get_inode(start);
         if (get) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            if (start->cur_slash == path_end) {
+            if (start->slash_remain == 0) {
                 start->p_state = stop_in_par;
             }else{
                 start->p_state = stop_in_ance;

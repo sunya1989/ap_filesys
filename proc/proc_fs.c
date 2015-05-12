@@ -31,7 +31,7 @@
 static int main_msid;
 static key_t main_key;
 
-struct ipc_locker_hash ipc_lock_table;
+struct ipc_holder_hash ipc_lock_table;
 
 pthread_mutex_t channel_lock = PTHREAD_MUTEX_INITIALIZER;
 unsigned long channel_n;
@@ -132,6 +132,7 @@ static void client_g(struct ap_msgbuf *buf, unsigned long ch_n)
     *(path + buf->data_len) = '\0';
     struct ap_msgreply re;
     struct holder *hl;
+    struct ap_inode_indicator *strc_cp;
     
     indic = MALLOC_INODE_INDICATOR();
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
@@ -144,12 +145,13 @@ static void client_g(struct ap_msgbuf *buf, unsigned long ch_n)
         return;
     }
     
-    struct ap_msgreply *re_m = Mallocx(sizeof(*re_m) + sizeof(*indic));
+    struct ap_msgreply *re_m = Mallocx(sizeof(*re_m) + sizeof(*indic) + sizeof(struct ap_inode));
     int get = walk_path(indic);
     
     re_m->re_type = get;
     re_m->struct_l = 1;
     re_m->err = errno;
+    strc_cp = (struct ap_inode_indicator*)re_m->re_struct;
     
     if (!get) {
         hl = MALLOC_HOLDER();
@@ -161,10 +163,11 @@ static void client_g(struct ap_msgbuf *buf, unsigned long ch_n)
         hl->ipc_put = inode_ipc_put;
         hl->x_object = indic->cur_inode;
         ipc_holder_hash_insert(hl);
+        *((struct ap_inode *)(strc_cp + 1)) = *indic->cur_inode;
     }
     
-    *(struct ap_inode_indicator*)re_m->re_struct = *indic;
-    ap_msgsnd(buf->key, re_m, sizeof(*re_m), buf->ch_n);
+    *strc_cp = *indic;
+    ap_msgsnd(buf->key, re_m, sizeof(*re_m), buf->ch_n); // sizeof 是否能准确？
     return;
 }
 
@@ -218,7 +221,7 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
         perror("open failed\n");
         exit(1);
     }
-    
+    //key[0]作为服务器端 key[1]作为客户端
     pid = getpid();
     for (int i=0; i<2; i++) {
         snprintf(ipc_path, AP_IPC_PATH_LEN, "/tmp/ap_procs/%ld_%d",(long)pid,i);
@@ -343,6 +346,8 @@ static int proc_get_inode(struct ap_inode_indicator *indc)
     if (cut == NULL) {
         return -1;
     }
+    //initialize inode
+
 }
 
 
@@ -353,7 +358,9 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     unsigned long ch_n;
     int msgid;
     char *msg_buf;
-    struct ap_inode *cur_ind;
+    struct ap_inode *cur_ind, *f_ind;
+    struct ap_inode_indicator *f_indc = NULL;
+    struct ipc_sock *sock;
     
     struct ap_ipc_info *info;
     *indc->cur_slash = '/';
@@ -373,7 +380,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     pthread_mutex_unlock(&channel_lock);
     strncpy(buf.mchar, indc->the_name, str_len);
     
-    msgid = Msgget(info->key, 0);//不要用包裹函数
+    msgid = Msgget(info->sock.key, 0);//不要用包裹函数
     int sent_s = msgsnd(msgid, &buf, MSG_LEN, 0);
     if (sent_s == -1) {
         errno = ENOENT;
@@ -386,17 +393,60 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     }
     //initialize inode
     struct ap_msgreply *msgre = (struct ap_msgreply *)msg_buf;
-    if (!msgre->struct_l) {
-        *indc = *(struct ap_inode_indicator*)msgre->re_struct;
-    }
-    if (msgre->re_type != 0) {
+    if (msgre->re_type != 0 && !msgre->struct_l) {
         errno = msgre->err;
-        return -1;
+        return msgre->re_type;
+    }
+
+    f_indc = (struct ap_inode_indicator*)msgre->re_struct;
+    indc->p_state = f_indc->p_state;
+    if(msgre->re_type){
+        errno = msgre->err;
+        return msgre->re_type;
     }
     
+    f_ind = (struct ap_inode *)(f_indc + 1);
     cur_ind = MALLOC_AP_INODE();
+    cur_ind->is_dir = f_ind->is_dir;
     
-    return 0;
+    sock = Mallocx(sizeof(*sock));
+    *sock = info->sock;
+    cur_ind->x_object = sock;
+    ap_inode_get(cur_ind);
+    
+    return msgre->re_type;
+}
+
+static int find_proc_inode(struct ap_inode_indicator *indc)
+{
+    struct hash_uion *un;
+    struct hash_identity ide;
+    struct ap_ipc_info *info;
+    char *path;
+    size_t strl;
+    int get = 0;
+    
+    *indc->cur_slash = '/';
+    info = (struct ap_ipc_info *)indc->cur_inode->x_object;
+    ide.ide_c = indc->the_name;
+    ide.ide_i = 0;
+    un = hash_uinon_get(info->inde_hash_table, ide);
+    if (un != NULL) {
+        indc->cur_inode = container_of(un, struct ap_inode, ipc_path_hash);
+        return 0;
+    }
+    
+    get = get_proc_inode(indc);
+    
+    strl = strlen(ide.ide_c);
+    path = Mallocx(strl);
+    strncpy(path, ide.ide_c, strl);
+    *(path + strl) = '\0';
+    
+    indc->cur_inode->ipc_path_hash.ide.ide_c = path;
+    indc->cur_inode->ipc_path_hash.ide.ide_i = 0;
+    hash_uinon_insert(info->inde_hash_table, &indc->cur_inode->ipc_path_hash);
+    return get;
 }
 
 

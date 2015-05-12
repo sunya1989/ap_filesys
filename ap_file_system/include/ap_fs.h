@@ -16,7 +16,7 @@ struct ap_inode_indicator;
 struct ap_inode{
 	char *name;
 	int is_dir;
-    int is_mount_point,is_gate;
+    int is_mount_point,is_gate; //是否为挂载点,是否为link点
     
     struct ap_inode *real_inode; //point to the real entry
     struct ap_inode *mount_inode;
@@ -35,7 +35,7 @@ struct ap_inode{
     struct list_head children;
     struct list_head child;
     
-    struct ipc_hash_uion ipc_path_hash;
+    struct hash_uion ipc_path_hash;
     
     struct ap_inode *prev_mpoints;
 	struct ap_file_operations *f_ops;
@@ -44,6 +44,7 @@ struct ap_inode{
 
 struct ap_inode_operations{
     int (*get_inode) (struct ap_inode_indicator *);
+    int (*find_inode) (struct ap_inode_indicator *);
     int (*creat) (struct ap_inode_indicator *);
     int (*rmdir) (struct ap_inode_indicator *);
     int (*mkdir) (struct ap_inode_indicator *);

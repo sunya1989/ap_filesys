@@ -14,8 +14,8 @@
 #define AP_PNOEXIST 0
 
 struct ap_ipc_info{
-    key_t key;
-    struct ipc_inode_hash inde_hash_table;
+    struct ipc_sock sock;
+    struct ap_hash *inde_hash_table;
 };
 
 typedef enum op_type{
