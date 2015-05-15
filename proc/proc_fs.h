@@ -11,6 +11,7 @@
 #include <ap_ipc.h>
 #define AP_PROC_FILE "/var/lock/ap_procs"
 #define MY_DATA_LEN 2048
+#define AP_MSGSEG_LEN (sizeof(struct ap_msgbuf))
 #define AP_PNOEXIST 0
 
 struct ap_ipc_info{
@@ -23,7 +24,7 @@ typedef enum op_type{
     w,
     r,
     o,
-    lock_op,
+    c,
 }op_type_t;
 
 struct ap_msgreq_type{
@@ -33,21 +34,35 @@ struct ap_msgreq_type{
     off_t off_size;
 };
 
-struct ap_msgbuf{
-    long mtype;
+struct ap_msgreq{
     struct ap_msgreq_type req_t;
+    int index_lenth;
+    char req_detail[0];
+};
+
+struct ap_msgbuf{
+    struct ap_msgreq_type req_t;
+    size_t seq;
     key_t key;
     pid_t pid;
     
-    size_t len_t; //the lenth of whole message
-    int data_len; //the lenth of single segment
+    size_t len_t;
+    int data_len;
     
     unsigned long ch_n;
-    char mchar[MY_DATA_LEN];
+    struct ap_msgreq req;
+};
+
+struct ap_msgseg{
+    long mtype;
+    size_t seq;
+    size_t len_t; //the lenth of whole message
+    int data_len; //the lenth of single segment
+    char segc[AP_MSGSEG_LEN];
 };
 
 struct ap_msgreply{
-    int re_type;
+    ssize_t re_type;
     errno_t err;
     int struct_l;
     char re_struct[0];

@@ -8,6 +8,8 @@
 
 #ifndef ap_file_system_envelop_h
 #define ap_file_system_envelop_h
+#include <sys/msg.h>
+#include <string.h>
 
 static inline void *Mallocx(size_t size)
 {
@@ -17,6 +19,18 @@ static inline void *Mallocx(size_t size)
         exit(1);
     }
     return buf;
+}
+
+static inline void *Mallocz(size_t size)
+{
+    char *buf = malloc(size);
+    if (buf == NULL) {
+        perror("malloc failed\n");
+        exit(1);
+    }
+    memset(buf, 0, size);
+    return buf;
+    
 }
 
 static inline int Msgget(key_t key, int flag)

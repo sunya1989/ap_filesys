@@ -30,12 +30,12 @@ struct ap_inode{
 	void *x_object;
 	struct list_head inodes;//把inode链接到文件系统的inode列表
     
-    pthread_mutex_t data_lock;
+    pthread_mutex_t data_lock; //目前用于保护link数据
     pthread_mutex_t ch_lock;
     struct list_head children;
     struct list_head child;
     
-    struct hash_uion ipc_path_hash;
+    struct hash_union ipc_path_hash;
     
     struct ap_inode *prev_mpoints;
 	struct ap_file_operations *f_ops;
@@ -52,6 +52,19 @@ struct ap_inode_operations{
     int (*unlink) (struct ap_inode *);
 };
 
+struct ipc_inode_holder{
+    struct ap_inode *inde;
+    struct ap_hash *ipc_inode_hash;
+};
+
+static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
+{
+    struct ipc_inode_holder *hl = Mallocx(sizeof(*hl));
+    hl->inde = NULL;
+    hl->ipc_inode_hash = NULL;
+    return hl;
+}
+
 static inline int AP_INODE_INIT(struct ap_inode *inode)
 {
     inode->name = NULL;
@@ -67,7 +80,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     INIT_LIST_HEAD(&inode->inodes);
     INIT_LIST_HEAD(&inode->child);
     INIT_LIST_HEAD(&inode->children);
-    INITIALIZE_IPC_HASH_UNION(&inode->ipc_path_hash);
+    INITIALIZE_HASH_UNION(&inode->ipc_path_hash);
     
     int init = pthread_mutex_init(&inode->ch_lock, NULL);
     if (init != 0) {
@@ -171,6 +184,8 @@ struct ap_file{
     pthread_mutex_t file_lock;
 	struct ap_file_operations *f_ops;
     off_t off_size;
+    
+    struct hash_union f_hash_union;
     void *x_object;
 };
 
@@ -179,6 +194,7 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     file->f_ops = NULL;
     file->mod = 0;
     file->off_size = 0;
+    INITIALIZE_HASH_UNION(&file->f_hash_union);
     int init = pthread_mutex_init(&file->file_lock, NULL);
     if (init != 0) {
         perror("file init fialed\n");

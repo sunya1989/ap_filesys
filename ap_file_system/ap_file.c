@@ -155,8 +155,8 @@ int ap_open(char *path, int flags)
     }
     
     file = AP_FILE_MALLOC();
-    
     AP_FILE_INIT(file);
+    
     if (final_inode->cur_inode->f_ops->open != NULL) {
         int open_s;
         open_s = final_inode->cur_inode->f_ops->open(file, final_inode->cur_inode, flags);

@@ -9,6 +9,7 @@
 #ifndef ap_editor_hash_h
 #define ap_editor_hash_h
 #define AP_IPC_LOCK_HASH_LEN 1024
+#define AP_IPC_FILE_HASH_LEN 256
 #include <pthread.h>
 #include "list.h"
 #include "envelop.h"
@@ -19,7 +20,7 @@ struct hash_identity{
     unsigned long ide_i;
 };
 
-struct hash_uion{
+struct hash_union{
     struct hash_identity ide;
     struct list_head union_lis;
 };
@@ -56,7 +57,7 @@ static inline struct ipc_sock *MALLOC_IPC_SOCK()
     return ipc_s;
 }
 
-static inline void INITIALIZE_IPC_HASH_UNION(struct hash_uion *ihu)
+static inline void INITIALIZE_HASH_UNION(struct hash_union *ihu)
 {
     ihu->ide.ide_c = NULL;
     ihu->ide.ide_i = 0;
@@ -67,6 +68,9 @@ static inline struct ap_hash *MALLOC_IPC_HASH(size_t size)
 {
     struct ap_hash *hash_t = Mallocx(sizeof(struct hash_table_union) *size);
     hash_t->size = size;
+    for (size_t i = 0; i<size; i++) {
+        pthread_mutex_init(&hash_t->hash_table[i].t_lock, NULL);
+    }
     return hash_t;
 }
 
@@ -94,9 +98,9 @@ static inline unsigned int BKDRHash(char *str)
 
 extern char *itoa(int num, char*str, int radix);
 extern char *ultoa(unsigned long value, char *string, int radix);
-extern struct hash_uion *hash_uinon_get(struct ap_hash *table, struct hash_identity ide);
-extern void hash_uinon_insert(struct ap_hash *table, struct hash_uion *un);
+extern struct hash_union *hash_uinon_get(struct ap_hash *table, struct hash_identity ide);
+extern void hash_uinon_insert(struct ap_hash *table, struct hash_union *un);
 extern void ipc_holder_hash_insert(struct holder *hl);
-extern struct holder *ipc_holer_hash_get(struct hash_identity ide);
+extern struct holder *ipc_holer_hash_get(struct hash_identity ide, int inc_cou);
 
 #endif
