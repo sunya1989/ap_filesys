@@ -11,7 +11,7 @@
 #include <ap_ipc.h>
 #define AP_PROC_FILE "/var/lock/ap_procs"
 #define MY_DATA_LEN 2048
-#define AP_MSGSEG_LEN (sizeof(struct ap_msgbuf))
+#define AP_MSGSEG_LEN 2048
 #define AP_PNOEXIST 0
 
 struct ap_ipc_info{
@@ -41,14 +41,8 @@ struct ap_msgreq{
 };
 
 struct ap_msgbuf{
-    struct ap_msgreq_type req_t;
-    size_t seq;
     key_t key;
     pid_t pid;
-    
-    size_t len_t;
-    int data_len;
-    
     unsigned long ch_n;
     struct ap_msgreq req;
 };

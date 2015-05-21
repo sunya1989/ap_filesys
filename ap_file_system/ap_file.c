@@ -518,6 +518,7 @@ int ap_unlik(char *path)
     if (gate) {
         AP_INODE_FREE(gate);
     }
+    AP_INODE_INICATOR_FREE(final_indc);
     return o;
 }
 

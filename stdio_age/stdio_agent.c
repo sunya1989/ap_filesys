@@ -92,6 +92,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
 {
     DIR *dp;
     struct dirent *dirp;
+    char *cp_path = NULL;
     struct std_age_dir *sa_dir_temp;
     struct std_age *sa_temp;
     struct stat stat_buf;
@@ -115,7 +116,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
                 continue;
             }
             str_len = strlen(path) + 1;
-            char *cp_path = malloc(str_len);
+            cp_path = malloc(str_len);
             strncpy(cp_path, path, str_len);
             
             lstat(cp_path, &stat_buf);
@@ -138,6 +139,9 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
     if(closedir(dp) < 0){
         perror("close dir failed\n");
         exit(1);
+    }
+    if (cp_path != NULL) {
+         free(cp_path);
     }
     return;
 }

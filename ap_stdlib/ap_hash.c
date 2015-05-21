@@ -14,19 +14,21 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
 {
     unsigned hash;
     char *hasf_str;
+    char *join;
     char str_arr[32];
     char *str = ultoa(ide->ide_i, str_arr, 10);
     if (ide->ide_c == NULL) {
         hasf_str = str;
     }else{
         size_t strl = strlen(str) + strlen(ide->ide_c);
-        char *join = Mallocx(strl);
+        join = Mallocx(strl);
         strcpy(join, str);
         strcat(join, ide->ide_c);
         hasf_str = join;
     }
     hash = BKDRHash(hasf_str);
     hash = hash % size;
+    free(join);
     return hash;
 }
 
