@@ -43,6 +43,7 @@ struct ap_msgreq{
 struct ap_msgbuf{
     key_t key;
     pid_t pid;
+    int msgid;
     unsigned long ch_n;
     struct ap_msgreq req;
 };

@@ -66,7 +66,7 @@ struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou)
     return NULL;
 }
 
-void hash_uinon_insert(struct ap_hash *table, struct hash_union *un)
+void hash_union_insert(struct ap_hash *table, struct hash_union *un)
 {
     unsigned hash_n = get_hash_n(&un->ide, table->size);
     if (hash_n > table->size) {
@@ -77,10 +77,11 @@ void hash_uinon_insert(struct ap_hash *table, struct hash_union *un)
     pthread_mutex_lock(lock);
     list_add(&un->union_lis, &table->hash_table[hash_n].hash_union_entry);
     pthread_mutex_unlock(lock);
+    un->table = &table->hash_table[hash_n];
     return;
 }
 
-struct hash_union *hash_uinon_get(struct ap_hash *table, struct hash_identity ide)
+struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity ide)
 {
     unsigned hash_n = get_hash_n(&ide, table->size);
     if (hash_n > table->size) {
@@ -104,6 +105,16 @@ struct hash_union *hash_uinon_get(struct ap_hash *table, struct hash_identity id
     }
     pthread_mutex_unlock(lock);
     return NULL;
+}
+
+
+void hash_union_delet(struct hash_union *un)
+{
+    struct hash_table_union *t_un = un->table;
+    pthread_mutex_lock(&t_un->t_lock);
+    list_del(&un->union_lis);
+    pthread_mutex_unlock(&t_un->t_lock);
+    return;
 }
 
 

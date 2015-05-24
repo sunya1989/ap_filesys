@@ -14,6 +14,7 @@
 #include "list.h"
 #include "envelop.h"
 #include "ap_ipc.h"
+struct hash_table_union;
 
 struct hash_identity{
     char *ide_c;
@@ -23,6 +24,7 @@ struct hash_identity{
 struct hash_union{
     struct hash_identity ide;
     struct list_head union_lis;
+    struct hash_table_union *table;
 };
 struct hash_table_union{
     struct list_head hash_union_entry;
@@ -98,8 +100,9 @@ static inline unsigned int BKDRHash(char *str)
 
 extern char *itoa(int num, char*str, int radix);
 extern char *ultoa(unsigned long value, char *string, int radix);
-extern struct hash_union *hash_uinon_get(struct ap_hash *table, struct hash_identity ide);
-extern void hash_uinon_insert(struct ap_hash *table, struct hash_union *un);
+extern struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity ide);
+extern void hash_union_insert(struct ap_hash *table, struct hash_union *un);
+extern void hash_union_delet(struct hash_union *un);
 extern void ipc_holder_hash_insert(struct holder *hl);
 extern struct holder *ipc_holer_hash_get(struct hash_identity ide, int inc_cou);
 
