@@ -128,6 +128,9 @@ static inline void ap_inode_get(struct ap_inode *inode)
 static inline void ap_inode_put(struct ap_inode *inode)
 {
     counter_put(&inode->inode_counter);
+    if (inode->links == 0 && inode->inode_counter.in_use == 0) {
+        AP_INODE_FREE(inode);
+    }
 }
 
 enum indic_path_state{
@@ -296,6 +299,7 @@ extern struct ap_file_systems f_systems;
 extern int register_fsyst(struct ap_file_system_type *fsyst);
 extern int walk_path(struct ap_inode_indicator *start);
 extern void inode_add_child(struct ap_inode *parent, struct ap_inode *child);
+extern void inode_del_child(struct ap_inode *parent, struct ap_inode *child);
 extern struct ap_file_system_type *find_filesystem(char *fsn);
 extern int initial_indicator(char *path,
                              struct ap_inode_indicator *ind,

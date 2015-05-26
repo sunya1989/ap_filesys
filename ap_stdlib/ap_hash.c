@@ -77,6 +77,11 @@ void hash_union_insert(struct ap_hash *table, struct hash_union *un)
     pthread_mutex_lock(lock);
     list_add(&un->union_lis, &table->hash_table[hash_n].hash_union_entry);
     pthread_mutex_unlock(lock);
+    
+    pthread_mutex_lock(&table->r_size_lock);
+    table->r_size++;
+    pthread_mutex_unlock(&table->r_size_lock);
+    
     un->table = &table->hash_table[hash_n];
     return;
 }

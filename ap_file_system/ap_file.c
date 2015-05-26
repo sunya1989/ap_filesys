@@ -481,23 +481,12 @@ int ap_unlik(char *path)
     gate = final_indc->gate;
     if (gate!=NULL) {
         pthread_mutex_lock(&gate->parent->ch_lock);
-        ap_inode_put(gate);
-        if (gate->inode_counter.in_use != 0) {
-            pthread_mutex_unlock(&gate->parent->ch_lock);
-            errno = EPERM;
-            return -1;
-        }
         list_del(&gate->child);
         pthread_mutex_unlock(&gate->parent->ch_lock);
     }
     
     pthread_mutex_lock(&op_inode->parent->ch_lock); //因为父目录不为空所以不会被删除
-    ap_inode_put(op_inode);
-    if (op_inode->inode_counter.in_use != 0) {
-        pthread_mutex_unlock(&op_inode->parent->ch_lock);
-        errno = EPERM;
-        return -1;
-    }
+    list_del(&op_inode->child);
     pthread_mutex_unlock(&op_inode->parent->ch_lock);
     pthread_mutex_lock(&op_inode->data_lock);
     link = op_inode->links--;
@@ -506,17 +495,17 @@ int ap_unlik(char *path)
     int o = 0;
     
     if (link == 0) {     //已经没有其它目录链接此文件
-        if (op_inode->i_ops->unlink != NULL) {
+        if (op_inode->parent->i_ops->unlink != NULL) {
             int unlik_s = op_inode->i_ops->unlink(op_inode);
             if (unlik_s == -1) {
                 errno = EPERM;
                 o = -1;
             }
         }
-        AP_INODE_FREE(op_inode);
+        ap_inode_put(op_inode);
     }
     if (gate) {
-        AP_INODE_FREE(gate);
+        ap_inode_put(gate);
     }
     AP_INODE_INICATOR_FREE(final_indc);
     return o;

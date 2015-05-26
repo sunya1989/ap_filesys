@@ -170,6 +170,13 @@ void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
     pthread_mutex_unlock(&parent->ch_lock);
 }
 
+void inode_del_child(struct ap_inode *parent, struct ap_inode *child)
+{
+    pthread_mutex_lock(&parent->ch_lock);
+    list_del(&child->child);
+    pthread_mutex_unlock(&parent->ch_lock);
+}
+
 int register_fsyst(struct ap_file_system_type *fsyst)
 {
     pthread_mutex_lock(&f_systems.f_system_lock);

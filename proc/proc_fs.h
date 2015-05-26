@@ -16,6 +16,7 @@
 
 struct ap_ipc_info{
     struct ipc_sock sock;
+    int disc;
     struct ap_hash *inde_hash_table;
 };
 
@@ -32,6 +33,13 @@ struct ap_msgreq_type{
     size_t read_len;
     size_t wirte_len;
     off_t off_size;
+};
+
+struct ap_msgrep_type{
+    errno_t err;
+    ssize_t re_type;
+    size_t read_n;
+    size_t write_n;
 };
 
 struct ap_msgreq{
@@ -57,8 +65,7 @@ struct ap_msgseg{
 };
 
 struct ap_msgreply{
-    ssize_t re_type;
-    errno_t err;
+    struct ap_msgrep_type rep_t;
     int struct_l;
     char re_struct[0];
 };
