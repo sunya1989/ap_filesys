@@ -26,10 +26,12 @@ typedef enum op_type{
     r,
     o,
     c,
+    d,
 }op_type_t;
 
 struct ap_msgreq_type{
     op_type_t op_type;
+    unsigned long flags;
     size_t read_len;
     size_t wirte_len;
     off_t off_size;

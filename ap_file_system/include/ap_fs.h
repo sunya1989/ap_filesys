@@ -54,14 +54,14 @@ struct ap_inode_operations{
 
 struct ipc_inode_holder{
     struct ap_inode *inde;
-    struct ap_hash *ipc_inode_hash;
+    struct ap_hash *ipc_file_hash;
 };
 
 static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
 {
     struct ipc_inode_holder *hl = Mallocx(sizeof(*hl));
     hl->inde = NULL;
-    hl->ipc_inode_hash = NULL;
+    hl->ipc_file_hash = NULL;
     return hl;
 }
 
@@ -97,6 +97,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
 
     return 1;
 }
+
 static inline void AP_INODE_FREE(struct ap_inode *inode)
 {
     if (inode->i_ops != NULL && inode->i_ops->destory != NULL) {
@@ -187,6 +188,8 @@ struct ap_file{
     pthread_mutex_t file_lock;
 	struct ap_file_operations *f_ops;
     off_t off_size;
+    
+    char *f_idec;
     
     struct hash_union f_hash_union;
     void *x_object;

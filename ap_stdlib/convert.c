@@ -32,7 +32,7 @@ char *ultoa(unsigned long value, char *string, int radix)
         else
             *tp++ = i + 'a' - 10;
     }
-    if (string == 0)
+    if (string == NULL)
         string = (char *)malloc((tp-tmp)+1);
     sp = string;
     
