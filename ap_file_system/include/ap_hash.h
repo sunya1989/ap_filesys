@@ -38,21 +38,27 @@ struct ap_hash{
     struct hash_table_union hash_table[0];
 };
 
+struct holder_table_union{
+    struct list_head holder;
+    pthread_mutex_t table_lock;
+};
+
+struct ipc_holder_hash{
+    struct holder_table_union hash_table[AP_IPC_LOCK_HASH_LEN];
+};
+
+extern struct ipc_holder_hash ipc_hold_table;
+
 struct holder{
     void *x_object;
     unsigned hash_n;
     struct hash_identity ide;
     struct list_head hash_lis;
+    struct holder_table_union *hl_un;
     void (*ipc_get)(void *);
     void (*ipc_put)(void *);
+    void (*destory)(void *);
 };
-
-extern struct ipc_holder_hash{
-    struct holder_table_union{
-        struct list_head holder;
-        pthread_mutex_t table_lock;
-    }hash_table[AP_IPC_LOCK_HASH_LEN];
-}ipc_hold_table;
 
 static inline struct ipc_sock *MALLOC_IPC_SOCK()
 {
@@ -107,6 +113,7 @@ extern struct hash_union *hash_union_get(struct ap_hash *table, struct hash_iden
 extern void hash_union_insert(struct ap_hash *table, struct hash_union *un);
 extern void hash_union_delet(struct hash_union *un);
 extern void ipc_holder_hash_insert(struct holder *hl);
+extern void ipc_holder_hash_delet(struct holder *hl);
 extern struct holder *ipc_holer_hash_get(struct hash_identity ide, int inc_cou);
 
 #endif

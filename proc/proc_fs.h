@@ -72,4 +72,6 @@ struct ap_msgreply{
     char re_struct[0];
 };
 
+extern int init_proc_fs();
+
 #endif

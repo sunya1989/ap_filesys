@@ -235,6 +235,7 @@ struct ap_file_operations{
     int (*release) (struct ap_file *,struct ap_inode *);
     int (*open) (struct ap_file *, struct ap_inode *, unsigned long);
 	int (*readdir) (struct ap_file *, void *);
+    int (*destory) (struct ap_inode *);
 };
 
 struct ap_file_struct{
@@ -309,5 +310,6 @@ extern int initial_indicator(char *path,
                              struct ap_file_pthread *ap_fpthr);
 extern void inode_ipc_get(void *ind);
 extern void inode_ipc_put(void *ind);
+extern void iholer_destory(void *ind);
 #endif
 

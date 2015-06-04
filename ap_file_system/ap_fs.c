@@ -199,3 +199,8 @@ void inode_ipc_put(void *ind)
     return;
 }
 
+void iholer_destory(void *ind)
+{
+    
+}
+

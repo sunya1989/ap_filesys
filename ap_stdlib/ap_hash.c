@@ -37,6 +37,7 @@ void ipc_holer_hash_insert(struct holder *hl)
     unsigned hash = get_hash_n(&hl->ide, AP_IPC_LOCK_HASH_LEN);
     hl->hash_n = hash;
     pthread_mutex_t *lock = &ipc_hold_table.hash_table[hash].table_lock;
+    hl->hl_un = &ipc_hold_table.hash_table[hash];
     pthread_mutex_lock(lock);
     list_add(&hl->hash_lis, &ipc_hold_table.hash_table->holder);
     pthread_mutex_unlock(lock);
@@ -112,7 +113,6 @@ struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity id
     return NULL;
 }
 
-
 void hash_union_delet(struct hash_union *un)
 {
     struct hash_table_union *t_un = un->table;
@@ -121,6 +121,16 @@ void hash_union_delet(struct hash_union *un)
     pthread_mutex_unlock(&t_un->t_lock);
     return;
 }
+
+void ipc_holder_hash_delet(struct holder *hl)
+{
+    struct holder_table_union *h_un = hl->hl_un;
+    pthread_mutex_lock(&h_un->table_lock);
+    list_del(&hl->hash_lis);
+    pthread_mutex_unlock(&h_un->table_lock);
+    return;
+}
+
 
 
 
