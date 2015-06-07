@@ -8,8 +8,10 @@
 
 #ifndef ap_editor_hash_h
 #define ap_editor_hash_h
-#define AP_IPC_LOCK_HASH_LEN 1024
+#define AP_IPC_HOLDER_HASH_LEN 1024
 #define AP_IPC_FILE_HASH_LEN 256
+#define AP_IPC_INODE_HASH_LEN 1024
+
 #include <pthread.h>
 #include "list.h"
 #include "envelop.h"
@@ -44,7 +46,7 @@ struct holder_table_union{
 };
 
 struct ipc_holder_hash{
-    struct holder_table_union hash_table[AP_IPC_LOCK_HASH_LEN];
+    struct holder_table_union hash_table[AP_IPC_HOLDER_HASH_LEN];
 };
 
 extern struct ipc_holder_hash ipc_hold_table;
@@ -93,6 +95,11 @@ static inline struct holder *MALLOC_HOLDER()
     hl->ide.ide_c = NULL;
     hl->ipc_get = hl->ipc_put = NULL;
     return hl;
+}
+
+static inline void HOLDER_FREE(struct holder *hl)
+{
+    free(hl);
 }
 
 static inline unsigned int BKDRHash(char *str)

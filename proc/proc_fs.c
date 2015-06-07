@@ -36,6 +36,10 @@ struct ipc_holder_hash ipc_hold_table;
 pthread_mutex_t channel_lock = PTHREAD_MUTEX_INITIALIZER;
 unsigned long channel_n;
 static int ap_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg);
+static struct ap_inode_operations procfs_inode_operations;
+static struct ap_inode_operations proc_inode_operations;
+static struct ap_inode_operations proc_file_i_operations;
+static struct ap_file_operations proc_file_operations;
 
 static void ap_msg_send_err(errno_t err, int re_type, int msgid, long msgtyp)
 {
@@ -473,7 +477,7 @@ static void client_d(struct ap_msgbuf *buf, char **req_d)
     char *path = req_d[0];
     struct holder *hl;
     struct ipc_inode_holder *ihl;
-    struct ap_inode *inde;
+    struct holder_table_union *un;
     
     ide.ide_c = path;
     ide.ide_i = buf->pid;
@@ -483,11 +487,14 @@ static void client_d(struct ap_msgbuf *buf, char **req_d)
         return;
     }
     
-    ihl = hl->x_object;
-    inde = ihl->inde;
-
-    ap_inode_put(inde);
+    pthread_mutex_lock(&un->table_lock);
+    list_del(&hl->hash_lis);
+    pthread_mutex_unlock(&un->table_lock);
     
+    ihl = hl->x_object;
+    
+    IHOLDER_FREE(ihl);
+    HOLDER_FREE(hl);
 }
 
 void *ap_proc_sever(void *arg)
@@ -538,6 +545,7 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
     int msgid[2];
     size_t path_len;
     pthread_t thr_n;
+    struct ap_inode *init_inode;
     
     char ap_ipc_path[AP_IPC_PATH_LEN];
     char ipc_path[AP_IPC_PATH_LEN];
@@ -568,6 +576,9 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
     path_len = strlen(ap_ipc_path);
     ap_ipc_kick_start(fd, ap_ipc_path, path_len);
     //initialize inode
+    init_inode = MALLOC_AP_INODE();
+    init_inode->i_ops = &procfs_inode_operations;
+    return init_inode;
 }
 
 static char **proc_path_analy(char *path_s, char *path_d)
@@ -644,6 +655,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     FILE *fs;
     char **cut = NULL;
     char ap_ipc_path[AP_IPC_PATH_LEN];
+    struct ap_inode *inode;
     
     fd = open(AP_PROC_FILE, O_RDONLY);
     if (fd < 0) {
@@ -672,6 +684,12 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
         return -1;
     }
     //initialize inode
+    inode = MALLOC_AP_INODE();
+    inode->i_ops = &proc_inode_operations;
+    inode->x_object = MALLOC_IPC_INFO();
+    ap_inode_get(inode);
+    indc->cur_inode = inode;
+    return 0;
 }
 
 
@@ -735,6 +753,8 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     sock = Mallocx(sizeof(*sock));
     *sock = info->sock;
     cur_ind->x_object = sock;
+    cur_ind->i_ops = &proc_file_i_operations;
+    cur_ind->f_ops = &proc_file_operations;
     ap_inode_get(cur_ind);
     indc->cur_inode = cur_ind;
     
@@ -1041,6 +1061,7 @@ static int proc_destory(struct ap_inode *inode)
     char *send_buf = collect_items(items, str_len, list, 1);
     
     msgbuf = constr_req(send_buf, str_len, list, 1);
+    msgbuf->req.req_t.op_type = d;
     msgbuf->key = client_key;
     msgbuf->ch_n = get_channel();
     msgbuf->pid = pid;
@@ -1068,8 +1089,29 @@ static int proc_destory(struct ap_inode *inode)
     return o;
 }
 
-static struct ap_inode_operations procfs_inode_operarions = {
+static struct ap_inode_operations procfs_inode_operations = {
     .get_inode = procfs_get_inode,
 };
+
+static struct ap_inode_operations proc_inode_operations = {
+    .get_inode = get_proc_inode,
+    .unlink = proc_unlink,
+    .find_inode = find_proc_inode,
+    .destory = proc_destory,
+    
+};
+
+static struct ap_inode_operations proc_file_i_operations = {
+    .destory = proc_destory,
+};
+
+static struct ap_file_operations proc_file_operations = {
+    .read = proc_read,
+    .write = proc_write,
+    .release = proc_release,
+    .open = proc_open,
+};
+
+
 
 

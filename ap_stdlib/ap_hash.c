@@ -34,7 +34,7 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
 
 void ipc_holer_hash_insert(struct holder *hl)
 {
-    unsigned hash = get_hash_n(&hl->ide, AP_IPC_LOCK_HASH_LEN);
+    unsigned hash = get_hash_n(&hl->ide, AP_IPC_HOLDER_HASH_LEN);
     hl->hash_n = hash;
     pthread_mutex_t *lock = &ipc_hold_table.hash_table[hash].table_lock;
     hl->hl_un = &ipc_hold_table.hash_table[hash];
@@ -46,7 +46,7 @@ void ipc_holer_hash_insert(struct holder *hl)
 
 struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou)
 {
-    unsigned hash = get_hash_n(&ide, AP_IPC_LOCK_HASH_LEN);
+    unsigned hash = get_hash_n(&ide, AP_IPC_HOLDER_HASH_LEN);
     struct list_head *hl_indx;
     struct list_head *pos;
     struct holder *hl;

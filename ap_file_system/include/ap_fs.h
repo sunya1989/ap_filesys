@@ -65,6 +65,7 @@ static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
     return hl;
 }
 
+
 static inline int AP_INODE_INIT(struct ap_inode *inode)
 {
     inode->name = NULL;
@@ -133,6 +134,16 @@ static inline void ap_inode_put(struct ap_inode *inode)
         AP_INODE_FREE(inode);
     }
 }
+
+extern void iholer_destory(struct ipc_inode_holder *iholder);
+
+static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
+{
+    iholer_destory(iholder);
+    ap_inode_put(iholder->inde);
+    free(iholder);
+}
+
 
 enum indic_path_state{
     find_name = 1,
@@ -225,6 +236,9 @@ static inline struct ap_file *AP_FILE_MALLOC()
 static inline void AP_FILE_FREE(struct ap_file *apf)
 {
     pthread_mutex_destroy(&apf->file_lock);
+    if (apf->relate_i != NULL) {
+        ap_inode_put(apf->relate_i);
+    }
     free(apf);
 }
 
@@ -235,7 +249,6 @@ struct ap_file_operations{
     int (*release) (struct ap_file *,struct ap_inode *);
     int (*open) (struct ap_file *, struct ap_inode *, unsigned long);
 	int (*readdir) (struct ap_file *, void *);
-    int (*destory) (struct ap_inode *);
 };
 
 struct ap_file_struct{
@@ -310,6 +323,5 @@ extern int initial_indicator(char *path,
                              struct ap_file_pthread *ap_fpthr);
 extern void inode_ipc_get(void *ind);
 extern void inode_ipc_put(void *ind);
-extern void iholer_destory(void *ind);
 #endif
 

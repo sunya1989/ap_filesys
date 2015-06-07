@@ -20,6 +20,13 @@ struct ap_ipc_info{
     struct ap_hash *inde_hash_table;
 };
 
+static inline struct ap_ipc_info *MALLOC_IPC_INFO()
+{
+    struct ap_ipc_info *info = Mallocz(sizeof(*info));
+    info->inde_hash_table = MALLOC_IPC_HASH(AP_IPC_INODE_HASH_LEN);
+    return info;
+}
+
 typedef enum op_type{
     g = 0,
     w,

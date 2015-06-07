@@ -49,10 +49,7 @@ static inline void list_add_tail(struct list_head *_new, struct list_head *head)
 
 static inline int list_empty(struct list_head *head)
 {
-    if (head->next == NULL) {
-        return 1;
-    }
-    return 0;
+    return head->next == head;
 }
 
 static inline void __list_del(struct list_head *prev, struct list_head *next)
@@ -68,6 +65,9 @@ static inline void list_del(struct list_head *entry)
     entry->prev = entry;
 }
 
+
+
+
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 
 #define list_entry(ptr, type, member) \
@@ -81,6 +81,9 @@ list_entry((pos)->member.next, typeof(*(pos)), member)
 
 #define list_for_each(pos, head) \
 for (pos = (head)->next; pos != (head); pos = pos->next)
+
+#define list_for_each_use(pos1, pos2, head) \
+for (pos1 = (head)->next, pos2 = (head)->next->next; pos1 != (head); pos1 = pos2, pos2 = pos1->next)
 
 #define list_for_each_prev(pos, head) \
 for (pos = (head)->prev; pos != (head); pos = pos->prev)
