@@ -144,19 +144,11 @@ static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
     free(iholder);
 }
 
-
-enum indic_path_state{
-    find_name = 1,
-    stop_in_par,
-    stop_in_ance,
-};
-
 struct ap_inode_indicator{
 	char *path;
     int slash_remain;
     char *the_name;
     char *cur_slash;
-    enum indic_path_state p_state;
     struct ap_inode *par;
     struct ap_inode *gate;
 	struct ap_inode *cur_inode;

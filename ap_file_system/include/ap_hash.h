@@ -121,6 +121,6 @@ extern void hash_union_insert(struct ap_hash *table, struct hash_union *un);
 extern void hash_union_delet(struct hash_union *un);
 extern void ipc_holder_hash_insert(struct holder *hl);
 extern void ipc_holder_hash_delet(struct holder *hl);
-extern struct holder *ipc_holer_hash_get(struct hash_identity ide, int inc_cou);
+extern struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou);
 
 #endif

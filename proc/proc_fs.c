@@ -108,7 +108,7 @@ static inline unsigned long get_channel()
 static void handle_disc(struct ap_inode *inde)
 {
     struct ap_inode *parent = inde->parent;
-    struct ap_ipc_info *info = inde->x_object;
+    struct ap_ipc_info *info = parent->x_object;
     if (parent->parent == NULL) {
         return;
     }
@@ -285,7 +285,7 @@ static void client_r(struct ap_msgbuf *buf, char **req_d)
     
     ide.ide_c = path;
     ide.ide_i = buf->pid;
-    hl = ipc_holer_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
@@ -340,7 +340,7 @@ static void client_w(struct ap_msgbuf *buf, char **req_d)
     
     ide.ide_c = path;
     ide.ide_i = buf->pid;
-    hl = ipc_holer_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
@@ -387,7 +387,7 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
     
     ide.ide_c = path;
     ide.ide_i = buf->pid;
-    hl = ipc_holer_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
@@ -442,7 +442,7 @@ static void client_c(struct ap_msgbuf *buf, char **req_d)
     
     ide.ide_c = path;
     ide.ide_i = buf->pid;
-    hl = ipc_holer_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
@@ -481,7 +481,7 @@ static void client_d(struct ap_msgbuf *buf, char **req_d)
     
     ide.ide_c = path;
     ide.ide_i = buf->pid;
-    hl = ipc_holer_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
@@ -529,6 +529,8 @@ void *ap_proc_sever(void *arg)
                 client_o(msg_buf, req_detail);
             case c:
                 client_c(msg_buf, req_detail);
+            case d:
+                client_d(msg_buf, req_detail);
             default:
                 printf("ap_msg wrong type\n");
                 exit(1);
@@ -739,7 +741,6 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     }
 
     f_indc = (struct ap_inode_indicator*)msgre->re_struct;
-    indc->p_state = f_indc->p_state;
     if(msgre->rep_t.re_type){
         errno = msgre->rep_t.err;
         return (int)msgre->rep_t.re_type;
@@ -973,7 +974,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
 
 static int proc_unlink(struct ap_inode *inode)
 {
-    struct ap_ipc_info *info = inode->x_object;
+    struct ap_ipc_info *info = inode->parent->x_object;
     pthread_mutex_lock(&info->inde_hash_table->r_size_lock);
     info->inde_hash_table->r_size--;
     pthread_mutex_unlock(&info->inde_hash_table->r_size_lock);
@@ -1098,7 +1099,6 @@ static struct ap_inode_operations proc_inode_operations = {
     .unlink = proc_unlink,
     .find_inode = find_proc_inode,
     .destory = proc_destory,
-    
 };
 
 static struct ap_inode_operations proc_file_i_operations = {

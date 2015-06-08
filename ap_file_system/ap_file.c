@@ -28,6 +28,12 @@ static char *regular_path(char *path, int *slash_no)
     *slash_no = 0;
     char *path_end = path + path_len;
     
+    if (*path == '.') {
+        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
+            return NULL;
+        }
+    }
+    
     while ((slash = strchr(path_cursor, '/')) != NULL) {
         if (*(++slash) == '/') {
             return NULL;
@@ -39,15 +45,8 @@ static char *regular_path(char *path, int *slash_no)
         }
     }
     
-    if (*path == '.') {
-        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
-            return NULL;
-        }
-    }
-    
     reg_path = path;
     if (*(path_end-1) == '/') {
-        *(path_end-1) = '\0';
         (*slash_no)--;
     }
     
@@ -55,12 +54,12 @@ static char *regular_path(char *path, int *slash_no)
 }
 
 
-static int __initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
+static int __initial_indicator(char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)
 {
     int slash_no;
     
-    ind->path = path;
-    ind->cur_inode = ap_fpthr->c_wd->cur_inode;
+    indc->path = path;
+    indc->cur_inode = ap_fpthr->c_wd;
     
     path = regular_path(path, &slash_no);
     if (path == NULL) {
@@ -68,31 +67,31 @@ static int __initial_indicator(char *path, struct ap_inode_indicator *ind, struc
         return -1;
     }
     
-    ind->slash_remain = slash_no;
+    indc->slash_remain = slash_no;
     
     if (*path == '/') {
         path++;
-        ind->cur_inode = ap_fpthr->m_wd->cur_inode;
-        ind->slash_remain--;
+        indc->cur_inode = ap_fpthr->m_wd;
+        indc->slash_remain--;
     }else if(*path == '.'){
         if (*(path + 1) == '/' || *(path + 1) == '\0') {  // path 可能为./ ../ ../* ./*
             path = *(path+1) == '/' ? path + 2 : path + 1;
-            ind->cur_inode = ap_fpthr->c_wd->cur_inode;
-            ind->slash_remain--;
-        }else{
-            path = *(path+2) == '/' ? path + 3 : path + 2;
-            ind->slash_remain--;
+            indc->cur_inode = ap_fpthr->c_wd;
+            indc->slash_remain--;
+        }else if(*(path+2) == '/'){
+            path = path + 2;
+            indc->slash_remain--;
             if (ap_fpthr->c_wd == ap_fpthr->m_wd) {
-                ind->cur_inode = ap_fpthr->c_wd->cur_inode;
+                indc->cur_inode = ap_fpthr->c_wd;
                 return 0;
             }
-            struct ap_inode *par = ap_fpthr->c_wd->cur_inode->parent;
-            struct ap_inode *cur_inode = ap_fpthr->c_wd->cur_inode;
-            ind->cur_inode = cur_inode->mount_inode == NULL ? par:cur_inode->mount_inode->parent;
+            struct ap_inode *par = ap_fpthr->c_wd->parent;
+            struct ap_inode *cur_inode = ap_fpthr->c_wd;
+            indc->cur_inode = cur_inode->mount_inode == NULL ? par:cur_inode->mount_inode->parent;
         }
     }
-    ind->path = path;
-    ap_inode_get(ind->cur_inode);
+    indc->path = path;
+    ap_inode_get(indc->cur_inode);
     return 0;
 }
 
@@ -108,7 +107,7 @@ int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct 
 {
     return __initial_indicator(path, ind, ap_fpthr);
 }
-extern void deug_regular_path(char *path, int *slash_no)
+void deug_regular_path(char *path, int *slash_no)
 {
     regular_path(path, slash_no);
 }
@@ -237,7 +236,7 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         get = walk_path(par_indic);
     }
     
-    if ((get == -1 && par_indic->p_state == stop_in_ance) || !par_indic->cur_inode->is_dir) {
+    if ((get == -1 && par_indic->slash_remain > 0) || !par_indic->cur_inode->is_dir) {
         errno = ENOENT;
         return -1;
     }
@@ -339,7 +338,7 @@ ssize_t ap_write(int fd, void *buf, size_t len)
     }
     
     struct ap_file *file;
-    ssize_t h_write;
+    ssize_t write_n;
     
     pthread_mutex_lock(&file_info.files_lock);
     if (file_info.file_list[fd] == NULL) {
@@ -354,9 +353,9 @@ ssize_t ap_write(int fd, void *buf, size_t len)
         return -1;
     }
     
-    h_write = file->f_ops->write(file, buf, file->off_size, len);
+    write_n = file->f_ops->write(file, buf, file->off_size, len);
     pthread_mutex_unlock(&file->file_lock);
-    return h_write;
+    return write_n;
 }
 
 off_t ap_lseek(int fd, off_t ops, int origin)
@@ -424,7 +423,7 @@ int ap_mkdir(char *path, unsigned long mode)
         return -1;
     }
     
-    if (par_indic->p_state != stop_in_par) {
+    if (par_indic->slash_remain != 0) {
         errno = EACCES;
         return -1;
     }
@@ -573,7 +572,7 @@ int ap_link(char *l_path, char *t_path)
         errno = ENOTDIR;
         return -1;
     }
-    if (final_indc->p_state != stop_in_par) {
+    if (final_indc->slash_remain != 0) {
         errno = EACCES;
         return -1;
     }

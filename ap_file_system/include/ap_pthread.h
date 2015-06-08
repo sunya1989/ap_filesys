@@ -14,11 +14,11 @@
 pthread_key_t file_thread_key;
 
 struct ap_file_pthread{
-    struct ap_inode_indicator *m_wd, *c_wd;
+    struct ap_inode *m_wd, *c_wd;
 };
 
 static inline void AP_FILE_THREAD_INIT(struct ap_file_pthread *fpth){
-    fpth->c_wd = fpth->m_wd = NULL;
+    fpth->c_wd = fpth->m_wd = f_root.f_root_inode;
 }
 
 #endif

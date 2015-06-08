@@ -32,7 +32,7 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
     return hash;
 }
 
-void ipc_holer_hash_insert(struct holder *hl)
+void ipc_holder_hash_insert(struct holder *hl)
 {
     unsigned hash = get_hash_n(&hl->ide, AP_IPC_HOLDER_HASH_LEN);
     hl->hash_n = hash;

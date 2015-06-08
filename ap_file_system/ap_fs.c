@@ -4,7 +4,7 @@
 #include <ap_pthread.h>
 
 static struct ap_inode root_dir = {
-    .name = "",
+    .name = "/",
     .is_dir = 1,
     .data_lock = PTHREAD_MUTEX_INITIALIZER,
     .ch_lock = PTHREAD_MUTEX_INITIALIZER,
@@ -61,11 +61,6 @@ AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
             errno = ENOTDIR;
-            if (start->cur_slash == path_end) {
-                start->p_state = stop_in_par;
-            }else{
-                start->p_state = stop_in_ance;
-            }
             return -1;
         }
         
@@ -92,7 +87,7 @@ AGAIN:
                 ap_inode_get(start->cur_inode);
                 
                 path = start->cur_slash;
-                if (path == path_end) {
+                if (start->slash_remain == 0) {
                     pthread_mutex_unlock(&cursor_inode->ch_lock);
                     return 0;
                 }
@@ -118,11 +113,6 @@ AGAIN:
         get = cursor_inode->i_ops->get_inode(start);
         if (get) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            if (start->slash_remain == 0) {
-                start->p_state = stop_in_par;
-            }else{
-                start->p_state = stop_in_ance;
-            }
             return -1;
         }
         
@@ -131,15 +121,11 @@ AGAIN:
         start->cur_inode->links++;
 
         path = start->cur_slash;
-        if (path == path_end) {
+        if (start->slash_remain == 0) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             return 0;
         }
         start->cur_slash = strchr(++path, '/');
-        if (start->cur_slash == NULL) {
-            start->cur_slash = path_end;
-        }
-        
         pthread_mutex_unlock(&cursor_inode->ch_lock);
         cursor_inode = start->cur_inode;
     }
