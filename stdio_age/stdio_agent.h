@@ -27,12 +27,12 @@ struct std_age{
 };
 
 struct std_age_dir{
-    char *target_dir;
+    const char *target_dir;
     struct ger_stem_node stem;
 };
 
 extern void STD_AGE_INIT(struct std_age *age, char *tarf, enum file_state state);
-extern void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, char *tard);
+extern void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard);
 
 static inline struct std_age *MALLOC_STD_AGE(char *tarf, enum file_state state)
 {
@@ -47,7 +47,7 @@ static inline struct std_age *MALLOC_STD_AGE(char *tarf, enum file_state state)
     return sa;
 }
 
-static inline struct std_age_dir *MALLOC_STD_AGE_DIR(char *tard)
+static inline struct std_age_dir *MALLOC_STD_AGE_DIR(const char *tard)
 {
     struct std_age_dir *sa_dir;
     sa_dir = malloc(sizeof(*sa_dir));

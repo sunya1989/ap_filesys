@@ -70,9 +70,7 @@ static int __initial_indicator(char *path, struct ap_inode_indicator *indc, stru
     indc->slash_remain = slash_no;
     
     if (*path == '/') {
-        path++;
         indc->cur_inode = ap_fpthr->m_wd;
-        indc->slash_remain--;
     }else if(*path == '.'){
         if (*(path + 1) == '/' || *(path + 1) == '\0') {  // path 可能为./ ../ ../* ./*
             path = *(path+1) == '/' ? path + 2 : path + 1;
@@ -187,7 +185,7 @@ int ap_open(char *path, int flags)
     return ap_fd;
 }
 
-int ap_mount(void *mount_info, char *file_system, char *path)
+int ap_mount(struct mount_info *m_info, char *file_system, char *path)
 {
     if (file_system == NULL || path ==NULL) {
         errno = EINVAL;
@@ -196,7 +194,6 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     int get;
     struct ap_inode_indicator *par_indic;
     struct ap_inode *mount_point, *parent, *mount_inode;
-    char *name = NULL;
     int slash_no;
     
     path = regular_path(path, &slash_no);
@@ -217,9 +214,9 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         return -1;
     }
     
-    mount_inode = fsyst->get_initial_inode(fsyst,mount_info);
+    mount_inode = fsyst->get_initial_inode(fsyst,m_info->x_object);
     mount_point->real_inode = mount_inode;
-    mount_point->mount_inode = mount_point;
+    mount_inode->mount_inode = mount_point;
     
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
@@ -227,14 +224,8 @@ int ap_mount(void *mount_info, char *file_system, char *path)
         exit(1);
     }
     
-    if (strlen(path) == 0) {
-        par_indic->cur_inode = f_root.f_root_inode;
-        name = "/";
-        get = 0;
-    }else{
-        __initial_indicator(path, par_indic, ap_fpthr);
-        get = walk_path(par_indic);
-    }
+    __initial_indicator(path, par_indic, ap_fpthr);
+    get = walk_path(par_indic);
     
     if ((get == -1 && par_indic->slash_remain > 0) || !par_indic->cur_inode->is_dir) {
         errno = ENOENT;
@@ -249,7 +240,6 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     }
     
     pthread_mutex_lock(&parent->ch_lock);
- 
     if (!get){
         mount_point->prev_mpoints = par_indic->cur_inode;
         list_del(&par_indic->cur_inode->child);
@@ -258,7 +248,10 @@ int ap_mount(void *mount_info, char *file_system, char *path)
     list_add(&mount_point->child, &parent->children);
     mount_point->links++;
     pthread_mutex_unlock(&parent->ch_lock);
-    mount_point->name = name;
+    
+    mount_point->name = mount_inode->name;
+    mount_inode->name = m_info->m_name;
+    add_inodes_to_fsys(fsyst, mount_inode);
     
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;

@@ -28,7 +28,7 @@ void STD_AGE_INIT(struct std_age *age,char *tarf, enum file_state state)
     age->state = state;
 }
 
-void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, char *tard)
+void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard)
 {
     STEM_INIT(&age_dir->stem);
     age_dir->target_dir = tard;

@@ -255,6 +255,7 @@ static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, vo
     strncpy(name, root_stem->name, n_len+1);
     
     root_stem->name = name;
+    ind->name = name;
     ind->i_ops = &ger_inode_operations;
     
     return ind;
@@ -306,7 +307,7 @@ void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem)
 int init_fs_ger()
 {
     struct ap_file_system_type *ger_fsyst = MALLOC_FILE_SYS_TYPE();
-    ger_fsyst->name = "ger";
+    ger_fsyst->name = GER_FILE_FS;
     
     ger_fsyst->get_initial_inode = gget_initial_inode;
     return register_fsyst(ger_fsyst);

@@ -527,17 +527,19 @@ void *ap_proc_sever(void *arg)
                 break;
             case o:
                 client_o(msg_buf, req_detail);
+                break;
             case c:
                 client_c(msg_buf, req_detail);
+                break;
             case d:
                 client_d(msg_buf, req_detail);
+                break;
             default:
                 printf("ap_msg wrong type\n");
                 exit(1);
         }
     }
 }
-
 
 static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
 {

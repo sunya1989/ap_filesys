@@ -3,13 +3,19 @@
 #include <ap_fs.h>
 #include <ap_pthread.h>
 
+static struct ap_file_operations root_file_operations;
+static struct ap_inode_operations root_dir_operations;
+
 static struct ap_inode root_dir = {
-    .name = "/",
+    .name = "root_test",
     .is_dir = 1,
+    .links = 1,
     .data_lock = PTHREAD_MUTEX_INITIALIZER,
     .ch_lock = PTHREAD_MUTEX_INITIALIZER,
     .children = LIST_HEAD_INIT(root_dir.children),
     .child = LIST_HEAD_INIT(root_dir.child),
+    .i_ops = &root_dir_operations,
+    .f_ops = &root_file_operations,
 };
 
 struct ap_file_struct file_info = {
@@ -30,7 +36,6 @@ struct ap_file_systems f_systems = {
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;
-    char *path_end;
 	char *path = start->path;
     int get;
     
@@ -41,20 +46,24 @@ int walk_path(struct ap_inode_indicator *start)
     }
 
     struct ap_inode *cursor_inode = start->cur_inode;
-    temp_path = (char *) malloc(str_len + 1);
+    temp_path = (char *) Mallocz(str_len + 3);
     
     if (temp_path == NULL) {
         fprintf(stderr, "walk_path malloc_faile\n");
         exit(1);
     }
     
-    path_end = temp_path + str_len;
+    if (*path == '/') {
+        *temp_path = '/';
+        temp_path += 1;
+    }
+    
     strncpy(temp_path, path, str_len+1);
     path = temp_path;
     
     start->cur_slash = strchr(path, '/');
-    if (start->cur_slash == NULL) {
-        start->cur_slash = path_end;
+    if (start->cur_slash == path) {
+        path--;
     }
     
 AGAIN:
@@ -93,9 +102,6 @@ AGAIN:
                 }
                 
                 start->cur_slash = strchr(++path, '/');
-                if (start->cur_slash == NULL) {
-                    start->cur_slash = path_end;
-                }
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
                 cursor_inode = start->cur_inode;
                 
@@ -107,6 +113,11 @@ AGAIN:
             if (!get) {
                 return 0;
             }
+            return -1;
+        }
+        
+        if (cursor_inode->i_ops->get_inode == NULL) {
+            pthread_mutex_unlock(&cursor_inode->ch_lock);
             return -1;
         }
         

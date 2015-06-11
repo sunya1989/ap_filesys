@@ -57,6 +57,11 @@ struct ipc_inode_holder{
     struct ap_hash *ipc_file_hash;
 };
 
+struct mount_info{
+    char *m_name;
+    void *x_object;
+};
+
 static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
 {
     struct ipc_inode_holder *hl = Mallocx(sizeof(*hl));
@@ -64,7 +69,6 @@ static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
     hl->ipc_file_hash = NULL;
     return hl;
 }
-
 
 static inline int AP_INODE_INIT(struct ap_inode *inode)
 {
@@ -106,7 +110,6 @@ static inline void AP_INODE_FREE(struct ap_inode *inode)
     }
     pthread_mutex_destroy(&inode->ch_lock);
     COUNTER_FREE(&inode->inode_counter);
-    free(inode->name);
     free(inode);
 }
 
@@ -154,7 +157,6 @@ struct ap_inode_indicator{
 	struct ap_inode *cur_inode;
 };
 
-
 static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
 {
     indc->path = NULL;
@@ -164,12 +166,12 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
     indc->gate = NULL;
 }
 
-static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *ind)
+static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 {
-    if (ind->cur_inode != NULL) {
-         ap_inode_put(ind->cur_inode);
+    if (indc->cur_inode != NULL) {
+         ap_inode_put(indc->cur_inode);
     }
-    free(ind);
+    free(indc);
 }
 
 static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()

@@ -13,6 +13,8 @@
 #include <list.h>
 #include <counter.h>
 
+#define GER_FILE_FS "ger"
+
 struct stem_file_operations;
 struct stem_inode_operations;
 
