@@ -9,6 +9,7 @@
 #include "ap_hash.h"
 
 #define _OPEN_MAX 1024
+#define FULL_PATH_LEN 255
 struct ap_inode_operations;
 struct ap_file_operations;
 struct ap_inode_indicator;
@@ -55,11 +56,6 @@ struct ap_inode_operations{
 struct ipc_inode_holder{
     struct ap_inode *inde;
     struct ap_hash *ipc_file_hash;
-};
-
-struct mount_info{
-    char *m_name;
-    void *x_object;
 };
 
 static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
@@ -148,6 +144,7 @@ static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
 }
 
 struct ap_inode_indicator{
+    char full_path[FULL_PATH_LEN];
 	char *path;
     int slash_remain;
     char *the_name;

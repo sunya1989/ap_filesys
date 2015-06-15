@@ -30,7 +30,6 @@ struct ger_stem_node{
     struct counter stem_inuse;
     
     void (*prepare_raw_data) (struct ger_stem_node *);
-    int raw_data_isset;
     
     struct stem_file_operations *sf_ops;
     struct stem_inode_operations *si_ops;
@@ -40,7 +39,6 @@ static inline void STEM_INIT(struct ger_stem_node *stem)
 {
     stem->name = NULL;
     stem->prepare_raw_data = NULL;
-    stem->raw_data_isset = 0;
     stem->sf_ops = NULL;
     stem->si_ops = NULL;
     

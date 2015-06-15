@@ -185,7 +185,7 @@ int ap_open(char *path, int flags)
     return ap_fd;
 }
 
-int ap_mount(struct mount_info *m_info, char *file_system, char *path)
+int ap_mount(void *m_info, char *file_system, char *path)
 {
     if (file_system == NULL || path ==NULL) {
         errno = EINVAL;
@@ -214,7 +214,7 @@ int ap_mount(struct mount_info *m_info, char *file_system, char *path)
         return -1;
     }
     
-    mount_inode = fsyst->get_initial_inode(fsyst,m_info->x_object);
+    mount_inode = fsyst->get_initial_inode(fsyst,m_info);
     mount_point->real_inode = mount_inode;
     mount_inode->mount_inode = mount_point;
     
@@ -249,9 +249,11 @@ int ap_mount(struct mount_info *m_info, char *file_system, char *path)
     mount_point->links++;
     pthread_mutex_unlock(&parent->ch_lock);
     
-    mount_point->name = mount_inode->name;
-    mount_inode->name = m_info->m_name;
-    add_inodes_to_fsys(fsyst, mount_inode);
+    size_t len = strlen(par_indic->full_path);
+    char *mount_path = Mallocz(len + 1);
+    strncpy(mount_path, par_indic->full_path, len);
+    mount_point->name = mount_path;
+    add_inodes_to_fsys(fsyst, mount_point);
     
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;

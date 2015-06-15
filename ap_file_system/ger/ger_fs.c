@@ -23,11 +23,8 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     ind = MALLOC_AP_INODE();
     
     n_len = strlen(stem->name);
-    name = malloc(n_len + 1);
-    if (name == NULL) {
-        perror("malloc failed\n");
-        exit(1);
-    }
+    name = Mallocz(n_len + 1);
+    memcpy(name, stem->name, n_len);
     ind->name = name;
     ind->x_object = stem;
     
@@ -54,7 +51,6 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     struct ger_stem_node *stem = (struct ger_stem_node *)indc->cur_inode->x_object; //类型检查？
     struct ger_stem_node *temp_stem;
     char *name = indc->the_name;
-    
     struct list_head *cusor;
     
     if (stem->prepare_raw_data != NULL) {
@@ -64,7 +60,8 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     pthread_mutex_lock(&stem->ch_lock);
     list_for_each(cusor, &stem->children){
         temp_stem = list_entry(cusor, struct ger_stem_node, child);
-        if (strcmp(temp_stem->name, name)) {
+        
+        if (strcmp(temp_stem->name, name) == 0) {
             counter_get(&temp_stem->stem_inuse);
             pthread_mutex_unlock(&stem->ch_lock);
             goto  FINDED;
@@ -75,6 +72,7 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     return -1;
     
 FINDED:
+    
     indc->cur_inode = ger_alloc_inode(temp_stem);;
     counter_put(&temp_stem->stem_inuse);
     return 0;

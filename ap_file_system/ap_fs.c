@@ -65,7 +65,7 @@ int walk_path(struct ap_inode_indicator *start)
     if (start->cur_slash == path) {
         path--;
     }
-    
+    start->slash_remain++;
 AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
@@ -75,9 +75,12 @@ AGAIN:
         
         struct list_head *_cusor;
         struct ap_inode *temp_inode;
-        
-        *start->cur_slash = '\0';
+       
         start->slash_remain--;
+
+        if (start->slash_remain > 0) {
+            *start->cur_slash = '\0';
+        }
         start->the_name = path;
         
         pthread_mutex_lock(&cursor_inode->ch_lock);
@@ -129,6 +132,7 @@ AGAIN:
         
         list_add(&start->cur_inode->child, &cursor_inode->children);
         start->par = cursor_inode;
+        start->cur_inode->parent = cursor_inode;
         start->cur_inode->links++;
 
         path = start->cur_slash;

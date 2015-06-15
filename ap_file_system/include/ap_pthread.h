@@ -9,11 +9,12 @@
 #ifndef ap_file_system_ap_pthread_h
 #define ap_file_system_ap_pthread_h
 #include <stdio.h>
-#include "ap_fs.h"
+#include <ap_fs.h>
 
 pthread_key_t file_thread_key;
 
 struct ap_file_pthread{
+    char path[FULL_PATH_LEN];
     struct ap_inode *m_wd, *c_wd;
 };
 
