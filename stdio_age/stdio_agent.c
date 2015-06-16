@@ -52,7 +52,6 @@ static ssize_t stdio_age_write(struct ger_stem_node *stem, char *buf, off_t off_
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     ssize_t n_write;
-    
     n_write = write(sa->fd, buf, len);
     return n_write;
 }
@@ -97,12 +96,12 @@ static inline char *combine_path(const char *path1, const char *path2){
     char *tard = Mallocz(len1 + len2 + 2);
     char *tard_cp = tard;
     
-    strncpy(tard_cp, path1, len1);
+    memcpy(tard_cp, path1, len1);
     tard_cp += len1;
     if (*(tard_cp - 1) != '/') {
         *tard_cp++ = '/';
     }
-    strncpy(tard_cp, path2, len2);
+    memcpy(tard_cp, path2, len2);
     
     return tard;
 }
@@ -129,32 +128,35 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
     }
     chdir(sa_dir->target_dir);
     
-    while ((dirp = readdir(dp)) != NULL) {
-        path = dirp->d_name;
-        if (strcmp(path, ".") == 0 ||
-            strcmp(path, "..") == 0) {
-            continue;
+    if (stem->raw_data_isset == 0) {
+        while ((dirp = readdir(dp)) != NULL) {
+            path = dirp->d_name;
+            if (strcmp(path, ".") == 0 ||
+                strcmp(path, "..") == 0) {
+                continue;
+            }
+            str_len = strlen(path) + 1;
+            cp_path = Mallocz(str_len);
+            memcpy(cp_path, path, str_len);
+            *(cp_path + str_len) = '\0';
+            
+            lstat(cp_path, &stat_buf);
+            
+            if (S_ISREG(stat_buf.st_mode)) {
+                tard  = combine_path(sa_dir->target_dir, cp_path);
+                sa_temp = MALLOC_STD_AGE(tard, g_fileno);
+                sa_temp->stem.name = cp_path;
+                sa_dir->stem.is_dir = 0;
+                hook_to_stem(stem, &sa_temp->stem);
+            }else if(S_ISDIR(stat_buf.st_mode)){
+                tard = combine_path(sa_dir->target_dir, cp_path);
+                sa_dir_temp = MALLOC_STD_AGE_DIR(tard);
+                sa_dir_temp->stem.name = cp_path;
+                sa_dir_temp->stem.is_dir = 1;
+                hook_to_stem(stem, &sa_dir_temp->stem);
+            }
         }
-        str_len = strlen(path) + 1;
-        cp_path = Mallocz(str_len);
-        strncpy(cp_path, path, str_len);
-        *(cp_path + str_len) = '\0';
-
-        lstat(cp_path, &stat_buf);
-        
-        if (S_ISREG(stat_buf.st_mode)) {
-            tard  = combine_path(sa_dir->target_dir, cp_path);
-            sa_temp = MALLOC_STD_AGE(tard, g_fileno);
-            sa_temp->stem.name = cp_path;
-            sa_dir->stem.is_dir = 0;
-            hook_to_stem(stem, &sa_temp->stem);
-        }else if(S_ISDIR(stat_buf.st_mode)){
-            tard = combine_path(sa_dir->target_dir, cp_path);
-            sa_dir_temp = MALLOC_STD_AGE_DIR(tard);
-            sa_dir_temp->stem.name = cp_path;
-            sa_dir_temp->stem.is_dir = 1;
-            hook_to_stem(stem, &sa_dir_temp->stem);
-        }
+        stem->raw_data_isset = 1;
     }
     
     if(closedir(dp) < 0){

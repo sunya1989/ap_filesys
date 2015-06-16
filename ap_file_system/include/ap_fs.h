@@ -149,7 +149,6 @@ struct ap_inode_indicator{
     int slash_remain;
     char *the_name;
     char *cur_slash;
-    struct ap_inode *par;
     struct ap_inode *gate;
 	struct ap_inode *cur_inode;
 };
@@ -158,7 +157,6 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
 {
     indc->path = NULL;
     indc->cur_inode = NULL;
-    indc->par = NULL;
     indc->the_name = NULL;
     indc->gate = NULL;
 }
@@ -167,6 +165,9 @@ static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 {
     if (indc->cur_inode != NULL) {
          ap_inode_put(indc->cur_inode);
+    }
+    if (indc->gate != NULL) {
+        ap_inode_put(indc->gate);
     }
     free(indc);
 }

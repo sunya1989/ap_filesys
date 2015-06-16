@@ -18,18 +18,17 @@ static struct ap_inode_operations ger_inode_operations;
 static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
 {
     struct ap_inode *ind;
-    char *name;
     ssize_t n_len;
     ind = MALLOC_AP_INODE();
     
     n_len = strlen(stem->name);
-    name = Mallocz(n_len + 1);
-    memcpy(name, stem->name, n_len);
-    ind->name = name;
+    ind->name = Mallocz(n_len + 1);
+    memcpy(ind->name, stem->name, n_len);
     ind->x_object = stem;
     
     counter_get(&stem->stem_inuse);
-    
+    ap_inode_get(ind);
+
     ind->is_dir = stem->is_dir;
     if (ind->is_dir) {
         ind->i_ops = &ger_inode_operations;
@@ -72,8 +71,8 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     return -1;
     
 FINDED:
-    
-    indc->cur_inode = ger_alloc_inode(temp_stem);;
+    ap_inode_put(indc->cur_inode);
+    indc->cur_inode = ger_alloc_inode(temp_stem);
     counter_put(&temp_stem->stem_inuse);
     return 0;
 }
@@ -250,11 +249,12 @@ static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, vo
     
     n_len = strlen(root_stem->name);
     name = malloc(n_len + 1);
-    strncpy(name, root_stem->name, n_len+1);
+    memcpy(name, root_stem->name, n_len+1);
     
     root_stem->name = name;
     ind->name = name;
     ind->i_ops = &ger_inode_operations;
+    ind->links++;
     
     return ind;
 }

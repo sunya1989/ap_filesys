@@ -19,7 +19,7 @@ struct stem_file_operations;
 struct stem_inode_operations;
 
 struct ger_stem_node{
-    char *name;
+    const char *name;
     int is_dir;
     
     struct ger_stem_node *parent;
@@ -28,6 +28,7 @@ struct ger_stem_node{
     pthread_mutex_t ch_lock;
     
     struct counter stem_inuse;
+    int raw_data_isset;
     
     void (*prepare_raw_data) (struct ger_stem_node *);
     
@@ -41,6 +42,7 @@ static inline void STEM_INIT(struct ger_stem_node *stem)
     stem->prepare_raw_data = NULL;
     stem->sf_ops = NULL;
     stem->si_ops = NULL;
+    stem->raw_data_isset = 0;
     
     INIT_LIST_HEAD(&stem->children);
     INIT_LIST_HEAD(&stem->child);

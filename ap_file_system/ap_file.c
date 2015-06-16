@@ -251,7 +251,7 @@ int ap_mount(void *m_info, char *file_system, char *path)
     
     size_t len = strlen(par_indic->full_path);
     char *mount_path = Mallocz(len + 1);
-    strncpy(mount_path, par_indic->full_path, len);
+    memcpy(mount_path, par_indic->full_path, len);
     mount_point->name = mount_path;
     add_inodes_to_fsys(fsyst, mount_point);
     
@@ -471,9 +471,9 @@ int ap_unlik(char *path)
         errno = EISDIR;
         return -1;
     }
-    op_inode = final_indc->cur_inode; //op_inode is a inode_gate or a real_inode
+    op_inode = final_indc->cur_inode;
     gate = final_indc->gate;
-    if (gate!=NULL) {
+    if (gate != NULL) {
         pthread_mutex_lock(&gate->parent->ch_lock);
         list_del(&gate->child);
         pthread_mutex_unlock(&gate->parent->ch_lock);
@@ -571,8 +571,11 @@ int ap_link(char *l_path, char *t_path)
         errno = EACCES;
         return -1;
     }
+    ssize_t strl = strlen(final_indc->the_name);
     inode_gate = MALLOC_AP_INODE();
     inode_gate->is_gate = 1;
+    inode_gate->name = Mallocz(strl + 1);
+    memcpy(inode_gate->name, final_indc->the_name, strl);
     inode_gate->real_inode = op_inode->is_gate? op_inode->real_inode:op_inode;
     
     inode_add_child(final_indc->cur_inode, inode_gate);

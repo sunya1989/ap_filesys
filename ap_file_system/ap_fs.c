@@ -58,7 +58,7 @@ int walk_path(struct ap_inode_indicator *start)
         temp_path += 1;
     }
     
-    strncpy(temp_path, path, str_len+1);
+    memcpy(temp_path, path, str_len+1);
     path = temp_path;
     
     start->cur_slash = strchr(path, '/');
@@ -86,16 +86,16 @@ AGAIN:
         pthread_mutex_lock(&cursor_inode->ch_lock);
         list_for_each(_cusor, &cursor_inode->children){
            temp_inode = list_entry(_cusor, struct ap_inode, child);
-            if (temp_inode->is_mount_point || temp_inode->is_gate) {
-                if (temp_inode->is_gate) {
-                    ap_inode_get(temp_inode);
-                    start->gate = temp_inode;
-                }
+            if (temp_inode->is_mount_point) {
                 temp_inode = temp_inode->real_inode;
             }
             if (strcmp(temp_inode->name, path) == 0) {
+                if (temp_inode->is_gate) {
+                    start->gate = temp_inode;
+                    ap_inode_get(start->gate);
+                }
                 ap_inode_put(start->cur_inode);
-                start->cur_inode = temp_inode;
+                start->cur_inode = temp_inode->is_gate? temp_inode->real_inode:temp_inode;
                 ap_inode_get(start->cur_inode);
                 
                 path = start->cur_slash;
@@ -131,7 +131,6 @@ AGAIN:
         }
         
         list_add(&start->cur_inode->child, &cursor_inode->children);
-        start->par = cursor_inode;
         start->cur_inode->parent = cursor_inode;
         start->cur_inode->links++;
 

@@ -146,7 +146,7 @@ static key_t ap_ftok(pid_t pid, char *ipc_path)
     return key;
 }
 
-static void ap_msgmemcpy(size_t seq, char *base, const char *data, size_t len)
+static void msgmemcpy(size_t seq, char *base, const char *data, size_t len)
 {
     char *cp = base + (seq*AP_MSGSEG_LEN);
     memcpy(cp, data, len);
@@ -177,7 +177,7 @@ static ssize_t ap_msgrcv(int msgid, char **d_buf, unsigned long wait_seq)
             cc_p = c_p = *d_buf;
         }
         data_l = buf.data_len;
-        ap_msgmemcpy(buf.seq, cc_p, buf.segc, data_l);
+        msgmemcpy(buf.seq, cc_p, buf.segc, data_l);
         dl -= data_l;
     } while (dl>0);
     
@@ -250,7 +250,7 @@ static void client_g(struct ap_msgbuf *buf, char **req_d)
         hl = MALLOC_HOLDER();
         ihl = MALLOC_IPC_INODE_HOLDER();
         char *ide_c = Mallocx(str_len);
-        strncpy(ide_c, path, str_len);
+        memcpy(ide_c, path, str_len);
         hl->ide.ide_c = ide_c;
         hl->ide.ide_i = buf->pid;
         hl->ipc_get = inode_ipc_get;
@@ -417,7 +417,7 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
     }
     
     char *cp_idec = Mallocz(str_len + 1);
-    strncpy(cp_idec, f_idec, str_len);
+    memcpy(cp_idec, f_idec, str_len);
     
     file->f_hash_union.ide.ide_i = hl->ide.ide_i;
     file->f_hash_union.ide.ide_c = cp_idec;
@@ -613,7 +613,7 @@ static char **proc_path_analy(char *path_s, char *path_d)
         exit(1);
     }
     
-    strncpy(path_name, path_d, str_len);
+    memcpy(path_name, path_d, str_len);
     *(path_name + str_len) = '\0';
     *analy_r = path_name;
     
@@ -630,7 +630,7 @@ static char **proc_path_analy(char *path_s, char *path_d)
         perror("malloc failed\n");
         exit(1);
     }
-    strncpy(proc_name, head, str_len);
+    memcpy(proc_name, head, str_len);
     *(proc_name + str_len) = '\0';
     *(analy_r + 1) = proc_name;
     head = indic++;
@@ -647,7 +647,7 @@ static char **proc_path_analy(char *path_s, char *path_d)
         exit(1);
     }
     
-    strncpy(key, head, str_len);
+    memcpy(key, head, str_len);
     *(key + str_len) = '\0';
     *(analy_r + 2) = key;
     return analy_r;
@@ -792,7 +792,7 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     
     strl = strlen(ide.ide_c);
     path = Mallocx(strl);
-    strncpy(path, ide.ide_c, strl);
+    memcpy(path, ide.ide_c, strl);
     *(path + strl) = '\0';
     
     indc->cur_inode->ipc_path_hash.ide.ide_c = path;
