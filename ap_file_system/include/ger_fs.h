@@ -19,7 +19,7 @@ struct stem_file_operations;
 struct stem_inode_operations;
 
 struct ger_stem_node{
-    const char *name;
+    const char *stem_name;
     int is_dir;
     
     struct ger_stem_node *parent;
@@ -38,7 +38,7 @@ struct ger_stem_node{
 
 static inline void STEM_INIT(struct ger_stem_node *stem)
 {
-    stem->name = NULL;
+    stem->stem_name = NULL;
     stem->prepare_raw_data = NULL;
     stem->sf_ops = NULL;
     stem->si_ops = NULL;

@@ -217,7 +217,6 @@ int ap_mount(void *m_info, char *file_system, char *path)
     mount_inode = fsyst->get_initial_inode(fsyst,m_info);
     mount_point->real_inode = mount_inode;
     mount_inode->mount_inode = mount_point;
-    
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
         fprintf(stderr, "ap_thread didn't find\n");

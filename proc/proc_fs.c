@@ -23,7 +23,6 @@
 #include <list.h>
 #include <convert.h>
 #include "proc_fs.h"
-
 #define IPC_PATH 0
 #define PROC_NAME 1
 #define IPC_KEY 2

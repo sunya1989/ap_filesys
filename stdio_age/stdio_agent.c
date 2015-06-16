@@ -138,22 +138,23 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
             str_len = strlen(path) + 1;
             cp_path = Mallocz(str_len);
             memcpy(cp_path, path, str_len);
-            *(cp_path + str_len) = '\0';
             
             lstat(cp_path, &stat_buf);
             
             if (S_ISREG(stat_buf.st_mode)) {
                 tard  = combine_path(sa_dir->target_dir, cp_path);
                 sa_temp = MALLOC_STD_AGE(tard, g_fileno);
-                sa_temp->stem.name = cp_path;
+                sa_temp->stem.stem_name = cp_path;
                 sa_dir->stem.is_dir = 0;
                 hook_to_stem(stem, &sa_temp->stem);
             }else if(S_ISDIR(stat_buf.st_mode)){
                 tard = combine_path(sa_dir->target_dir, cp_path);
                 sa_dir_temp = MALLOC_STD_AGE_DIR(tard);
-                sa_dir_temp->stem.name = cp_path;
+                sa_dir_temp->stem.stem_name = cp_path;
                 sa_dir_temp->stem.is_dir = 1;
                 hook_to_stem(stem, &sa_dir_temp->stem);
+            }else{
+                free(cp_path);
             }
         }
         stem->raw_data_isset = 1;
@@ -162,9 +163,6 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
     if(closedir(dp) < 0){
         perror("close dir failed\n");
         exit(1);
-    }
-    if (cp_path != NULL) {
-         free(cp_path);
     }
     chdir("-");
     return;

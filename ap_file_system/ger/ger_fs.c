@@ -20,10 +20,9 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     struct ap_inode *ind;
     ssize_t n_len;
     ind = MALLOC_AP_INODE();
-    
-    n_len = strlen(stem->name);
+    n_len = strlen(stem->stem_name);
     ind->name = Mallocz(n_len + 1);
-    memcpy(ind->name, stem->name, n_len);
+    memcpy(ind->name, stem->stem_name, n_len);
     ind->x_object = stem;
     
     counter_get(&stem->stem_inuse);
@@ -38,12 +37,6 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     
     return ind;
 }
-#ifdef DEBUG
-extern  struct ap_inode *export_ger_alloc_inode(struct ger_stem_node *stem)
-{
-   return ger_alloc_inode(stem);
-}
-#endif
 
 static int ger_get_inode(struct ap_inode_indicator *indc)
 {
@@ -60,7 +53,7 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     list_for_each(cusor, &stem->children){
         temp_stem = list_entry(cusor, struct ger_stem_node, child);
         
-        if (strcmp(temp_stem->name, name) == 0) {
+        if (strcmp(temp_stem->stem_name, name) == 0) {
             counter_get(&temp_stem->stem_inuse);
             pthread_mutex_unlock(&stem->ch_lock);
             goto  FINDED;
@@ -247,11 +240,11 @@ static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, vo
     counter_get(&root_stem->stem_inuse);
     ind->is_dir = 1;
     
-    n_len = strlen(root_stem->name);
+    n_len = strlen(root_stem->stem_name);
     name = malloc(n_len + 1);
-    memcpy(name, root_stem->name, n_len+1);
+    memcpy(name, root_stem->stem_name, n_len+1);
     
-    root_stem->name = name;
+    root_stem->stem_name = name;
     ind->name = name;
     ind->i_ops = &ger_inode_operations;
     ind->links++;
@@ -274,7 +267,7 @@ AGAIN:
         pthread_mutex_lock(&stem_cusor->ch_lock);
         list_for_each(child_cusor, &stem_cusor->children){
             temp_stem = list_entry(child_cusor, struct ger_stem_node, child);
-            if (strcmp(temp_stem->name, name_cusor) == 0) {
+            if (strcmp(temp_stem->stem_name, name_cusor) == 0) {
                 if (i == counts-1) {
                     counter_get(&temp_stem->stem_inuse);
                     pthread_mutex_unlock(&stem_cusor->ch_lock);
@@ -300,7 +293,6 @@ void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem)
     list_add(&stem->child, &par->children);
     pthread_mutex_unlock(&par->ch_lock);
 }
-
 
 int init_fs_ger()
 {

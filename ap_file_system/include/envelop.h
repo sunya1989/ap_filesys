@@ -10,6 +10,7 @@
 #define ap_file_system_envelop_h
 #include <sys/msg.h>
 #include <string.h>
+#include <stdlib.h>
 
 static inline void *Mallocx(size_t size)
 {
@@ -30,7 +31,6 @@ static inline void *Mallocz(size_t size)
     }
     memset(buf, 0, size);
     return buf;
-    
 }
 
 static inline int Msgget(key_t key, int flag)
