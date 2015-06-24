@@ -69,7 +69,7 @@ static char **pull_req(struct ap_msgreq *req)
     return msg_req;
 }
 
-static struct ap_msgbuf *constr_req(char *buf, size_t buf_len, size_t list[], int lis_len)
+static struct ap_msgbuf *constr_req(const char *buf, size_t buf_len, size_t list[], int lis_len)
 {
     struct ap_msgbuf *msgbuf = (struct ap_msgbuf *)Mallocz(sizeof(struct ap_msgbuf) + buf_len + sizeof(size_t)*lis_len);
     msgbuf->req.index_lenth = lis_len;
@@ -82,7 +82,7 @@ static struct ap_msgbuf *constr_req(char *buf, size_t buf_len, size_t list[], in
     return msgbuf;
 }
 
-static char *collect_items(char **items, size_t buf_len, size_t list[], int lis_len)
+static char *collect_items(const char **items, size_t buf_len, size_t list[], int lis_len)
 {
     char *buf = Mallocz(buf_len);
     char *cp = buf;
@@ -584,9 +584,9 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
     return init_inode;
 }
 
-static char **proc_path_analy(char *path_s, char *path_d)
+static char **proc_path_analy(const char *path_s, const char *path_d)
 {
-    char *indic,*head;
+    const char *indic,*head;
     head = path_s;
     indic = strchr(path_s, ':');
     size_t str_len;
@@ -807,7 +807,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inde->ipc_path_hash.ide.ide_c;
+    const char *path = inde->ipc_path_hash.ide.ide_c;
     char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
@@ -824,7 +824,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     size_t str_len_f = strlen(f_idec);
     size_t t_str_len = str_len + str_len_f;
     size_t list[] = {str_len,str_len_f};
-    char *items[] = {path,f_idec};
+    const char *items[] = {path,f_idec};
     char *send_buf = collect_items(items, t_str_len, list, 2);
     
     msgbuf = constr_req(send_buf, t_str_len, list, 2);
@@ -865,7 +865,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inde->ipc_path_hash.ide.ide_c;
+    const char *path = inde->ipc_path_hash.ide.ide_c;
     char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
@@ -882,7 +882,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     size_t str_len_f = strlen(f_idec);
     size_t t_str_len = str_len + str_len_f;
     size_t list[] = {str_len,str_len_f};
-    char *items[] = {path,f_idec};
+    const char *items[] = {path,f_idec};
     char *send_buf = collect_items(items, t_str_len, list, 2);
     
     msgbuf = constr_req(send_buf, t_str_len, list, 2);
@@ -919,7 +919,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inde->ipc_path_hash.ide.ide_c;
+    const char *path = inde->ipc_path_hash.ide.ide_c;
     int send_s;
     ssize_t recv_s;
     char *msg_reply;
@@ -939,7 +939,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     strncat(f_idec, path, str_len);
     strncat(f_idec, rand_c, str_len_r);
     size_t list[] = {str_len,str_len + str_len_r};
-    char *items[] = {path, f_idec};
+    const  char *items[] = {path, f_idec};
     char *buf = collect_items(items, 2*str_len + str_len_r, list, 2);
     
     msgbuf = constr_req(buf, 2*str_len + str_len_r, list, 2);
@@ -992,7 +992,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inode->ipc_path_hash.ide.ide_c;
+    const char *path = inode->ipc_path_hash.ide.ide_c;
     char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
@@ -1009,7 +1009,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     size_t str_len_f = strlen(f_idec);
     size_t t_str_len = str_len_f + str_len;
     size_t list[] = {str_len,str_len_f};
-    char *items[] = {path,f_idec};
+    const char *items[] = {path,f_idec};
     char *send_buf = collect_items(items, t_str_len, list, 2);
     
     msgbuf = constr_req(send_buf, t_str_len, list, 2);
@@ -1045,7 +1045,7 @@ static int proc_destory(struct ap_inode *inode)
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inode->ipc_path_hash.ide.ide_c;
+    const char *path = inode->ipc_path_hash.ide.ide_c;
     int send_s;
     ssize_t recv_s;
     char *msg_reply;
@@ -1059,7 +1059,7 @@ static int proc_destory(struct ap_inode *inode)
     
     size_t str_len = strlen(path);
     size_t list[] = {str_len};
-    char *items[] = {path};
+    const char *items[] = {path};
     char *send_buf = collect_items(items, str_len, list, 1);
     
     msgbuf = constr_req(send_buf, str_len, list, 1);

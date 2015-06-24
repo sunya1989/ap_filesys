@@ -145,9 +145,9 @@ static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
 
 struct ap_inode_indicator{
     char full_path[FULL_PATH_LEN];
-	char *path;
+	const char *path;
     int slash_remain;
-    char *the_name;
+    const char *the_name;
     char *cur_slash;
     struct ap_inode *gate;
 	struct ap_inode *cur_inode;

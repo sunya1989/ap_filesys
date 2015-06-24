@@ -15,18 +15,18 @@
 /*检查路径使得路径具有^[/](.*\/)*
  *的形式
  */
-static char *regular_path(char *path, int *slash_no)
+static const char *regular_path(const char *path, int *slash_no)
 {
     char *slash;
-    char *path_cursor = path;
-    char *reg_path;
+    const char *path_cursor = path;
+    const char *reg_path;
     
     size_t path_len = strlen(path);
     if (path_len == 0 || slash_no == NULL) {
         return NULL;
     }
     *slash_no = 0;
-    char *path_end = path + path_len;
+    const char *path_end = path + path_len;
     
     if (*path == '.') {
         if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
@@ -54,7 +54,7 @@ static char *regular_path(char *path, int *slash_no)
 }
 
 
-static int __initial_indicator(char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)
+static int __initial_indicator(const char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)
 {
     int slash_no;
     
@@ -114,7 +114,7 @@ void deug_regular_path(char *path, int *slash_no)
 /*每当一个独立线程调用ap_open时都会产生新的file结构
  *以后能使用hash使得同一个文件对应一个fd（相对于不同线程来说）
  */
-int ap_open(char *path, int flags)
+int ap_open(const char *path, int flags)
 {
     int ap_fd = 0;
     struct ap_file_pthread *ap_fpthr;
@@ -185,7 +185,7 @@ int ap_open(char *path, int flags)
     return ap_fd;
 }
 
-int ap_mount(void *m_info, char *file_system, char *path)
+int ap_mount(void *m_info, char *file_system, const char *path)
 {
     if (file_system == NULL || path ==NULL) {
         errno = EINVAL;
@@ -436,7 +436,7 @@ int ap_mkdir(char *path, unsigned long mode)
     return 0;
 }
 
-int ap_unlik(char *path)
+int ap_unlink(const char *path)
 {
     if (path == NULL) {
         errno = EFAULT;
@@ -482,14 +482,14 @@ int ap_unlik(char *path)
     list_del(&op_inode->child);
     pthread_mutex_unlock(&op_inode->parent->ch_lock);
     pthread_mutex_lock(&op_inode->data_lock);
-    link = op_inode->links--;
+    link = --op_inode->links;
     pthread_mutex_unlock(&op_inode->data_lock);
     
     int o = 0;
     
     if (link == 0) {     //已经没有其它目录链接此文件
         if (op_inode->parent->i_ops->unlink != NULL) {
-            int unlik_s = op_inode->i_ops->unlink(op_inode);
+            int unlik_s = op_inode->parent->i_ops->unlink(op_inode);
             if (unlik_s == -1) {
                 errno = EPERM;
                 o = -1;
@@ -497,14 +497,11 @@ int ap_unlik(char *path)
         }
         ap_inode_put(op_inode);
     }
-    if (gate) {
-        ap_inode_put(gate);
-    }
     AP_INODE_INICATOR_FREE(final_indc);
     return o;
 }
 
-int ap_link(char *l_path, char *t_path)
+int ap_link(const char *l_path, const char *t_path)
 {
     if (l_path == NULL || t_path == NULL) {
         errno = EFAULT;
@@ -574,10 +571,12 @@ int ap_link(char *l_path, char *t_path)
     inode_gate = MALLOC_AP_INODE();
     inode_gate->is_gate = 1;
     inode_gate->name = Mallocz(strl + 1);
+    inode_gate->links++;
     memcpy(inode_gate->name, final_indc->the_name, strl);
     inode_gate->real_inode = op_inode->is_gate? op_inode->real_inode:op_inode;
     
     inode_add_child(final_indc->cur_inode, inode_gate);
+    inode_gate->parent = final_indc->cur_inode;
    
     ap_inode_put(op_inode);
     AP_INODE_INICATOR_FREE(final_indc);

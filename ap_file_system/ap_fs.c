@@ -6,6 +6,8 @@
 static struct ap_file_operations root_file_operations;
 static struct ap_inode_operations root_dir_operations;
 
+#define extra_real_inode(inode) ((inode->is_mount_point)? (inode->real_inode):(inode))
+
 static struct ap_inode root_dir = {
     .name = "root_test",
     .is_dir = 1,
@@ -36,7 +38,7 @@ struct ap_file_systems f_systems = {
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;
-	char *path = start->path;
+	const char *path = start->path;
     int get;
     
     size_t str_len = strlen(path);
@@ -86,16 +88,14 @@ AGAIN:
         pthread_mutex_lock(&cursor_inode->ch_lock);
         list_for_each(_cusor, &cursor_inode->children){
            temp_inode = list_entry(_cusor, struct ap_inode, child);
-            if (temp_inode->is_mount_point) {
-                temp_inode = temp_inode->real_inode;
-            }
-            if (strcmp(temp_inode->name, path) == 0) {
+            if (strcmp(extra_real_inode(temp_inode)->name, path) == 0) {
                 if (temp_inode->is_gate) {
                     start->gate = temp_inode;
                     ap_inode_get(start->gate);
                 }
                 ap_inode_put(start->cur_inode);
-                start->cur_inode = temp_inode->is_gate? temp_inode->real_inode:temp_inode;
+                start->cur_inode = temp_inode->is_gate || temp_inode->is_mount_point?
+                temp_inode->real_inode:temp_inode;
                 ap_inode_get(start->cur_inode);
                 
                 path = start->cur_slash;
@@ -114,8 +114,10 @@ AGAIN:
         if(cursor_inode->i_ops->find_inode != NULL){
             get = cursor_inode->i_ops->find_inode(start);
             if (!get) {
+                pthread_mutex_unlock(&cursor_inode->ch_lock);
                 return 0;
             }
+            pthread_mutex_unlock(&cursor_inode->ch_lock);
             return -1;
         }
         

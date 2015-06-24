@@ -42,7 +42,7 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)indc->cur_inode->x_object; //类型检查？
     struct ger_stem_node *temp_stem;
-    char *name = indc->the_name;
+    const char *name = indc->the_name;
     struct list_head *cusor;
     
     if (stem->prepare_raw_data != NULL) {
