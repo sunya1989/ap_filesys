@@ -132,7 +132,7 @@ static int ger_unlink(struct ap_inode *ind)
     struct ger_stem_node *stem = ind->x_object; //类型检查??
     int o;
 
-    if (stem->si_ops->stem_unlink == NULL) {
+    if (stem->parent->si_ops->stem_unlink == NULL) {
         errno = EPERM;
         return -1;
     }
@@ -147,7 +147,7 @@ static int ger_unlink(struct ap_inode *ind)
     pthread_mutex_unlock(&stem->parent->ch_lock);
     counter_put(&stem->stem_inuse);
     ind->x_object = NULL;
-    o = stem->si_ops->stem_unlink(stem);
+    o = stem->parent->si_ops->stem_unlink(stem);
     return o;
 }
 

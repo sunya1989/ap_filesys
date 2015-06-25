@@ -147,12 +147,14 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
                 sa_temp->stem.stem_name = cp_path;
                 sa_dir->stem.is_dir = 0;
                 hook_to_stem(stem, &sa_temp->stem);
+                sa_temp->stem.parent = stem;
             }else if(S_ISDIR(stat_buf.st_mode)){
                 tard = combine_path(sa_dir->target_dir, cp_path);
                 sa_dir_temp = MALLOC_STD_AGE_DIR(tard);
                 sa_dir_temp->stem.stem_name = cp_path;
                 sa_dir_temp->stem.is_dir = 1;
                 hook_to_stem(stem, &sa_dir_temp->stem);
+                sa_dir_temp->stem.parent = stem;
             }else{
                 free(cp_path);
             }

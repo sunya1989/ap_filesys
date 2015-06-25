@@ -7,7 +7,7 @@ extern int ap_close(int fd);
 extern int ap_mkdir(char *path, unsigned long mode);
 extern int ap_unlink(const char *path);
 extern int ap_link(const char *l_path, const char *t_path);
-extern int ap_rmdir(char *path);
+extern int ap_rmdir(const char *path);
 extern int ap_chdir(char *path);
 extern ssize_t ap_read(int fd, void *buf, size_t len);
 extern ssize_t ap_write(int fd, void *buf, size_t len);

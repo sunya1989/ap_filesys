@@ -49,6 +49,7 @@ int walk_path(struct ap_inode_indicator *start)
 
     struct ap_inode *cursor_inode = start->cur_inode;
     temp_path = (char *) Mallocz(str_len + 3);
+    start->tmp_path = temp_path;
     
     if (temp_path == NULL) {
         fprintf(stderr, "walk_path malloc_faile\n");
@@ -84,7 +85,7 @@ AGAIN:
             *start->cur_slash = '\0';
         }
         start->the_name = path;
-        
+                
         pthread_mutex_lock(&cursor_inode->ch_lock);
         list_for_each(_cusor, &cursor_inode->children){
            temp_inode = list_entry(_cusor, struct ap_inode, child);
@@ -101,6 +102,7 @@ AGAIN:
                 path = start->cur_slash;
                 if (start->slash_remain == 0) {
                     pthread_mutex_unlock(&cursor_inode->ch_lock);
+                    free(temp_path);
                     return 0;
                 }
                 

@@ -24,12 +24,11 @@ static inline void *Mallocx(size_t size)
 
 static inline void *Mallocz(size_t size)
 {
-    char *buf = malloc(size);
+    char *buf = calloc(1, size);
     if (buf == NULL) {
         perror("malloc failed\n");
         exit(1);
     }
-    memset(buf, 0, size);
     return buf;
 }
 

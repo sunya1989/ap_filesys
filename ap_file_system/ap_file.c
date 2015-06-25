@@ -137,17 +137,20 @@ int ap_open(const char *path, int flags)
    int set = __initial_indicator(path, final_inode, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
+        AP_INODE_INICATOR_FREE(final_inode);
         return -1;
     }
     
     int get = walk_path(final_inode);
     if (get == -1) {
         errno = ENOENT;
+        AP_INODE_INICATOR_FREE(final_inode);
         return -1;
     }
     
     if (final_inode->cur_inode->is_dir) {
         errno = EISDIR;
+        AP_INODE_INICATOR_FREE(final_inode);
         return -1;
     }
     
@@ -170,6 +173,7 @@ int ap_open(const char *path, int flags)
     if (file_info.o_files >= _OPEN_MAX) {
         errno = EMFILE;
         pthread_mutex_unlock(&file_info.files_lock);
+        AP_INODE_INICATOR_FREE(final_inode);
         return -1;
     }
     for (int i=0; i<_OPEN_MAX; i++) {
@@ -228,6 +232,7 @@ int ap_mount(void *m_info, char *file_system, const char *path)
     
     if ((get == -1 && par_indic->slash_remain > 0) || !par_indic->cur_inode->is_dir) {
         errno = ENOENT;
+        AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
     
@@ -410,26 +415,30 @@ int ap_mkdir(char *path, unsigned long mode)
     
     if (!get) {
         errno = EEXIST;
+        AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
     if (!par_indic->cur_inode->is_dir) {
         errno = ENOTDIR;
+        AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
     
     if (par_indic->slash_remain != 0) {
         errno = EACCES;
+        AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
     
     if (!par_indic->cur_inode->i_ops->mkdir) {
         errno = EPERM;
+        AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
     
     s_make = par_indic->cur_inode->i_ops->mkdir(par_indic); //由此函数直接负责将ap_inode插入到链表中
     if (s_make == -1) {
-        errno = EPERM;
+        AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
     AP_INODE_INICATOR_FREE(par_indic);
@@ -464,10 +473,12 @@ int ap_unlink(const char *path)
     int get = walk_path(final_indc);
     if (get == -1) {
         errno = ENOENT;
+        AP_INODE_INICATOR_FREE(final_indc);
         return -1;
     }
     if (final_indc->cur_inode->is_dir) {
         errno = EISDIR;
+        AP_INODE_INICATOR_FREE(final_indc);
         return -1;
     }
     op_inode = final_indc->cur_inode;
@@ -476,11 +487,12 @@ int ap_unlink(const char *path)
         pthread_mutex_lock(&gate->parent->ch_lock);
         list_del(&gate->child);
         pthread_mutex_unlock(&gate->parent->ch_lock);
+    }else{
+        pthread_mutex_lock(&op_inode->parent->ch_lock); //因为父目录不为空所以不会被删除
+        list_del(&op_inode->child);
+        pthread_mutex_unlock(&op_inode->parent->ch_lock);
     }
     
-    pthread_mutex_lock(&op_inode->parent->ch_lock); //因为父目录不为空所以不会被删除
-    list_del(&op_inode->child);
-    pthread_mutex_unlock(&op_inode->parent->ch_lock);
     pthread_mutex_lock(&op_inode->data_lock);
     link = --op_inode->links;
     pthread_mutex_unlock(&op_inode->data_lock);
@@ -495,7 +507,6 @@ int ap_unlink(const char *path)
                 o = -1;
             }
         }
-        ap_inode_put(op_inode);
     }
     AP_INODE_INICATOR_FREE(final_indc);
     return o;
@@ -508,12 +519,17 @@ int ap_link(const char *l_path, const char *t_path)
         return -1;
     }
     
-    struct ap_inode_indicator *final_indc;
+    int set,get;
+    
+    struct ap_inode_indicator *gate_indc, *or_indc;
     struct ap_inode *op_inode;
     struct ap_file_pthread *ap_fpthr;
     struct ap_inode *inode_gate;
+    struct ap_inode *gate_parent;
+    char *gate_name;
     
-    final_indc = MALLOC_INODE_INDICATOR();
+    gate_indc = MALLOC_INODE_INDICATOR();
+    or_indc = MALLOC_INODE_INDICATOR();
     
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
@@ -521,19 +537,54 @@ int ap_link(const char *l_path, const char *t_path)
         exit(1);
     }
     
-    int set = __initial_indicator(l_path, final_indc, ap_fpthr);
+    set = __initial_indicator(t_path, gate_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
+        AP_INODE_INICATOR_FREE(gate_indc);
         return -1;
     }
     
-    int get = walk_path(final_indc);
+    get = walk_path(gate_indc);
+    
+    if (!get) {
+        errno = EEXIST;
+        AP_INODE_INICATOR_FREE(gate_indc);
+        return -1;
+    }
+    if (!gate_indc->cur_inode->is_dir) {
+        errno = ENOTDIR;
+        AP_INODE_INICATOR_FREE(gate_indc);
+        return -1;
+    }
+    if (gate_indc->slash_remain != 0) {
+        errno = EACCES;
+        AP_INODE_INICATOR_FREE(gate_indc);
+        return -1;
+    }
+    
+    size_t strl = strlen(gate_indc->the_name);
+    gate_name = Mallocz(strl + 1);
+    strncpy(gate_name, gate_indc->the_name, strl);
+    
+    gate_parent = gate_indc->cur_inode;
+    ap_inode_get(gate_indc->cur_inode);
+    AP_INODE_INICATOR_FREE(gate_indc);
+    
+    set = __initial_indicator(l_path, or_indc, ap_fpthr);
+    if (set == -1) {
+        errno = EINVAL;
+        AP_INODE_INICATOR_FREE(or_indc);
+        return -1;
+    }
+    
+    get = walk_path(or_indc);
     if (get == -1) {
         errno = ENOENT;
+        AP_INODE_INICATOR_FREE(or_indc);
         return -1;
     }
     
-    op_inode = final_indc->cur_inode;
+    op_inode = or_indc->cur_inode;
     if (op_inode->is_dir) {
         errno = EISDIR;
         return -1;
@@ -542,45 +593,18 @@ int ap_link(const char *l_path, const char *t_path)
     pthread_mutex_lock(&op_inode->data_lock);
     op_inode->links++;
     pthread_mutex_unlock(&op_inode->data_lock);
-    
-    ap_inode_get(op_inode);
-    ap_inode_put(final_indc->cur_inode);
-    final_indc->cur_inode = NULL;
-    
-    set = __initial_indicator(t_path, final_indc, ap_fpthr);
-    if (set == -1) {
-        errno = EINVAL;
-        return -1;
-    }
-    
-    get = walk_path(final_indc);
-    
-    if (!get) {
-        errno = EEXIST;
-        return -1;
-    }
-    if (!final_indc->cur_inode->is_dir) {
-        errno = ENOTDIR;
-        return -1;
-    }
-    if (final_indc->slash_remain != 0) {
-        errno = EACCES;
-        return -1;
-    }
-    ssize_t strl = strlen(final_indc->the_name);
+ 
     inode_gate = MALLOC_AP_INODE();
     inode_gate->is_gate = 1;
-    inode_gate->name = Mallocz(strl + 1);
+    inode_gate->name = gate_name;
     inode_gate->links++;
-    memcpy(inode_gate->name, final_indc->the_name, strl);
     inode_gate->real_inode = op_inode->is_gate? op_inode->real_inode:op_inode;
     
-    inode_add_child(final_indc->cur_inode, inode_gate);
-    inode_gate->parent = final_indc->cur_inode;
-   
-    ap_inode_put(op_inode);
-    AP_INODE_INICATOR_FREE(final_indc);
+    inode_add_child(gate_parent, inode_gate);
+    inode_gate->parent = gate_parent;
     
+    ap_inode_put(gate_parent);
+    AP_INODE_INICATOR_FREE(or_indc);
     return 0;
 }
 
@@ -594,7 +618,7 @@ static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
     return ind->real_inode == NULL? ind:ind->real_inode;
 }
 
-int ap_rmdir(char *path)
+int ap_rmdir(const char *path)
 {
     if (path == NULL) {
         errno = EFAULT;
@@ -617,12 +641,14 @@ int ap_rmdir(char *path)
     int set = __initial_indicator(path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
+        AP_INODE_INICATOR_FREE(final_indc);
         return -1;
     }
     
     int get = walk_path(final_indc);
     if (get == -1) {
         errno = ENOENT;
+        AP_INODE_INICATOR_FREE(final_indc);
         return -1;
     }
     
@@ -630,6 +656,7 @@ int ap_rmdir(char *path)
     
     if (!op_inode->is_dir) {
         errno = ENOTDIR;
+        AP_INODE_INICATOR_FREE(final_indc);
         return -1;
     }
     parent = convert_to_mountp(op_inode)->parent;
@@ -639,6 +666,7 @@ int ap_rmdir(char *path)
         pthread_mutex_unlock(&op_inode->ch_lock);
         pthread_mutex_unlock(&parent->ch_lock);
         errno = EBUSY;
+        AP_INODE_INICATOR_FREE(final_indc);
         return -1;
     }
     pthread_mutex_lock(&op_inode->inode_counter.counter_lock);
@@ -656,6 +684,7 @@ int ap_rmdir(char *path)
             pthread_mutex_unlock(&op_inode->ch_lock);
             pthread_mutex_unlock(&parent->ch_lock);
             errno = EBUSY;
+            AP_INODE_INICATOR_FREE(final_indc);
             return rm_s;
         }
     }
