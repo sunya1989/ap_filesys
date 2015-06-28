@@ -42,7 +42,6 @@ void __bag_push(struct bag *bag, struct bag_head *head)
 {
     *head->list_tail = bag;
     head->list_tail = &bag->next;
-    
 }
 
 void __bag_release(struct bag_head *head)

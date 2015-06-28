@@ -12,47 +12,7 @@
 #include <ap_file.h>
 #include <ap_fs.h>
 #include <ap_pthread.h>
-/*检查路径使得路径具有^[/](.*\/)*
- *的形式
- */
-static const char *regular_path(const char *path, int *slash_no)
-{
-    char *slash;
-    const char *path_cursor = path;
-    const char *reg_path;
-    
-    size_t path_len = strlen(path);
-    if (path_len == 0 || slash_no == NULL) {
-        return NULL;
-    }
-    *slash_no = 0;
-    const char *path_end = path + path_len;
-    
-    if (*path == '.') {
-        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
-            return NULL;
-        }
-    }
-    
-    while ((slash = strchr(path_cursor, '/')) != NULL) {
-        if (*(++slash) == '/') {
-            return NULL;
-        }
-        (*slash_no)++;
-        path_cursor = slash;
-        if (path_cursor == path_end) {
-            break;
-        }
-    }
-    
-    reg_path = path;
-    if (*(path_end-1) == '/') {
-        (*slash_no)--;
-    }
-    
-    return reg_path;
-}
-
+#include <bag.h>
 
 static int __initial_indicator(const char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)
 {
@@ -488,7 +448,7 @@ int ap_unlink(const char *path)
         list_del(&gate->child);
         pthread_mutex_unlock(&gate->parent->ch_lock);
     }else{
-        pthread_mutex_lock(&op_inode->parent->ch_lock); //因为父目录不为空所以不会被删除
+        pthread_mutex_lock(&op_inode->parent->ch_lock);
         list_del(&op_inode->child);
         pthread_mutex_unlock(&op_inode->parent->ch_lock);
     }
@@ -691,17 +651,19 @@ int ap_rmdir(const char *path)
     
     op_inode = convert_to_mountp(op_inode);
     list_del(&op_inode->child);
+    op_inode->links--;
+
     if (op_inode->prev_mpoints != NULL) {
         inode_add_child(parent, op_inode->prev_mpoints);
     }
+    
     pthread_mutex_unlock(&parent->ch_lock);
     op_inode = convert_to_real_ind(op_inode);
     
-    AP_INODE_INICATOR_FREE(final_indc);
     if (op_inode->mount_inode != NULL) {
         AP_INODE_FREE(op_inode->mount_inode);
     }
-    AP_INODE_FREE(op_inode);
+    AP_INODE_INICATOR_FREE(final_indc);
     return 0;
 }
 

@@ -102,7 +102,6 @@ AGAIN:
                 path = start->cur_slash;
                 if (start->slash_remain == 0) {
                     pthread_mutex_unlock(&cursor_inode->ch_lock);
-                    free(temp_path);
                     return 0;
                 }
                 
@@ -218,5 +217,44 @@ void iholer_destory(struct ipc_inode_holder *iholder)
             AP_FILE_FREE(file_pos);
         }
     }
+}
+
+
+const char *regular_path(const char *path, int *slash_no)
+{
+    char *slash;
+    const char *path_cursor = path;
+    const char *reg_path;
+    
+    size_t path_len = strlen(path);
+    if (path_len == 0 || slash_no == NULL) {
+        return NULL;
+    }
+    *slash_no = 0;
+    const char *path_end = path + path_len;
+    
+    if (*path == '.') {
+        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
+            return NULL;
+        }
+    }
+    
+    while ((slash = strchr(path_cursor, '/')) != NULL) {
+        if (*(++slash) == '/') {
+            return NULL;
+        }
+        (*slash_no)++;
+        path_cursor = slash;
+        if (path_cursor == path_end) {
+            break;
+        }
+    }
+    
+    reg_path = path;
+    if (*(path_end-1) == '/') {
+        (*slash_no)--;
+    }
+    
+    return reg_path;
 }
 

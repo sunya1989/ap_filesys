@@ -145,7 +145,6 @@ static int ger_unlink(struct ap_inode *ind)
     }
     list_del(&stem->child);
     pthread_mutex_unlock(&stem->parent->ch_lock);
-    counter_put(&stem->stem_inuse);
     ind->x_object = NULL;
     o = stem->parent->si_ops->stem_unlink(stem);
     return o;
@@ -200,6 +199,7 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
         return -1;
     }
     new_ind = ger_alloc_inode(new_stem);
+    new_ind->links++;
     inode_add_child(indc->cur_inode, new_ind);
     return 0;
 }

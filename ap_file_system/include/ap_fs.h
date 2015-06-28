@@ -319,5 +319,6 @@ extern int initial_indicator(char *path,
                              struct ap_file_pthread *ap_fpthr);
 extern void inode_ipc_get(void *ind);
 extern void inode_ipc_put(void *ind);
+extern const char *regular_path(const char *path, int *slash_no);
 #endif
 
