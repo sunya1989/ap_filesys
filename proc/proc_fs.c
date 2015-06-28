@@ -23,7 +23,6 @@
 #include <list.h>
 #include <convert.h>
 #include "proc_fs.h"
-
 #define IPC_PATH 0
 #define PROC_NAME 1
 #define IPC_KEY 2
@@ -70,7 +69,7 @@ static char **pull_req(struct ap_msgreq *req)
     return msg_req;
 }
 
-static struct ap_msgbuf *constr_req(char *buf, size_t buf_len, size_t list[], int lis_len)
+static struct ap_msgbuf *constr_req(const char *buf, size_t buf_len, size_t list[], int lis_len)
 {
     struct ap_msgbuf *msgbuf = (struct ap_msgbuf *)Mallocz(sizeof(struct ap_msgbuf) + buf_len + sizeof(size_t)*lis_len);
     msgbuf->req.index_lenth = lis_len;
@@ -83,7 +82,7 @@ static struct ap_msgbuf *constr_req(char *buf, size_t buf_len, size_t list[], in
     return msgbuf;
 }
 
-static char *collect_items(char **items, size_t buf_len, size_t list[], int lis_len)
+static char *collect_items(const char **items, size_t buf_len, size_t list[], int lis_len)
 {
     char *buf = Mallocz(buf_len);
     char *cp = buf;
@@ -146,7 +145,7 @@ static key_t ap_ftok(pid_t pid, char *ipc_path)
     return key;
 }
 
-static void ap_msgmemcpy(size_t seq, char *base, const char *data, size_t len)
+static void msgmemcpy(size_t seq, char *base, const char *data, size_t len)
 {
     char *cp = base + (seq*AP_MSGSEG_LEN);
     memcpy(cp, data, len);
@@ -177,7 +176,7 @@ static ssize_t ap_msgrcv(int msgid, char **d_buf, unsigned long wait_seq)
             cc_p = c_p = *d_buf;
         }
         data_l = buf.data_len;
-        ap_msgmemcpy(buf.seq, cc_p, buf.segc, data_l);
+        msgmemcpy(buf.seq, cc_p, buf.segc, data_l);
         dl -= data_l;
     } while (dl>0);
     
@@ -250,7 +249,7 @@ static void client_g(struct ap_msgbuf *buf, char **req_d)
         hl = MALLOC_HOLDER();
         ihl = MALLOC_IPC_INODE_HOLDER();
         char *ide_c = Mallocx(str_len);
-        strncpy(ide_c, path, str_len);
+        memcpy(ide_c, path, str_len);
         hl->ide.ide_c = ide_c;
         hl->ide.ide_i = buf->pid;
         hl->ipc_get = inode_ipc_get;
@@ -417,7 +416,7 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
     }
     
     char *cp_idec = Mallocz(str_len + 1);
-    strncpy(cp_idec, f_idec, str_len);
+    memcpy(cp_idec, f_idec, str_len);
     
     file->f_hash_union.ide.ide_i = hl->ide.ide_i;
     file->f_hash_union.ide.ide_c = cp_idec;
@@ -527,17 +526,19 @@ void *ap_proc_sever(void *arg)
                 break;
             case o:
                 client_o(msg_buf, req_detail);
+                break;
             case c:
                 client_c(msg_buf, req_detail);
+                break;
             case d:
                 client_d(msg_buf, req_detail);
+                break;
             default:
                 printf("ap_msg wrong type\n");
                 exit(1);
         }
     }
 }
-
 
 static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
 {
@@ -583,9 +584,9 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
     return init_inode;
 }
 
-static char **proc_path_analy(char *path_s, char *path_d)
+static char **proc_path_analy(const char *path_s, const char *path_d)
 {
-    char *indic,*head;
+    const char *indic,*head;
     head = path_s;
     indic = strchr(path_s, ':');
     size_t str_len;
@@ -611,7 +612,7 @@ static char **proc_path_analy(char *path_s, char *path_d)
         exit(1);
     }
     
-    strncpy(path_name, path_d, str_len);
+    memcpy(path_name, path_d, str_len);
     *(path_name + str_len) = '\0';
     *analy_r = path_name;
     
@@ -628,7 +629,7 @@ static char **proc_path_analy(char *path_s, char *path_d)
         perror("malloc failed\n");
         exit(1);
     }
-    strncpy(proc_name, head, str_len);
+    memcpy(proc_name, head, str_len);
     *(proc_name + str_len) = '\0';
     *(analy_r + 1) = proc_name;
     head = indic++;
@@ -645,7 +646,7 @@ static char **proc_path_analy(char *path_s, char *path_d)
         exit(1);
     }
     
-    strncpy(key, head, str_len);
+    memcpy(key, head, str_len);
     *(key + str_len) = '\0';
     *(analy_r + 2) = key;
     return analy_r;
@@ -790,7 +791,7 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     
     strl = strlen(ide.ide_c);
     path = Mallocx(strl);
-    strncpy(path, ide.ide_c, strl);
+    memcpy(path, ide.ide_c, strl);
     *(path + strl) = '\0';
     
     indc->cur_inode->ipc_path_hash.ide.ide_c = path;
@@ -806,7 +807,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inde->ipc_path_hash.ide.ide_c;
+    const char *path = inde->ipc_path_hash.ide.ide_c;
     char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
@@ -823,7 +824,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     size_t str_len_f = strlen(f_idec);
     size_t t_str_len = str_len + str_len_f;
     size_t list[] = {str_len,str_len_f};
-    char *items[] = {path,f_idec};
+    const char *items[] = {path,f_idec};
     char *send_buf = collect_items(items, t_str_len, list, 2);
     
     msgbuf = constr_req(send_buf, t_str_len, list, 2);
@@ -864,7 +865,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inde->ipc_path_hash.ide.ide_c;
+    const char *path = inde->ipc_path_hash.ide.ide_c;
     char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
@@ -881,7 +882,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     size_t str_len_f = strlen(f_idec);
     size_t t_str_len = str_len + str_len_f;
     size_t list[] = {str_len,str_len_f};
-    char *items[] = {path,f_idec};
+    const char *items[] = {path,f_idec};
     char *send_buf = collect_items(items, t_str_len, list, 2);
     
     msgbuf = constr_req(send_buf, t_str_len, list, 2);
@@ -918,7 +919,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inde->ipc_path_hash.ide.ide_c;
+    const char *path = inde->ipc_path_hash.ide.ide_c;
     int send_s;
     ssize_t recv_s;
     char *msg_reply;
@@ -938,7 +939,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     strncat(f_idec, path, str_len);
     strncat(f_idec, rand_c, str_len_r);
     size_t list[] = {str_len,str_len + str_len_r};
-    char *items[] = {path, f_idec};
+    const  char *items[] = {path, f_idec};
     char *buf = collect_items(items, 2*str_len + str_len_r, list, 2);
     
     msgbuf = constr_req(buf, 2*str_len + str_len_r, list, 2);
@@ -991,7 +992,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inode->ipc_path_hash.ide.ide_c;
+    const char *path = inode->ipc_path_hash.ide.ide_c;
     char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
@@ -1008,7 +1009,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     size_t str_len_f = strlen(f_idec);
     size_t t_str_len = str_len_f + str_len;
     size_t list[] = {str_len,str_len_f};
-    char *items[] = {path,f_idec};
+    const char *items[] = {path,f_idec};
     char *send_buf = collect_items(items, t_str_len, list, 2);
     
     msgbuf = constr_req(send_buf, t_str_len, list, 2);
@@ -1044,7 +1045,7 @@ static int proc_destory(struct ap_inode *inode)
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    char *path = inode->ipc_path_hash.ide.ide_c;
+    const char *path = inode->ipc_path_hash.ide.ide_c;
     int send_s;
     ssize_t recv_s;
     char *msg_reply;
@@ -1058,7 +1059,7 @@ static int proc_destory(struct ap_inode *inode)
     
     size_t str_len = strlen(path);
     size_t list[] = {str_len};
-    char *items[] = {path};
+    const char *items[] = {path};
     char *send_buf = collect_items(items, str_len, list, 1);
     
     msgbuf = constr_req(send_buf, str_len, list, 1);

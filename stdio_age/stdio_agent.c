@@ -12,6 +12,7 @@
 #include <dirent.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <envelop.h>
 
 static void age_dirprepare_raw_data(struct ger_stem_node *stem);
 static struct stem_inode_operations std_age_inode_operations;
@@ -28,12 +29,14 @@ void STD_AGE_INIT(struct std_age *age,char *tarf, enum file_state state)
     age->state = state;
 }
 
-void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, char *tard)
+void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard)
 {
     STEM_INIT(&age_dir->stem);
     age_dir->target_dir = tard;
+    if (tard != NULL) {
+        age_dir->stem.prepare_raw_data = age_dirprepare_raw_data;
+    }
     age_dir->stem.si_ops = &std_age_inode_operations;
-    age_dir->stem.prepare_raw_data = age_dirprepare_raw_data;
 }
 
 static ssize_t stdio_age_read(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
@@ -49,7 +52,6 @@ static ssize_t stdio_age_write(struct ger_stem_node *stem, char *buf, off_t off_
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     ssize_t n_write;
-    
     n_write = write(sa->fd, buf, len);
     return n_write;
 }
@@ -88,11 +90,27 @@ static int stdio_age_rmdir(struct ger_stem_node *stem)
     return 0;
 }
 
+static inline char *combine_path(const char *path1, const char *path2){
+    size_t len1  = strlen(path1);
+    size_t len2 = strlen(path2);
+    char *tard = Mallocz(len1 + len2 + 2);
+    char *tard_cp = tard;
+    
+    memcpy(tard_cp, path1, len1);
+    tard_cp += len1;
+    if (*(tard_cp - 1) != '/') {
+        *tard_cp++ = '/';
+    }
+    memcpy(tard_cp, path2, len2);
+    
+    return tard;
+}
+
 static void age_dirprepare_raw_data(struct ger_stem_node *stem)
 {
     DIR *dp;
     struct dirent *dirp;
-    char *cp_path = NULL;
+    char *tard, *cp_path = NULL;
     struct std_age_dir *sa_dir_temp;
     struct std_age *sa_temp;
     struct stat stat_buf;
@@ -108,6 +126,8 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
     if (dp == NULL) {
         return;
     }
+    chdir(sa_dir->target_dir);
+    
     if (stem->raw_data_isset == 0) {
         while ((dirp = readdir(dp)) != NULL) {
             path = dirp->d_name;
@@ -116,21 +136,27 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
                 continue;
             }
             str_len = strlen(path) + 1;
-            cp_path = malloc(str_len);
-            strncpy(cp_path, path, str_len);
+            cp_path = Mallocz(str_len);
+            memcpy(cp_path, path, str_len);
             
             lstat(cp_path, &stat_buf);
             
             if (S_ISREG(stat_buf.st_mode)) {
-                sa_temp = MALLOC_STD_AGE(cp_path, g_fileno);
-                sa_temp->stem.name = cp_path;
+                tard  = combine_path(sa_dir->target_dir, cp_path);
+                sa_temp = MALLOC_STD_AGE(tard, g_fileno);
+                sa_temp->stem.stem_name = cp_path;
+                sa_dir->stem.is_dir = 0;
                 hook_to_stem(stem, &sa_temp->stem);
+                sa_temp->stem.parent = stem;
             }else if(S_ISDIR(stat_buf.st_mode)){
-                sa_dir_temp = MALLOC_STD_AGE_DIR(cp_path);
-                sa_dir_temp->stem.name = cp_path;
+                tard = combine_path(sa_dir->target_dir, cp_path);
+                sa_dir_temp = MALLOC_STD_AGE_DIR(tard);
+                sa_dir_temp->stem.stem_name = cp_path;
+                sa_dir_temp->stem.is_dir = 1;
                 hook_to_stem(stem, &sa_dir_temp->stem);
-            }else {
-                continue;
+                sa_dir_temp->stem.parent = stem;
+            }else{
+                free(cp_path);
             }
         }
         stem->raw_data_isset = 1;
@@ -140,9 +166,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
         perror("close dir failed\n");
         exit(1);
     }
-    if (cp_path != NULL) {
-         free(cp_path);
-    }
+    chdir("-");
     return;
 }
 

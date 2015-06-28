@@ -3,13 +3,21 @@
 #include <ap_fs.h>
 #include <ap_pthread.h>
 
+static struct ap_file_operations root_file_operations;
+static struct ap_inode_operations root_dir_operations;
+
+#define extra_real_inode(inode) ((inode->is_mount_point)? (inode->real_inode):(inode))
+
 static struct ap_inode root_dir = {
-    .name = "/",
+    .name = "root_test",
     .is_dir = 1,
+    .links = 1,
     .data_lock = PTHREAD_MUTEX_INITIALIZER,
     .ch_lock = PTHREAD_MUTEX_INITIALIZER,
     .children = LIST_HEAD_INIT(root_dir.children),
     .child = LIST_HEAD_INIT(root_dir.child),
+    .i_ops = &root_dir_operations,
+    .f_ops = &root_file_operations,
 };
 
 struct ap_file_struct file_info = {
@@ -30,8 +38,7 @@ struct ap_file_systems f_systems = {
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;
-    char *path_end;
-	char *path = start->path;
+	const char *path = start->path;
     int get;
     
     size_t str_len = strlen(path);
@@ -41,22 +48,27 @@ int walk_path(struct ap_inode_indicator *start)
     }
 
     struct ap_inode *cursor_inode = start->cur_inode;
-    temp_path = (char *) malloc(str_len + 1);
+    temp_path = (char *) Mallocz(str_len + 3);
+    start->tmp_path = temp_path;
     
     if (temp_path == NULL) {
         fprintf(stderr, "walk_path malloc_faile\n");
         exit(1);
     }
     
-    path_end = temp_path + str_len;
-    strncpy(temp_path, path, str_len+1);
+    if (*path == '/') {
+        *temp_path = '/';
+        temp_path += 1;
+    }
+    
+    memcpy(temp_path, path, str_len+1);
     path = temp_path;
     
     start->cur_slash = strchr(path, '/');
-    if (start->cur_slash == NULL) {
-        start->cur_slash = path_end;
+    if (start->cur_slash == path) {
+        path--;
     }
-    
+    start->slash_remain++;
 AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
@@ -66,24 +78,25 @@ AGAIN:
         
         struct list_head *_cusor;
         struct ap_inode *temp_inode;
-        
-        *start->cur_slash = '\0';
+       
         start->slash_remain--;
+
+        if (start->slash_remain > 0) {
+            *start->cur_slash = '\0';
+        }
         start->the_name = path;
-        
+                
         pthread_mutex_lock(&cursor_inode->ch_lock);
         list_for_each(_cusor, &cursor_inode->children){
            temp_inode = list_entry(_cusor, struct ap_inode, child);
-            if (temp_inode->is_mount_point || temp_inode->is_gate) {
+            if (strcmp(extra_real_inode(temp_inode)->name, path) == 0) {
                 if (temp_inode->is_gate) {
-                    ap_inode_get(temp_inode);
                     start->gate = temp_inode;
+                    ap_inode_get(start->gate);
                 }
-                temp_inode = temp_inode->real_inode;
-            }
-            if (strcmp(temp_inode->name, path) == 0) {
                 ap_inode_put(start->cur_inode);
-                start->cur_inode = temp_inode;
+                start->cur_inode = temp_inode->is_gate || temp_inode->is_mount_point?
+                temp_inode->real_inode:temp_inode;
                 ap_inode_get(start->cur_inode);
                 
                 path = start->cur_slash;
@@ -93,9 +106,6 @@ AGAIN:
                 }
                 
                 start->cur_slash = strchr(++path, '/');
-                if (start->cur_slash == NULL) {
-                    start->cur_slash = path_end;
-                }
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
                 cursor_inode = start->cur_inode;
                 
@@ -105,8 +115,15 @@ AGAIN:
         if(cursor_inode->i_ops->find_inode != NULL){
             get = cursor_inode->i_ops->find_inode(start);
             if (!get) {
+                pthread_mutex_unlock(&cursor_inode->ch_lock);
                 return 0;
             }
+            pthread_mutex_unlock(&cursor_inode->ch_lock);
+            return -1;
+        }
+        
+        if (cursor_inode->i_ops->get_inode == NULL) {
+            pthread_mutex_unlock(&cursor_inode->ch_lock);
             return -1;
         }
         
@@ -117,7 +134,7 @@ AGAIN:
         }
         
         list_add(&start->cur_inode->child, &cursor_inode->children);
-        start->par = cursor_inode;
+        start->cur_inode->parent = cursor_inode;
         start->cur_inode->links++;
 
         path = start->cur_slash;
@@ -200,5 +217,44 @@ void iholer_destory(struct ipc_inode_holder *iholder)
             AP_FILE_FREE(file_pos);
         }
     }
+}
+
+
+const char *regular_path(const char *path, int *slash_no)
+{
+    char *slash;
+    const char *path_cursor = path;
+    const char *reg_path;
+    
+    size_t path_len = strlen(path);
+    if (path_len == 0 || slash_no == NULL) {
+        return NULL;
+    }
+    *slash_no = 0;
+    const char *path_end = path + path_len;
+    
+    if (*path == '.') {
+        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
+            return NULL;
+        }
+    }
+    
+    while ((slash = strchr(path_cursor, '/')) != NULL) {
+        if (*(++slash) == '/') {
+            return NULL;
+        }
+        (*slash_no)++;
+        path_cursor = slash;
+        if (path_cursor == path_end) {
+            break;
+        }
+    }
+    
+    reg_path = path;
+    if (*(path_end-1) == '/') {
+        (*slash_no)--;
+    }
+    
+    return reg_path;
 }
 

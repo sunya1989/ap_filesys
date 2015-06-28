@@ -9,6 +9,7 @@
 #include "ap_hash.h"
 
 #define _OPEN_MAX 1024
+#define FULL_PATH_LEN 255
 struct ap_inode_operations;
 struct ap_file_operations;
 struct ap_inode_indicator;
@@ -65,7 +66,6 @@ static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
     return hl;
 }
 
-
 static inline int AP_INODE_INIT(struct ap_inode *inode)
 {
     inode->name = NULL;
@@ -106,7 +106,6 @@ static inline void AP_INODE_FREE(struct ap_inode *inode)
     }
     pthread_mutex_destroy(&inode->ch_lock);
     COUNTER_FREE(&inode->inode_counter);
-    free(inode->name);
     free(inode);
 }
 
@@ -145,31 +144,36 @@ static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
 }
 
 struct ap_inode_indicator{
-	char *path;
+    char full_path[FULL_PATH_LEN];
+	const char *path;
     int slash_remain;
-    char *the_name;
+    const char *the_name;
+    char *tmp_path;
     char *cur_slash;
-    struct ap_inode *par;
     struct ap_inode *gate;
 	struct ap_inode *cur_inode;
 };
-
 
 static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
 {
     indc->path = NULL;
     indc->cur_inode = NULL;
-    indc->par = NULL;
     indc->the_name = NULL;
     indc->gate = NULL;
 }
 
-static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *ind)
+static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 {
-    if (ind->cur_inode != NULL) {
-         ap_inode_put(ind->cur_inode);
+    if (indc->cur_inode != NULL) {
+         ap_inode_put(indc->cur_inode);
     }
-    free(ind);
+    if (indc->gate != NULL) {
+        ap_inode_put(indc->gate);
+    }
+    if (indc->tmp_path != NULL) {
+        free(indc->tmp_path);
+    }
+    free(indc);
 }
 
 static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
@@ -315,5 +319,6 @@ extern int initial_indicator(char *path,
                              struct ap_file_pthread *ap_fpthr);
 extern void inode_ipc_get(void *ind);
 extern void inode_ipc_put(void *ind);
+extern const char *regular_path(const char *path, int *slash_no);
 #endif
 

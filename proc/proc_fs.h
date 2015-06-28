@@ -65,11 +65,6 @@ struct ap_msgbuf{
     struct ap_msgreq req;
 };
 
-static inline void INITIAL_MSGBUF(struct ap_msgbuf *buf, op_type_t op)
-{
-    
-}
-
 struct ap_msgseg{
     long mtype;
     size_t seq;

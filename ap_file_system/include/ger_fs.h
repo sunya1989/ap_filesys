@@ -13,11 +13,13 @@
 #include <list.h>
 #include <counter.h>
 
+#define GER_FILE_FS "ger"
+
 struct stem_file_operations;
 struct stem_inode_operations;
 
 struct ger_stem_node{
-    char *name;
+    const char *stem_name;
     int is_dir;
     
     struct ger_stem_node *parent;
@@ -26,9 +28,9 @@ struct ger_stem_node{
     pthread_mutex_t ch_lock;
     
     struct counter stem_inuse;
+    int raw_data_isset;
     
     void (*prepare_raw_data) (struct ger_stem_node *);
-    int raw_data_isset;
     
     struct stem_file_operations *sf_ops;
     struct stem_inode_operations *si_ops;
@@ -36,11 +38,11 @@ struct ger_stem_node{
 
 static inline void STEM_INIT(struct ger_stem_node *stem)
 {
-    stem->name = NULL;
+    stem->stem_name = NULL;
     stem->prepare_raw_data = NULL;
-    stem->raw_data_isset = 0;
     stem->sf_ops = NULL;
     stem->si_ops = NULL;
+    stem->raw_data_isset = 0;
     
     INIT_LIST_HEAD(&stem->children);
     INIT_LIST_HEAD(&stem->child);

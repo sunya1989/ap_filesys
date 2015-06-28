@@ -18,21 +18,16 @@ static struct ap_inode_operations ger_inode_operations;
 static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
 {
     struct ap_inode *ind;
-    char *name;
     ssize_t n_len;
     ind = MALLOC_AP_INODE();
-    
-    n_len = strlen(stem->name);
-    name = malloc(n_len + 1);
-    if (name == NULL) {
-        perror("malloc failed\n");
-        exit(1);
-    }
-    ind->name = name;
+    n_len = strlen(stem->stem_name);
+    ind->name = Mallocz(n_len + 1);
+    memcpy(ind->name, stem->stem_name, n_len);
     ind->x_object = stem;
     
     counter_get(&stem->stem_inuse);
-    
+    ap_inode_get(ind);
+
     ind->is_dir = stem->is_dir;
     if (ind->is_dir) {
         ind->i_ops = &ger_inode_operations;
@@ -42,19 +37,12 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     
     return ind;
 }
-#ifdef DEBUG
-extern  struct ap_inode *export_ger_alloc_inode(struct ger_stem_node *stem)
-{
-   return ger_alloc_inode(stem);
-}
-#endif
 
 static int ger_get_inode(struct ap_inode_indicator *indc)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)indc->cur_inode->x_object; //类型检查？
     struct ger_stem_node *temp_stem;
-    char *name = indc->the_name;
-    
+    const char *name = indc->the_name;
     struct list_head *cusor;
     
     if (stem->prepare_raw_data != NULL) {
@@ -64,7 +52,8 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     pthread_mutex_lock(&stem->ch_lock);
     list_for_each(cusor, &stem->children){
         temp_stem = list_entry(cusor, struct ger_stem_node, child);
-        if (strcmp(temp_stem->name, name)) {
+        
+        if (strcmp(temp_stem->stem_name, name) == 0) {
             counter_get(&temp_stem->stem_inuse);
             pthread_mutex_unlock(&stem->ch_lock);
             goto  FINDED;
@@ -75,7 +64,8 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     return -1;
     
 FINDED:
-    indc->cur_inode = ger_alloc_inode(temp_stem);;
+    ap_inode_put(indc->cur_inode);
+    indc->cur_inode = ger_alloc_inode(temp_stem);
     counter_put(&temp_stem->stem_inuse);
     return 0;
 }
@@ -142,7 +132,7 @@ static int ger_unlink(struct ap_inode *ind)
     struct ger_stem_node *stem = ind->x_object; //类型检查??
     int o;
 
-    if (stem->si_ops->stem_unlink == NULL) {
+    if (stem->parent->si_ops->stem_unlink == NULL) {
         errno = EPERM;
         return -1;
     }
@@ -155,9 +145,8 @@ static int ger_unlink(struct ap_inode *ind)
     }
     list_del(&stem->child);
     pthread_mutex_unlock(&stem->parent->ch_lock);
-    counter_put(&stem->stem_inuse);
     ind->x_object = NULL;
-    o = stem->si_ops->stem_unlink(stem);
+    o = stem->parent->si_ops->stem_unlink(stem);
     return o;
 }
 
@@ -210,6 +199,7 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
         return -1;
     }
     new_ind = ger_alloc_inode(new_stem);
+    new_ind->links++;
     inode_add_child(indc->cur_inode, new_ind);
     return 0;
 }
@@ -250,12 +240,14 @@ static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, vo
     counter_get(&root_stem->stem_inuse);
     ind->is_dir = 1;
     
-    n_len = strlen(root_stem->name);
+    n_len = strlen(root_stem->stem_name);
     name = malloc(n_len + 1);
-    strncpy(name, root_stem->name, n_len+1);
+    memcpy(name, root_stem->stem_name, n_len+1);
     
-    root_stem->name = name;
+    root_stem->stem_name = name;
+    ind->name = name;
     ind->i_ops = &ger_inode_operations;
+    ind->links++;
     
     return ind;
 }
@@ -275,7 +267,7 @@ AGAIN:
         pthread_mutex_lock(&stem_cusor->ch_lock);
         list_for_each(child_cusor, &stem_cusor->children){
             temp_stem = list_entry(child_cusor, struct ger_stem_node, child);
-            if (strcmp(temp_stem->name, name_cusor) == 0) {
+            if (strcmp(temp_stem->stem_name, name_cusor) == 0) {
                 if (i == counts-1) {
                     counter_get(&temp_stem->stem_inuse);
                     pthread_mutex_unlock(&stem_cusor->ch_lock);
@@ -302,11 +294,10 @@ void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem)
     pthread_mutex_unlock(&par->ch_lock);
 }
 
-
 int init_fs_ger()
 {
     struct ap_file_system_type *ger_fsyst = MALLOC_FILE_SYS_TYPE();
-    ger_fsyst->name = "ger";
+    ger_fsyst->name = GER_FILE_FS;
     
     ger_fsyst->get_initial_inode = gget_initial_inode;
     return register_fsyst(ger_fsyst);

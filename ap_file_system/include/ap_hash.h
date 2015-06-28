@@ -19,7 +19,7 @@
 struct hash_table_union;
 
 struct hash_identity{
-    char *ide_c;
+    const char *ide_c;
     unsigned long ide_i;
 };
 

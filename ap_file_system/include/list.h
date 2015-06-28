@@ -32,7 +32,6 @@ static inline void list_add(struct list_head *_new, struct list_head *head)
     _new->next = head->next;
     head->next->prev = _new;
     head->next = _new;
-    
 }
 
 static inline void list_add_tail(struct list_head *_new, struct list_head *head)
