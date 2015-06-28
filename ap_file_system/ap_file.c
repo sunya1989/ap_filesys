@@ -14,6 +14,16 @@
 #include <ap_pthread.h>
 #include <bag.h>
 
+static inline struct ap_inode *convert_to_mountp(struct ap_inode *ind)
+{
+    return ind->mount_inode == NULL? ind:ind->mount_inode;
+}
+
+static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
+{
+    return ind->real_inode == NULL? ind:ind->real_inode;
+}
+
 static int __initial_indicator(const char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)
 {
     int slash_no;
@@ -60,17 +70,7 @@ int initial_indicator(char *path,
      return __initial_indicator(path, ind, ap_fpthr);
 }
 
-#ifdef DEBUG
-int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
-{
-    return __initial_indicator(path, ind, ap_fpthr);
-}
-void deug_regular_path(char *path, int *slash_no)
-{
-    regular_path(path, slash_no);
-}
 
-#endif
 /*每当一个独立线程调用ap_open时都会产生新的file结构
  *以后能使用hash使得同一个文件对应一个fd（相对于不同线程来说）
  */
@@ -222,6 +222,84 @@ int ap_mount(void *m_info, char *file_system, const char *path)
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;
 }
+
+int ap_unmount(const char *path)
+{
+    if (path == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    SHOW_BAG;
+    struct ap_inode_indicator *ap_indic;
+    int set;
+    struct ap_inode *parent, *op_inode, *mount_p;
+    struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
+    if (ap_fpthr == NULL) {
+        perror("ap_thread didn't find\n");
+        exit(1);
+    }
+    
+    ap_indic = MALLOC_INODE_INDICATOR();
+    BAG_PUSH(&ap_indic->indic_bag);
+    set = __initial_indicator(path, ap_indic, ap_fpthr);
+    if (set == -1) {
+        errno = EINVAL;
+        B_return(-1);
+    }
+    
+    int get = walk_path(ap_indic);
+    if (get == -1) {
+        errno = ENOENT;
+        B_return(-1);
+    }
+    
+    if (!ap_indic->cur_inode->is_dir) {
+        errno = ENOTDIR;
+        B_return(-1);
+    }
+    
+    if (ap_indic->cur_inode->mount_inode == NULL) {
+        B_return(-1);
+    }
+    
+    mount_p = ap_indic->cur_inode->mount_inode;
+    op_inode = ap_indic->cur_inode;
+    parent = op_inode->mount_inode->parent;
+    
+    pthread_mutex_lock(&parent->ch_lock);
+    pthread_mutex_lock(&op_inode->ch_lock);
+    if (!list_empty(&op_inode->children)){
+        pthread_mutex_unlock(&op_inode->ch_lock);
+        pthread_mutex_unlock(&parent->ch_lock);
+        errno = EBUSY;
+        B_return(-1);
+    }
+    
+    pthread_mutex_lock(&op_inode->inode_counter.counter_lock);
+    if (op_inode->inode_counter.in_use > 1) {
+        pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
+        pthread_mutex_unlock(&parent->ch_lock);
+        errno = EBUSY;
+        B_return(-1);
+    }
+    pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
+    
+    list_del(&mount_p->child);
+    mount_p->links--;
+    
+    if (op_inode->prev_mpoints != NULL) {
+        inode_add_child(parent, op_inode->prev_mpoints);
+    }
+    
+    pthread_mutex_unlock(&parent->ch_lock);
+    pthread_mutex_unlock(&op_inode->ch_lock);
+    AP_INODE_FREE(mount_p);
+    B_return(0);
+}
+
+
+
 /*任何一个线程调用close都会立即关闭描述符释放file结构
  *这样其它的线程用同一fd就访问不到此文件了
  */
@@ -568,15 +646,7 @@ int ap_link(const char *l_path, const char *t_path)
     return 0;
 }
 
-static inline struct ap_inode *convert_to_mountp(struct ap_inode *ind)
-{
-    return ind->mount_inode == NULL? ind:ind->mount_inode;
-}
 
-static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
-{
-    return ind->real_inode == NULL? ind:ind->real_inode;
-}
 
 int ap_rmdir(const char *path)
 {
@@ -657,6 +727,7 @@ int ap_rmdir(const char *path)
         inode_add_child(parent, op_inode->prev_mpoints);
     }
     
+    pthread_mutex_unlock(&op_inode->ch_lock);
     pthread_mutex_unlock(&parent->ch_lock);
     op_inode = convert_to_real_ind(op_inode);
     
@@ -666,6 +737,19 @@ int ap_rmdir(const char *path)
     AP_INODE_INICATOR_FREE(final_indc);
     return 0;
 }
+
+
+#ifdef DEBUG
+int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
+{
+    return __initial_indicator(path, ind, ap_fpthr);
+}
+void deug_regular_path(char *path, int *slash_no)
+{
+    regular_path(path, slash_no);
+}
+
+#endif
 
 
 

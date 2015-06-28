@@ -35,6 +35,8 @@ struct ap_file_systems f_systems = {
     .i_file_system = LIST_HEAD_INIT(f_systems.i_file_system),
 };
 
+BAG_IMPOR_FREE(AP_INODE_INICATOR_FREE, struct ap_inode_indicator);
+
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;

@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <bag.h>
 #include "counter.h"
 #include "list.h"
 #include "ap_hash.h"
@@ -150,9 +151,12 @@ struct ap_inode_indicator{
     const char *the_name;
     char *tmp_path;
     char *cur_slash;
+    struct bag indic_bag;
     struct ap_inode *gate;
 	struct ap_inode *cur_inode;
 };
+
+BAG_DEFINE_FREE(AP_INODE_INICATOR_FREE);
 
 static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
 {
@@ -160,7 +164,11 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
     indc->cur_inode = NULL;
     indc->the_name = NULL;
     indc->gate = NULL;
+    indc->indic_bag.trash = indc;
+    indc->indic_bag.release = BAG_AP_INODE_INICATOR_FREE;
+    indc->indic_bag.is_embed = 1;
 }
+
 
 static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 {
@@ -176,6 +184,7 @@ static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
     free(indc);
 }
 
+
 static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
 {
     struct ap_inode_indicator *indic;
@@ -184,7 +193,6 @@ static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
         perror("malloc failed");
         exit(1);
     }
-    
     AP_INODE_INDICATOR_INIT(indic);
     return indic;
 }

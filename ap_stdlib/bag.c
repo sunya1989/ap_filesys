@@ -10,12 +10,6 @@
 #include <bag.h>
 #include <envelop.h>
 
-struct bag{
-    struct bag *next;
-    void *trash;
-    void (*release)(void*);
-};
-
 struct bag_head{
     struct bag *list;
     struct bag **list_tail;
@@ -35,6 +29,7 @@ struct bag *MALlOC_BAG()
     struct bag *bg = Mallocz(sizeof(*bg));
     bg->release = NULL;
     bg->trash = NULL;
+    bg->is_embed = 0;
     return bg;
 }
 
@@ -47,12 +42,18 @@ void __bag_push(struct bag *bag, struct bag_head *head)
 void __bag_release(struct bag_head *head)
 {
     struct bag *bg;
+    struct bag *next;
+    int embed;
     
     while (head->list != NULL) {
         bg = head->list;
+        next = bg->next;
+        embed = bg->is_embed;
         bg->release(bg->trash);
-        head->list = bg->next;
-        free(bg);
+        head->list = next;
+        if (!embed) {
+            free(bg);
+        }
     }
 }
 
