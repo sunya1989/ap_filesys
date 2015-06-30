@@ -9,17 +9,31 @@
 #ifndef ap_file_system_bag_h
 #define ap_file_system_bag_h
 
-#define SHOW_BAG    struct bag_head *____bag_l; \
+#define SHOW_TRASH_BAG    struct bag_head *____bag_l; \
                     do{____bag_l = MALLOC_BAG_HEAD();}while(0)
-#define BAG_PUSH(b) do{__bag_push(b, ____bag_l);}while(0)
-#define BAG_RAW_PUSH(t,f) do{\
+#define TRASH_BAG_PUSH(b) do{__bag_push(b, ____bag_l);}while(0)
+#define TRASH_BAG_RAW_PUSH(t,f) do{\
                                 struct bag *____bag = MALLOC_BAG();\
-                                bag->trash = t;\
-                                bag->release = f\
-                                ____bag_push(____bag, ____bag_l)\
+                                ____bag->trash = t;\
+                                ____bag->release = f;\
+                                __bag_push(____bag, ____bag_l);\
                             }while(0)
+
 #define B__return   do{__bag_release(____bag_l); return;}while(0)
 #define B_return(r) do{__bag_release(____bag_l); return r;}while(0)
+
+
+#define BAG_PUSH(b,bag_h) do{__bag_push(b, bag_h);}while(0)
+
+#define BAG_RAW_PUSH(t,f,bag_h) do{\
+                                    struct bag *____bag = MALLOC_BAG();\
+                                    ____bag->trash = t;\
+                                    ____bag->release = f;\
+                                    __bag_push(____bag, bag_h);\
+                                    }while(0)
+
+#define BAG_POUR(bag_h)   do{__bag_pour(bag_h);}while(0)
+#define BAG_EXCUTE(bag_h) do{__bag_release(bag_h);}while(0)
 
 #define BAG_DEFINE_FREE(func)                                                   \
 extern void BAG_##func(void *trash)
@@ -44,6 +58,7 @@ struct bag_head;
 
 extern void __bag_push(struct bag *bag, struct bag_head *head);
 extern void __bag_release(struct bag_head *head);
+extern void __bag_pour(struct bag_head *head);
 
 extern struct bag_head *MALLOC_BAG_HEAD();
 extern struct bag *MALLOC_BAG();

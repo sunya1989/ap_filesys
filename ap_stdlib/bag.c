@@ -24,7 +24,7 @@ struct bag_head *MALLOC_BAG_HEAD()
     return bh;
 }
 
-struct bag *MALlOC_BAG()
+struct bag *MALLOC_BAG()
 {
     struct bag *bg = Mallocz(sizeof(*bg));
     bg->release = NULL;
@@ -50,6 +50,23 @@ void __bag_release(struct bag_head *head)
         next = bg->next;
         embed = bg->is_embed;
         bg->release(bg->trash);
+        head->list = next;
+        if (!embed) {
+            free(bg);
+        }
+    }
+}
+
+void __bag_pour(struct bag_head *head)
+{
+    struct bag *bg;
+    struct bag *next;
+    int embed;
+    
+    while (head->list != NULL) {
+        bg = head->list;
+        next = bg->next;
+        embed = bg->is_embed;
         head->list = next;
         if (!embed) {
             free(bg);

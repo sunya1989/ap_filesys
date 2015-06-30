@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <bag.h>
 
 struct counter{
     pthread_mutex_t counter_lock;
@@ -55,6 +56,7 @@ static inline void counter_get(struct counter *counter)
     pthread_mutex_unlock(&counter->counter_lock);
     return;
 }
+BAG_DEFINE_FREE(counter_put);
 
 static inline void counter_put(struct counter *counter)
 {

@@ -36,12 +36,17 @@ struct ap_file_systems f_systems = {
 };
 
 BAG_IMPOR_FREE(AP_INODE_INICATOR_FREE, struct ap_inode_indicator);
+BAG_IMPOR_FREE(search_mtp_unlock, struct ap_inode);
 
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;
 	const char *path = start->path;
     int get;
+    struct ap_inode *curr_mount_p = NULL;
+    struct bag_head *mount_ps = MALLOC_BAG_HEAD();
+        
+    SHOW_TRASH_BAG;
     
     size_t str_len = strlen(path);
     //当strlen为零时认为寻找的是当前工作目录 所以返回 0
@@ -50,32 +55,33 @@ int walk_path(struct ap_inode_indicator *start)
     }
 
     struct ap_inode *cursor_inode = start->cur_inode;
-    temp_path = (char *) Mallocz(str_len + 3);
-    start->tmp_path = temp_path;
-    
-    if (temp_path == NULL) {
-        fprintf(stderr, "walk_path malloc_faile\n");
-        exit(1);
-    }
-    
-    if (*path == '/') {
-        *temp_path = '/';
-        temp_path += 1;
-    }
-    
-    memcpy(temp_path, path, str_len+1);
-    path = temp_path;
-    
-    start->cur_slash = strchr(path, '/');
-    if (start->cur_slash == path) {
-        path--;
-    }
+  
     start->slash_remain++;
+    
+    if (start->slash_remain > 1) {
+        temp_path = (char *) Mallocz(str_len + 3);
+        
+        TRASH_BAG_RAW_PUSH(temp_path, free);
+        
+        if (*path == '/') {
+            *temp_path = '/';
+            temp_path += 1;
+        }
+        
+        memcpy(temp_path, path, str_len+1);
+        path = temp_path;
+        
+        start->cur_slash = strchr(path, '/');
+        if (start->cur_slash == path) {
+            path--;
+        }
+    }
+    
 AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
             errno = ENOTDIR;
-            return -1;
+            B_return(-1);
         }
         
         struct list_head *_cusor;
@@ -96,17 +102,25 @@ AGAIN:
                     start->gate = temp_inode;
                     ap_inode_get(start->gate);
                 }
+                if (temp_inode->is_mount_point) {
+                    curr_mount_p = temp_inode;
+                    search_mtp_lock(curr_mount_p);
+                    start->cur_mtp = curr_mount_p;
+                    BAG_RAW_PUSH(&curr_mount_p, BAG_search_mtp_unlock, mount_ps);
+                }
+                
                 ap_inode_put(start->cur_inode);
                 start->cur_inode = temp_inode->is_gate || temp_inode->is_mount_point?
                 temp_inode->real_inode:temp_inode;
                 ap_inode_get(start->cur_inode);
                 
-                path = start->cur_slash;
                 if (start->slash_remain == 0) {
                     pthread_mutex_unlock(&cursor_inode->ch_lock);
-                    return 0;
+                    BAG_EXCUTE(mount_ps);
+                    B_return(0);
                 }
                 
+                path = start->cur_slash;
                 start->cur_slash = strchr(++path, '/');
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
                 cursor_inode = start->cur_inode;
@@ -117,38 +131,46 @@ AGAIN:
         if(cursor_inode->i_ops->find_inode != NULL){
             get = cursor_inode->i_ops->find_inode(start);
             if (!get) {
+                start->cur_inode->mount_inode = curr_mount_p;
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
-                return 0;
+                add_inode_to_mt(start->cur_inode, curr_mount_p);
+                BAG_EXCUTE(mount_ps);
+                B_return(0);
             }
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            return -1;
+            BAG_EXCUTE(mount_ps);
+            B_return(-1);
         }
         
         if (cursor_inode->i_ops->get_inode == NULL) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            return -1;
+            BAG_EXCUTE(mount_ps);
+            B_return(-1);
         }
         
         get = cursor_inode->i_ops->get_inode(start);
         if (get) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            return -1;
+            BAG_EXCUTE(mount_ps);
+            B_return(-1);
         }
         
         list_add(&start->cur_inode->child, &cursor_inode->children);
+        add_inode_to_mt(start->cur_inode, curr_mount_p);
         start->cur_inode->parent = cursor_inode;
         start->cur_inode->links++;
+        start->cur_inode->mount_inode = curr_mount_p;
 
         path = start->cur_slash;
         if (start->slash_remain == 0) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            return 0;
+            BAG_EXCUTE(mount_ps);
+            B_return(0);
         }
         start->cur_slash = strchr(++path, '/');
         pthread_mutex_unlock(&cursor_inode->ch_lock);
         cursor_inode = start->cur_inode;
     }
-    
 }
 
 struct ap_file_system_type *find_filesystem(char *fsn)
@@ -220,7 +242,6 @@ void iholer_destory(struct ipc_inode_holder *iholder)
         }
     }
 }
-
 
 const char *regular_path(const char *path, int *slash_no)
 {

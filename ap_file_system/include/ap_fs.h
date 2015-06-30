@@ -19,6 +19,9 @@ struct ap_inode{
 	char *name;
 	int is_dir;
     int is_mount_point,is_gate; //是否为挂载点,是否为link点
+    int is_search_mt;
+    
+    struct ap_file_system_type *fsyst;
     
     struct ap_inode *real_inode; //point to the real entry
     struct ap_inode *mount_inode;
@@ -26,16 +29,27 @@ struct ap_inode{
     
     int links;
     struct counter inode_counter;
+    struct counter mount_p_counter;
     
     unsigned long mode; //权限检查暂时还没有
     
 	void *x_object;
-	struct list_head inodes;//把inode链接到文件系统的inode列表
-    
-    pthread_mutex_t data_lock; //目前用于保护link数据
-    pthread_mutex_t ch_lock;
+	
+    struct list_head fsys_mt_entry;
+    union{
+        struct list_head mt_inode_h;
+        struct list_head inodes;
+    }mt_inodes;
     struct list_head children;
     struct list_head child;
+    struct list_head mt_children;
+    struct list_head mt_child;
+    
+    pthread_mutex_t inodes_lock;
+    pthread_mutex_t mt_pass_lock;
+    pthread_mutex_t mt_ch_lock;
+    pthread_mutex_t data_lock; //目前用于保护link数据
+    pthread_mutex_t ch_lock;
     
     struct hash_union ipc_path_hash;
     
@@ -75,25 +89,29 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     inode->mount_inode = inode->parent = inode->prev_mpoints = NULL;
     inode->real_inode = inode;
     inode->links = 0;
+    inode->is_search_mt = 0;
+    inode->fsyst = NULL;
     
     COUNTER_INIT(&inode->inode_counter);
+    COUNTER_INIT(&inode->mount_p_counter);
     
     inode->x_object = NULL;
-    INIT_LIST_HEAD(&inode->inodes);
+    
+    INIT_LIST_HEAD(&inode->fsys_mt_entry);
+    INIT_LIST_HEAD(&inode->mt_inodes.inodes);
     INIT_LIST_HEAD(&inode->child);
     INIT_LIST_HEAD(&inode->children);
+    INIT_LIST_HEAD(&inode->mt_children);
+    INIT_LIST_HEAD(&inode->mt_child);
+    
     INITIALIZE_HASH_UNION(&inode->ipc_path_hash);
     
-    int init = pthread_mutex_init(&inode->ch_lock, NULL);
-    if (init != 0) {
-        return -1;
-    }
-    
-    init = pthread_mutex_init(&inode->data_lock, NULL);
-    if (init != 0) {
-        return -1;
-    }
-    
+    pthread_mutex_init(&inode->ch_lock, NULL);
+    pthread_mutex_init(&inode->data_lock, NULL);
+    pthread_mutex_init(&inode->mt_pass_lock, NULL);
+    pthread_mutex_init(&inode->mt_ch_lock, NULL);
+    pthread_mutex_init(&inode->mt_ch_lock, NULL);
+  
     inode->f_ops = NULL;
     inode->i_ops = NULL;
 
@@ -124,12 +142,14 @@ static inline struct ap_inode *MALLOC_AP_INODE()
 
 static inline void ap_inode_get(struct ap_inode *inode)
 {
+    counter_get(&inode->mount_inode->mount_p_counter);
     counter_get(&inode->inode_counter);
 }
 
 static inline void ap_inode_put(struct ap_inode *inode)
 {
     counter_put(&inode->inode_counter);
+    counter_put(&inode->mount_inode->mount_p_counter);
     if (inode->links == 0 && inode->inode_counter.in_use == 0) {
         AP_INODE_FREE(inode);
     }
@@ -149,10 +169,10 @@ struct ap_inode_indicator{
 	const char *path;
     int slash_remain;
     const char *the_name;
-    char *tmp_path;
     char *cur_slash;
     struct bag indic_bag;
     struct ap_inode *gate;
+    struct ap_inode *cur_mtp;
 	struct ap_inode *cur_inode;
 };
 
@@ -164,11 +184,11 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
     indc->cur_inode = NULL;
     indc->the_name = NULL;
     indc->gate = NULL;
+    indc->cur_mtp = NULL;
     indc->indic_bag.trash = indc;
     indc->indic_bag.release = BAG_AP_INODE_INICATOR_FREE;
     indc->indic_bag.is_embed = 1;
 }
-
 
 static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 {
@@ -178,12 +198,8 @@ static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
     if (indc->gate != NULL) {
         ap_inode_put(indc->gate);
     }
-    if (indc->tmp_path != NULL) {
-        free(indc->tmp_path);
-    }
     free(indc);
 }
-
 
 static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
 {
@@ -223,7 +239,6 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     }
     file->f_ops = NULL;
 }
-
 
 static inline struct ap_file *AP_FILE_MALLOC()
 {
@@ -273,7 +288,7 @@ extern struct ap_file_root f_root;
 struct ap_file_system_type{
     const char *name;
     struct list_head systems;
-    struct list_head i_inodes;
+    struct list_head mts;
     
     pthread_mutex_t inode_lock;
     
@@ -308,12 +323,55 @@ struct ap_file_systems{
     struct list_head i_file_system;
 };
 
-static inline void add_inodes_to_fsys(struct ap_file_system_type *fsyst, struct ap_inode *ind)
+static inline void
+add_inodes_to_fsys(struct ap_file_system_type *fsyst, struct ap_inode *ind, struct ap_inode *mt_par)
 {
+    if (mt_par != NULL) {
+        pthread_mutex_lock(&mt_par->mt_ch_lock);
+        list_add(&ind->mt_child, &mt_par->children);
+        pthread_mutex_unlock(&mt_par->mt_ch_lock);
+    }
     pthread_mutex_lock(&fsyst->inode_lock);
-    list_add(&ind->inodes, &fsyst->i_inodes);
+    list_add(&ind->fsys_mt_entry, &fsyst->mts);
     pthread_mutex_unlock(&fsyst->inode_lock);
 }
+
+static inline void add_inode_to_mt(struct ap_inode *inode, struct ap_inode *mt)
+{
+    pthread_mutex_lock(&mt->inodes_lock);
+    list_add(&inode->mt_inodes.inodes, &mt->mt_inodes.mt_inode_h);
+    pthread_mutex_unlock(&mt->inodes_lock);
+}
+
+static inline void del_inode_from_mt(struct ap_inode *inode)
+{
+    pthread_mutex_lock(&inode->mount_inode->inodes_lock);
+    list_del(&inode->mt_inodes.inodes);
+    pthread_mutex_unlock(&inode->mount_inode->inodes_lock);
+}
+
+static inline void del_inode_from_fsys(struct ap_file_system_type *fsyst, struct ap_inode *inod)
+{
+    pthread_mutex_lock(&fsyst->inode_lock);
+    list_del(&inod->fsys_mt_entry);
+    pthread_mutex_unlock(&fsyst->inode_lock);
+}
+
+static inline void search_mtp_lock(struct ap_inode *inode)
+{
+    pthread_mutex_lock(&inode->mt_pass_lock);
+    inode->is_search_mt = 1;
+    pthread_mutex_unlock(&inode->mt_pass_lock);
+}
+
+BAG_DEFINE_FREE(search_mtp_unlock);
+static inline void search_mtp_unlock(struct ap_inode *inode)
+{
+    pthread_mutex_lock(&inode->mt_pass_lock);
+    inode->is_search_mt = 0;
+    pthread_mutex_unlock(&inode->mt_pass_lock);
+}
+
 struct ap_file_pthread;
 
 extern struct ap_file_systems f_systems;

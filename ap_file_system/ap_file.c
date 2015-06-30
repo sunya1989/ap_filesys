@@ -59,6 +59,7 @@ static int __initial_indicator(const char *path, struct ap_inode_indicator *indc
         }
     }
     indc->path = path;
+    strncpy(indc->full_path, path, strlen(path));
     ap_inode_get(indc->cur_inode);
     return 0;
 }
@@ -197,7 +198,6 @@ int ap_mount(void *m_info, char *file_system, const char *path)
     }
     
     if (!get) {
-        //由于在还有子目录的情况下是不会释放结构的并且parent是本地变量 所以这里无需增加引用计数器
         parent = par_indic->cur_inode->parent;
     }else{
         parent = par_indic->cur_inode;
@@ -210,6 +210,7 @@ int ap_mount(void *m_info, char *file_system, const char *path)
     }
     
     list_add(&mount_point->child, &parent->children);
+    mount_point->parent = parent;
     mount_point->links++;
     pthread_mutex_unlock(&parent->ch_lock);
     
@@ -217,8 +218,10 @@ int ap_mount(void *m_info, char *file_system, const char *path)
     char *mount_path = Mallocz(len + 1);
     memcpy(mount_path, par_indic->full_path, len);
     mount_point->name = mount_path;
-    add_inodes_to_fsys(fsyst, mount_point);
+    mount_point->fsyst = fsyst;
+    add_inodes_to_fsys(fsyst, mount_point,par_indic->cur_mtp);
     
+    counter_put(&fsyst->fs_type_counter);
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;
 }
@@ -230,7 +233,7 @@ int ap_unmount(const char *path)
         return -1;
     }
     
-    SHOW_BAG;
+    SHOW_TRASH_BAG;
     struct ap_inode_indicator *ap_indic;
     int set;
     struct ap_inode *parent, *op_inode, *mount_p;
@@ -241,7 +244,7 @@ int ap_unmount(const char *path)
     }
     
     ap_indic = MALLOC_INODE_INDICATOR();
-    BAG_PUSH(&ap_indic->indic_bag);
+    TRASH_BAG_PUSH(&ap_indic->indic_bag);
     set = __initial_indicator(path, ap_indic, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
@@ -291,9 +294,10 @@ int ap_unmount(const char *path)
     if (op_inode->prev_mpoints != NULL) {
         inode_add_child(parent, op_inode->prev_mpoints);
     }
-    
     pthread_mutex_unlock(&parent->ch_lock);
     pthread_mutex_unlock(&op_inode->ch_lock);
+    
+    del_inode_from_fsys(mount_p->fsyst, mount_p);
     AP_INODE_FREE(mount_p);
     B_return(0);
 }
@@ -645,8 +649,6 @@ int ap_link(const char *l_path, const char *t_path)
     AP_INODE_INICATOR_FREE(or_indc);
     return 0;
 }
-
-
 
 int ap_rmdir(const char *path)
 {
