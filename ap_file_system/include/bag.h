@@ -34,6 +34,10 @@
 
 #define BAG_POUR(bag_h)   do{__bag_pour(bag_h);}while(0)
 #define BAG_EXCUTE(bag_h) do{__bag_release(bag_h);}while(0)
+#define BAG_POP(bag_h) __bag_pop(bag_h)
+#define BAG_RES_POP(bag_h) __bag_res_pop(bag_h)
+#define BAG_EMPTY(bag_h) __bag_empty(bag_h)
+#define BAG_REWIND(bag_h) __bag_rewind_pos(bag_h)
 
 #define BAG_DEFINE_FREE(func)                                                   \
 extern void BAG_##func(void *trash)
@@ -54,11 +58,27 @@ struct bag{
     void (*release)(void*);
 };
 
-struct bag_head;
+struct bag_head{
+    struct bag **pos;
+    struct bag *list;
+    struct bag **list_tail;
+};
 
 extern void __bag_push(struct bag *bag, struct bag_head *head);
 extern void __bag_release(struct bag_head *head);
 extern void __bag_pour(struct bag_head *head);
+extern void *__bag_pop(struct bag_head *head);
+extern void *__bag_res_pop(struct bag_head *head);
+
+static inline int __bag_empty(struct bag_head *head)
+{
+    return head->list == NULL;
+}
+
+static inline void __bag_rewind_pos(struct bag_head *head)
+{
+    head->pos = &head->list;
+}
 
 extern struct bag_head *MALLOC_BAG_HEAD();
 extern struct bag *MALLOC_BAG();

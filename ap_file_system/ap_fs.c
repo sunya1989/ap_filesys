@@ -37,6 +37,7 @@ struct ap_file_systems f_systems = {
 
 BAG_IMPOR_FREE(AP_INODE_INICATOR_FREE, struct ap_inode_indicator);
 BAG_IMPOR_FREE(search_mtp_unlock, struct ap_inode);
+BAG_IMPOR_FREE(AP_INODE_FREE, struct ap_inode);
 
 int walk_path(struct ap_inode_indicator *start)
 {
@@ -44,7 +45,7 @@ int walk_path(struct ap_inode_indicator *start)
 	const char *path = start->path;
     int get;
     struct ap_inode *curr_mount_p = NULL;
-    struct bag_head *mount_ps = MALLOC_BAG_HEAD();
+    struct bag_head mount_ps;
         
     SHOW_TRASH_BAG;
     
@@ -106,7 +107,7 @@ AGAIN:
                     curr_mount_p = temp_inode;
                     search_mtp_lock(curr_mount_p);
                     start->cur_mtp = curr_mount_p;
-                    BAG_RAW_PUSH(&curr_mount_p, BAG_search_mtp_unlock, mount_ps);
+                    BAG_RAW_PUSH(&curr_mount_p, BAG_search_mtp_unlock, &mount_ps);
                 }
                 
                 ap_inode_put(start->cur_inode);
@@ -116,7 +117,7 @@ AGAIN:
                 
                 if (start->slash_remain == 0) {
                     pthread_mutex_unlock(&cursor_inode->ch_lock);
-                    BAG_EXCUTE(mount_ps);
+                    BAG_EXCUTE(&mount_ps);
                     B_return(0);
                 }
                 
@@ -134,24 +135,24 @@ AGAIN:
                 start->cur_inode->mount_inode = curr_mount_p;
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
                 add_inode_to_mt(start->cur_inode, curr_mount_p);
-                BAG_EXCUTE(mount_ps);
+                BAG_EXCUTE(&mount_ps);
                 B_return(0);
             }
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            BAG_EXCUTE(mount_ps);
+            BAG_EXCUTE(&mount_ps);
             B_return(-1);
         }
         
         if (cursor_inode->i_ops->get_inode == NULL) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            BAG_EXCUTE(mount_ps);
+            BAG_EXCUTE(&mount_ps);
             B_return(-1);
         }
         
         get = cursor_inode->i_ops->get_inode(start);
         if (get) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            BAG_EXCUTE(mount_ps);
+            BAG_EXCUTE(&mount_ps);
             B_return(-1);
         }
         
@@ -164,7 +165,7 @@ AGAIN:
         path = start->cur_slash;
         if (start->slash_remain == 0) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
-            BAG_EXCUTE(mount_ps);
+            BAG_EXCUTE(&mount_ps);
             B_return(0);
         }
         start->cur_slash = strchr(++path, '/');
@@ -242,6 +243,77 @@ void iholer_destory(struct ipc_inode_holder *iholder)
         }
     }
 }
+
+static int check_decompose(struct ap_inode *mt)
+{
+    struct bag_head stack;
+    struct ap_inode *pos0, *pos1;
+    struct list_head *lis_pos;
+    BAG_RAW_PUSH(mt, NULL, &stack);
+    
+    while (!BAG_EMPTY(&stack)) {
+        pos0 = BAG_POP(&stack);
+        if (pos0->mount_p_counter.in_use > 0) {
+            return -1;
+        }
+        list_for_each(lis_pos, &pos0->mt_children){
+            pos1 = list_entry(lis_pos, struct ap_inode, mt_child);
+            BAG_RAW_PUSH(pos1, NULL, &stack);
+        }
+    }
+    BAG_POUR(&stack);
+    return 0;
+}
+
+static void __decompose_mt(struct ap_inode *mt)
+{
+    struct bag_head stack;
+    struct ap_inode *pos_mt, *pos_inode, *pos_mt_c;
+    struct list_head *lis_pos_inode, *lis_pos1, *lis_pos_mt;
+    BAG_RAW_PUSH(mt, BAG_AP_INODE_FREE, &stack);
+    
+    while (!BAG_EMPTY(&stack)) {
+        pos_mt = BAG_RES_POP(&stack);
+        list_for_each_use(lis_pos_inode, lis_pos1, &pos_mt->mt_inodes.mt_inode_h){
+            pos_inode = list_entry(lis_pos_inode, struct ap_inode, mt_inodes.inodes);
+            list_del(lis_pos_inode);
+            AP_INODE_FREE(pos_inode);
+        }
+        list_for_each(lis_pos_mt, &pos_mt->mt_children){
+            pos_mt_c = list_entry(lis_pos_mt, struct ap_inode, mt_child);
+            BAG_RAW_PUSH(pos_mt_c, BAG_AP_INODE_FREE, &stack);
+        }
+    }
+    BAG_EXCUTE(&stack);
+    return;
+}
+
+int decompose_mt(struct ap_inode *mt)
+{
+    pthread_mutex_lock(&mt->mount_inode->mt_ch_lock);
+    pthread_mutex_lock(&mt->parent->ch_lock);
+    if (mt->is_search_mt || mt->mount_p_counter.in_use > 0) {
+        errno = EBUSY;
+        pthread_mutex_unlock(&mt->parent->ch_lock);
+        pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
+        return -1;
+    }
+    
+    int de = check_decompose(mt);
+    if (de == -1) {
+        errno = EBUSY;
+        pthread_mutex_unlock(&mt->parent->ch_lock);
+        pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
+        return -1;
+    }
+    list_del(&mt->mt_child);
+    list_del(&mt->child);
+    pthread_mutex_unlock(&mt->parent->ch_lock);
+    pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
+    __decompose_mt(mt);
+    return 0;
+}
+
 
 const char *regular_path(const char *path, int *slash_no)
 {

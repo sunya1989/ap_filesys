@@ -236,7 +236,7 @@ int ap_unmount(const char *path)
     SHOW_TRASH_BAG;
     struct ap_inode_indicator *ap_indic;
     int set;
-    struct ap_inode *parent, *op_inode, *mount_p;
+    struct ap_inode *op_inode, *mount_p;
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
         perror("ap_thread didn't find\n");
@@ -268,38 +268,10 @@ int ap_unmount(const char *path)
     
     mount_p = ap_indic->cur_inode->mount_inode;
     op_inode = ap_indic->cur_inode;
-    parent = op_inode->mount_inode->parent;
-    
-    pthread_mutex_lock(&parent->ch_lock);
-    pthread_mutex_lock(&op_inode->ch_lock);
-    if (!list_empty(&op_inode->children)){
-        pthread_mutex_unlock(&op_inode->ch_lock);
-        pthread_mutex_unlock(&parent->ch_lock);
-        errno = EBUSY;
-        B_return(-1);
-    }
-    
-    pthread_mutex_lock(&op_inode->inode_counter.counter_lock);
-    if (op_inode->inode_counter.in_use > 1) {
-        pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
-        pthread_mutex_unlock(&parent->ch_lock);
-        errno = EBUSY;
-        B_return(-1);
-    }
-    pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
-    
-    list_del(&mount_p->child);
-    mount_p->links--;
-    
-    if (op_inode->prev_mpoints != NULL) {
-        inode_add_child(parent, op_inode->prev_mpoints);
-    }
-    pthread_mutex_unlock(&parent->ch_lock);
-    pthread_mutex_unlock(&op_inode->ch_lock);
-    
-    del_inode_from_fsys(mount_p->fsyst, mount_p);
-    AP_INODE_FREE(mount_p);
-    B_return(0);
+    ap_inode_put(op_inode);
+    ap_indic->cur_inode = NULL;
+    int de = decompose_mt(mount_p);
+    B_return(de);
 }
 
 

@@ -36,10 +36,12 @@ struct ap_inode{
 	void *x_object;
 	
     struct list_head fsys_mt_entry;
+    
     union{
         struct list_head mt_inode_h;
         struct list_head inodes;
     }mt_inodes;
+    
     struct list_head children;
     struct list_head child;
     struct list_head mt_children;
@@ -118,6 +120,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     return 1;
 }
 
+BAG_DEFINE_FREE(AP_INODE_FREE);
 static inline void AP_INODE_FREE(struct ap_inode *inode)
 {
     if (inode->i_ops != NULL && inode->i_ops->destory != NULL) {
@@ -177,7 +180,6 @@ struct ap_inode_indicator{
 };
 
 BAG_DEFINE_FREE(AP_INODE_INICATOR_FREE);
-
 static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
 {
     indc->path = NULL;
@@ -268,6 +270,7 @@ struct ap_file_operations{
     int (*release) (struct ap_file *,struct ap_inode *);
     int (*open) (struct ap_file *, struct ap_inode *, unsigned long);
 	int (*readdir) (struct ap_file *, void *);
+    int (*destory) (struct ap_inode *);
 };
 
 struct ap_file_struct{
@@ -385,6 +388,7 @@ extern int initial_indicator(char *path,
                              struct ap_file_pthread *ap_fpthr);
 extern void inode_ipc_get(void *ind);
 extern void inode_ipc_put(void *ind);
+extern int decompose_mt(struct ap_inode *mt);
 extern const char *regular_path(const char *path, int *slash_no);
 #endif
 

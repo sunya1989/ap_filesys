@@ -10,17 +10,13 @@
 #include <bag.h>
 #include <envelop.h>
 
-struct bag_head{
-    struct bag *list;
-    struct bag **list_tail;
-};
 
 struct bag_head *MALLOC_BAG_HEAD()
 {
     struct bag_head *bh;
     bh = Mallocz(sizeof(*bh));
     bh->list = NULL;
-    bh->list_tail = &bh->list;
+    bh->pos = bh->list_tail = &bh->list;
     return bh;
 }
 
@@ -37,6 +33,34 @@ void __bag_push(struct bag *bag, struct bag_head *head)
 {
     *head->list_tail = bag;
     head->list_tail = &bag->next;
+}
+
+void *__bag_pop(struct bag_head *head)
+{
+    if (head->list == NULL) {
+        return NULL;
+    }
+    void *t;
+    struct bag *bg = head->list;
+    head->list = bg->next;
+    t = bg->trash;
+    if (!bg->is_embed) {
+        free(bg);
+    }
+    
+    return t;
+}
+
+void *__bag_res_pop(struct bag_head *head)
+{
+    if (*head->pos == NULL) {
+        return NULL;
+    }
+    void *t;
+    struct bag *bg = *head->pos;
+    t = bg->trash;
+    head->pos = &bg->next;
+    return t;
 }
 
 void __bag_release(struct bag_head *head)
