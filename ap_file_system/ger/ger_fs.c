@@ -34,7 +34,7 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     }else{
         ind->f_ops = &ger_file_operations;
     }
-    
+
     return ind;
 }
 
@@ -66,6 +66,8 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
 FINDED:
     ap_inode_put(indc->cur_inode);
     indc->cur_inode = ger_alloc_inode(temp_stem);
+    indc->cur_inode->mount_inode = indc->cur_mtp;
+    counter_get(&indc->cur_mtp->mount_p_counter);
     counter_put(&temp_stem->stem_inuse);
     return 0;
 }

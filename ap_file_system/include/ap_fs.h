@@ -145,14 +145,18 @@ static inline struct ap_inode *MALLOC_AP_INODE()
 
 static inline void ap_inode_get(struct ap_inode *inode)
 {
-    counter_get(&inode->mount_inode->mount_p_counter);
+    if (inode->mount_inode != NULL) {
+        counter_get(&inode->mount_inode->mount_p_counter);
+    }
     counter_get(&inode->inode_counter);
 }
 
 static inline void ap_inode_put(struct ap_inode *inode)
 {
     counter_put(&inode->inode_counter);
-    counter_put(&inode->mount_inode->mount_p_counter);
+    if (inode->mount_inode != NULL) {
+        counter_put(&inode->mount_inode->mount_p_counter);
+    }
     if (inode->links == 0 && inode->inode_counter.in_use == 0) {
         AP_INODE_FREE(inode);
     }
@@ -172,6 +176,7 @@ struct ap_inode_indicator{
 	const char *path;
     int slash_remain;
     const char *the_name;
+    char *name_buff;
     char *cur_slash;
     struct bag indic_bag;
     struct ap_inode *gate;
@@ -187,6 +192,7 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
     indc->the_name = NULL;
     indc->gate = NULL;
     indc->cur_mtp = NULL;
+    indc->name_buff = NULL;
     indc->indic_bag.trash = indc;
     indc->indic_bag.release = BAG_AP_INODE_INICATOR_FREE;
     indc->indic_bag.is_embed = 1;
@@ -199,6 +205,9 @@ static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
     }
     if (indc->gate != NULL) {
         ap_inode_put(indc->gate);
+    }
+    if (indc->name_buff != NULL) {
+        free(indc->name_buff);
     }
     free(indc);
 }

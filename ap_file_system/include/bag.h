@@ -9,6 +9,8 @@
 #ifndef ap_file_system_bag_h
 #define ap_file_system_bag_h
 
+#define BAG_HEAD_INIT(name) {&name.list, NULL, &name.list}
+
 #define SHOW_TRASH_BAG    struct bag_head *____bag_l; \
                     do{____bag_l = MALLOC_BAG_HEAD();}while(0)
 #define TRASH_BAG_PUSH(b) do{__bag_push(b, ____bag_l);}while(0)

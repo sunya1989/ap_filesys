@@ -9,7 +9,7 @@ static struct ap_inode_operations root_dir_operations;
 #define extra_real_inode(inode) ((inode->is_mount_point)? (inode->real_inode):(inode))
 
 static struct ap_inode root_dir = {
-    .name = "root_test",
+    .name = "root_t",
     .is_dir = 1,
     .links = 1,
     .data_lock = PTHREAD_MUTEX_INITIALIZER,
@@ -45,9 +45,7 @@ int walk_path(struct ap_inode_indicator *start)
 	const char *path = start->path;
     int get;
     struct ap_inode *curr_mount_p = NULL;
-    struct bag_head mount_ps;
-        
-    SHOW_TRASH_BAG;
+    struct bag_head mount_ps = BAG_HEAD_INIT(mount_ps);
     
     size_t str_len = strlen(path);
     //当strlen为零时认为寻找的是当前工作目录 所以返回 0
@@ -60,9 +58,7 @@ int walk_path(struct ap_inode_indicator *start)
     start->slash_remain++;
     
     if (start->slash_remain > 1) {
-        temp_path = (char *) Mallocz(str_len + 3);
-        
-        TRASH_BAG_RAW_PUSH(temp_path, free);
+        start->name_buff = temp_path = (char *) Mallocz(str_len + 3);
         
         if (*path == '/') {
             *temp_path = '/';
@@ -82,7 +78,7 @@ AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
             errno = ENOTDIR;
-            B_return(-1);
+            return(-1);
         }
         
         struct list_head *_cusor;
@@ -107,7 +103,7 @@ AGAIN:
                     curr_mount_p = temp_inode;
                     search_mtp_lock(curr_mount_p);
                     start->cur_mtp = curr_mount_p;
-                    BAG_RAW_PUSH(&curr_mount_p, BAG_search_mtp_unlock, &mount_ps);
+                    BAG_RAW_PUSH(curr_mount_p, BAG_search_mtp_unlock, &mount_ps);
                 }
                 
                 ap_inode_put(start->cur_inode);
@@ -118,7 +114,7 @@ AGAIN:
                 if (start->slash_remain == 0) {
                     pthread_mutex_unlock(&cursor_inode->ch_lock);
                     BAG_EXCUTE(&mount_ps);
-                    B_return(0);
+                    return 0;
                 }
                 
                 path = start->cur_slash;
@@ -132,41 +128,39 @@ AGAIN:
         if(cursor_inode->i_ops->find_inode != NULL){
             get = cursor_inode->i_ops->find_inode(start);
             if (!get) {
-                start->cur_inode->mount_inode = curr_mount_p;
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
                 add_inode_to_mt(start->cur_inode, curr_mount_p);
                 BAG_EXCUTE(&mount_ps);
-                B_return(0);
+                return 0;
             }
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             BAG_EXCUTE(&mount_ps);
-            B_return(-1);
+            return -1;
         }
         
         if (cursor_inode->i_ops->get_inode == NULL) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             BAG_EXCUTE(&mount_ps);
-            B_return(-1);
+            return -1;
         }
         
         get = cursor_inode->i_ops->get_inode(start);
         if (get) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             BAG_EXCUTE(&mount_ps);
-            B_return(-1);
+            return -1;
         }
         
         list_add(&start->cur_inode->child, &cursor_inode->children);
         add_inode_to_mt(start->cur_inode, curr_mount_p);
         start->cur_inode->parent = cursor_inode;
         start->cur_inode->links++;
-        start->cur_inode->mount_inode = curr_mount_p;
 
         path = start->cur_slash;
         if (start->slash_remain == 0) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             BAG_EXCUTE(&mount_ps);
-            B_return(0);
+            return 0;
         }
         start->cur_slash = strchr(++path, '/');
         pthread_mutex_unlock(&cursor_inode->ch_lock);
@@ -246,7 +240,7 @@ void iholer_destory(struct ipc_inode_holder *iholder)
 
 static int check_decompose(struct ap_inode *mt)
 {
-    struct bag_head stack;
+    struct bag_head stack = BAG_HEAD_INIT(stack);
     struct ap_inode *pos0, *pos1;
     struct list_head *lis_pos;
     BAG_RAW_PUSH(mt, NULL, &stack);
@@ -267,7 +261,7 @@ static int check_decompose(struct ap_inode *mt)
 
 static void __decompose_mt(struct ap_inode *mt)
 {
-    struct bag_head stack;
+    struct bag_head stack = BAG_HEAD_INIT(stack);
     struct ap_inode *pos_mt, *pos_inode, *pos_mt_c;
     struct list_head *lis_pos_inode, *lis_pos1, *lis_pos_mt;
     BAG_RAW_PUSH(mt, BAG_AP_INODE_FREE, &stack);
@@ -290,26 +284,26 @@ static void __decompose_mt(struct ap_inode *mt)
 
 int decompose_mt(struct ap_inode *mt)
 {
-    pthread_mutex_lock(&mt->mount_inode->mt_ch_lock);
     pthread_mutex_lock(&mt->parent->ch_lock);
+    pthread_mutex_lock(&mt->mt_ch_lock);
     if (mt->is_search_mt || mt->mount_p_counter.in_use > 0) {
         errno = EBUSY;
+        pthread_mutex_unlock(&mt->mt_ch_lock);
         pthread_mutex_unlock(&mt->parent->ch_lock);
-        pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
         return -1;
     }
     
     int de = check_decompose(mt);
     if (de == -1) {
         errno = EBUSY;
+        pthread_mutex_unlock(&mt->mt_ch_lock);
         pthread_mutex_unlock(&mt->parent->ch_lock);
-        pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
         return -1;
     }
     list_del(&mt->mt_child);
     list_del(&mt->child);
+    pthread_mutex_unlock(&mt->mt_ch_lock);
     pthread_mutex_unlock(&mt->parent->ch_lock);
-    pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
     __decompose_mt(mt);
     return 0;
 }

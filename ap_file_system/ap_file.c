@@ -498,13 +498,20 @@ int ap_unlink(const char *path)
     op_inode = final_indc->cur_inode;
     gate = final_indc->gate;
     if (gate != NULL) {
+        pthread_mutex_lock(&gate->mount_inode->inodes_lock);
         pthread_mutex_lock(&gate->parent->ch_lock);
         list_del(&gate->child);
+        list_del(&gate->mt_inodes.inodes);
+        gate->links--;
         pthread_mutex_unlock(&gate->parent->ch_lock);
+        pthread_mutex_unlock(&gate->mount_inode->inodes_lock);
     }else{
+        pthread_mutex_lock(&op_inode->mount_inode->inodes_lock);
         pthread_mutex_lock(&op_inode->parent->ch_lock);
         list_del(&op_inode->child);
+        list_del(&op_inode->mt_inodes.inodes);
         pthread_mutex_unlock(&op_inode->parent->ch_lock);
+        pthread_mutex_unlock(&op_inode->mount_inode->inodes_lock);
     }
     
     pthread_mutex_lock(&op_inode->data_lock);
@@ -539,7 +546,7 @@ int ap_link(const char *l_path, const char *t_path)
     struct ap_inode *op_inode;
     struct ap_file_pthread *ap_fpthr;
     struct ap_inode *inode_gate;
-    struct ap_inode *gate_parent;
+    struct ap_inode *gate_parent, *mt_p;
     char *gate_name;
     
     gate_indc = MALLOC_INODE_INDICATOR();
@@ -582,6 +589,7 @@ int ap_link(const char *l_path, const char *t_path)
     
     gate_parent = gate_indc->cur_inode;
     ap_inode_get(gate_indc->cur_inode);
+    mt_p = gate_indc->cur_mtp;
     AP_INODE_INICATOR_FREE(gate_indc);
     
     set = __initial_indicator(l_path, or_indc, ap_fpthr);
@@ -613,6 +621,8 @@ int ap_link(const char *l_path, const char *t_path)
     inode_gate->name = gate_name;
     inode_gate->links++;
     inode_gate->real_inode = op_inode->is_gate? op_inode->real_inode:op_inode;
+    inode_gate->mount_inode = mt_p;
+    add_inode_to_mt(inode_gate, mt_p);
     
     inode_add_child(gate_parent, inode_gate);
     inode_gate->parent = gate_parent;
