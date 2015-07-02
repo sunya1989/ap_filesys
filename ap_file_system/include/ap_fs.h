@@ -35,7 +35,6 @@ struct ap_inode{
     
 	void *x_object;
 	
-    struct list_head fsys_mt_entry;
     
     union{
         struct list_head mt_inode_h;
@@ -45,6 +44,7 @@ struct ap_inode{
     struct list_head children;
     struct list_head child;
     struct list_head mt_children;
+    
     struct list_head mt_child;
     
     pthread_mutex_t inodes_lock;
@@ -99,7 +99,6 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     
     inode->x_object = NULL;
     
-    INIT_LIST_HEAD(&inode->fsys_mt_entry);
     INIT_LIST_HEAD(&inode->mt_inodes.inodes);
     INIT_LIST_HEAD(&inode->child);
     INIT_LIST_HEAD(&inode->children);
@@ -123,8 +122,9 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
 BAG_DEFINE_FREE(AP_INODE_FREE);
 static inline void AP_INODE_FREE(struct ap_inode *inode)
 {
-    if (inode->i_ops != NULL && inode->i_ops->destory != NULL) {
-        inode->i_ops->destory(inode);
+    struct ap_inode *i_d = inode->is_dir? inode:inode->parent;
+    if (i_d->i_ops != NULL && i_d->i_ops->destory != NULL) {
+        i_d->i_ops->destory(inode);
     }
     pthread_mutex_destroy(&inode->ch_lock);
     COUNTER_FREE(&inode->inode_counter);
@@ -344,7 +344,7 @@ add_inodes_to_fsys(struct ap_file_system_type *fsyst, struct ap_inode *ind, stru
         pthread_mutex_unlock(&mt_par->mt_ch_lock);
     }
     pthread_mutex_lock(&fsyst->inode_lock);
-    list_add(&ind->fsys_mt_entry, &fsyst->mts);
+    list_add(&ind->mt_child, &fsyst->mts);
     pthread_mutex_unlock(&fsyst->inode_lock);
 }
 
@@ -365,7 +365,7 @@ static inline void del_inode_from_mt(struct ap_inode *inode)
 static inline void del_inode_from_fsys(struct ap_file_system_type *fsyst, struct ap_inode *inod)
 {
     pthread_mutex_lock(&fsyst->inode_lock);
-    list_del(&inod->fsys_mt_entry);
+    list_del(&inod->mt_child);
     pthread_mutex_unlock(&fsyst->inode_lock);
 }
 

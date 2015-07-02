@@ -138,6 +138,7 @@ static int ger_unlink(struct ap_inode *ind)
         errno = EPERM;
         return -1;
     }
+    ind->x_object = NULL;
     pthread_mutex_lock(&stem->parent->ch_lock);
     counter_put(&stem->stem_inuse);
     if (stem->stem_inuse.in_use != 0) {
@@ -147,8 +148,9 @@ static int ger_unlink(struct ap_inode *ind)
     }
     list_del(&stem->child);
     pthread_mutex_unlock(&stem->parent->ch_lock);
-    ind->x_object = NULL;
-    o = stem->parent->si_ops->stem_unlink(stem);
+    if (stem->parent->si_ops != NULL && stem->parent->si_ops->stem_unlink != NULL) {
+        o = stem->parent->si_ops->stem_unlink(stem);
+    }
     return o;
 }
 
@@ -209,8 +211,14 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
 static int ger_destory(struct ap_inode *ind)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)ind->x_object; //类型检查？
+   
     if (stem != NULL && stem->si_ops->stem_destory != NULL) {
-        return stem->si_ops->stem_destory(stem);
+        struct ger_stem_node *i_stem = stem->is_dir? stem:stem->parent;
+        counter_put(&stem->stem_inuse);
+        ind->x_object = NULL;
+        if (i_stem->si_ops != NULL && i_stem->si_ops->stem_destory != NULL) {
+            return stem->si_ops->stem_destory(stem);
+        }
     }
     return 0;
 }

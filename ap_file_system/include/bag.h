@@ -74,7 +74,7 @@ extern void *__bag_res_pop(struct bag_head *head);
 
 static inline int __bag_empty(struct bag_head *head)
 {
-    return head->list == NULL;
+    return (head->list == NULL || *head->pos == NULL);
 }
 
 static inline void __bag_rewind_pos(struct bag_head *head)
