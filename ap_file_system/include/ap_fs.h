@@ -35,7 +35,6 @@ struct ap_inode{
     
 	void *x_object;
 	
-    
     union{
         struct list_head mt_inode_h;
         struct list_head inodes;

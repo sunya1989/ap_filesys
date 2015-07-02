@@ -274,8 +274,6 @@ int ap_unmount(const char *path)
     B_return(de);
 }
 
-
-
 /*任何一个线程调用close都会立即关闭描述符释放file结构
  *这样其它的线程用同一fd就访问不到此文件了
  */
@@ -722,6 +720,38 @@ int ap_rmdir(const char *path)
     return 0;
 }
 
+int ap_chdir(const char *path)
+{
+    if (path == NULL) {
+        errno = EFAULT;
+        return -1;
+    }
+    SHOW_TRASH_BAG;
+    struct ap_file_pthread *ap_fpthr;
+    struct ap_inode_indicator *final_indc;
+    final_indc = MALLOC_INODE_INDICATOR();
+    TRASH_BAG_PUSH(&final_indc->indic_bag);
+    
+    ap_fpthr = pthread_getspecific(file_thread_key);
+    int set = __initial_indicator(path, final_indc, ap_fpthr);
+    if (set == -1) {
+        errno = EINVAL;
+        B_return(-1);
+    }
+    
+    int get = walk_path(final_indc);
+    if (get == -1) {
+        errno = ENOENT;
+        B_return(-1);
+    }
+    if (!final_indc->cur_inode->is_dir) {
+        errno = ENOTDIR;
+        B_return(-1);
+    }
+    ap_inode_get(final_indc->cur_inode);
+    ap_fpthr->c_wd = final_indc->cur_inode;
+    B_return(0);
+}
 
 #ifdef DEBUG
 int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
