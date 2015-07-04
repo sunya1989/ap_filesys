@@ -11,7 +11,6 @@
 #include <sys/msg.h>
 #include <string.h>
 #include <stdlib.h>
-
 static inline void *Mallocx(size_t size)
 {
     char *buf = malloc(size);
@@ -41,6 +40,4 @@ static inline int Msgget(key_t key, int flag)
     }
     return msgget_s;
 }
-
-
 #endif
