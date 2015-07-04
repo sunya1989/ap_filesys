@@ -32,7 +32,9 @@ struct ap_file_root f_root = {
 
 struct ap_file_systems f_systems = {
     .f_system_lock = PTHREAD_MUTEX_INITIALIZER,
+    .mt_lock = PTHREAD_MUTEX_INITIALIZER,
     .i_file_system = LIST_HEAD_INIT(f_systems.i_file_system),
+    .mts = LIST_HEAD_INIT(f_systems.mts),
 };
 
 BAG_IMPOR_FREE(AP_INODE_INICATOR_FREE, struct ap_inode_indicator);

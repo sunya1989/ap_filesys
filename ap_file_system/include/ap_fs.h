@@ -300,9 +300,6 @@ struct ap_file_system_type{
     const char *name;
     struct list_head systems;
     struct list_head mts;
-    
-    pthread_mutex_t inode_lock;
-    
     struct counter fs_type_counter;
     struct ap_inode *(*get_initial_inode)(struct ap_file_system_type *, void *);
 };
@@ -317,9 +314,6 @@ static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
     COUNTER_INIT(&fsyst->fs_type_counter);
     fsyst->name = NULL;
     fsyst->get_initial_inode =  NULL;
-    
-    pthread_mutex_init(&fsyst->inode_lock, NULL);
-    
     return fsyst;
 }
 
@@ -331,20 +325,24 @@ static inline void FILE_SYS_TYPE_FREE(struct ap_file_system_type *fsyst)
 
 struct ap_file_systems{
     pthread_mutex_t f_system_lock;
+    pthread_mutex_t mt_lock;
+    struct list_head mts;
     struct list_head i_file_system;
 };
 
+extern struct ap_file_systems f_systems;
+
 static inline void
-add_inodes_to_fsys(struct ap_file_system_type *fsyst, struct ap_inode *ind, struct ap_inode *mt_par)
+add_inodes_to_fsys(struct ap_inode *ind, struct ap_inode *mt_par)
 {
     if (mt_par != NULL) {
         pthread_mutex_lock(&mt_par->mt_ch_lock);
         list_add(&ind->mt_child, &mt_par->children);
         pthread_mutex_unlock(&mt_par->mt_ch_lock);
     }
-    pthread_mutex_lock(&fsyst->inode_lock);
-    list_add(&ind->mt_child, &fsyst->mts);
-    pthread_mutex_unlock(&fsyst->inode_lock);
+    pthread_mutex_lock(&f_systems.mt_lock);
+    list_add(&ind->mt_child, &f_systems.mts);
+    pthread_mutex_unlock(&f_systems.mt_lock);
 }
 
 static inline void add_inode_to_mt(struct ap_inode *inode, struct ap_inode *mt)
@@ -363,9 +361,9 @@ static inline void del_inode_from_mt(struct ap_inode *inode)
 
 static inline void del_inode_from_fsys(struct ap_file_system_type *fsyst, struct ap_inode *inod)
 {
-    pthread_mutex_lock(&fsyst->inode_lock);
+    pthread_mutex_lock(&f_systems.mt_lock);
     list_del(&inod->mt_child);
-    pthread_mutex_unlock(&fsyst->inode_lock);
+    pthread_mutex_unlock(&f_systems.mt_lock);
 }
 
 static inline void search_mtp_lock(struct ap_inode *inode)
@@ -391,7 +389,7 @@ extern int walk_path(struct ap_inode_indicator *start);
 extern void inode_add_child(struct ap_inode *parent, struct ap_inode *child);
 extern void inode_del_child(struct ap_inode *parent, struct ap_inode *child);
 extern struct ap_file_system_type *find_filesystem(char *fsn);
-extern int initial_indicator(char *path,
+extern int initial_indicator(const char *path,
                              struct ap_inode_indicator *ind,
                              struct ap_file_pthread *ap_fpthr);
 extern void inode_ipc_get(void *ind);

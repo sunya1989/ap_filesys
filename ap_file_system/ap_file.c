@@ -64,7 +64,7 @@ static int __initial_indicator(const char *path, struct ap_inode_indicator *indc
     return 0;
 }
 
-int initial_indicator(char *path,
+int initial_indicator(const char *path,
                       struct ap_inode_indicator *ind,
                       struct ap_file_pthread *ap_fpthr)
 {
@@ -219,7 +219,7 @@ int ap_mount(void *m_info, char *file_system, const char *path)
     memcpy(mount_path, par_indic->full_path, len);
     mount_point->name = mount_path;
     mount_point->fsyst = fsyst;
-    add_inodes_to_fsys(fsyst, mount_point,par_indic->cur_mtp);
+    add_inodes_to_fsys(mount_point,par_indic->cur_mtp);
     
     counter_put(&fsyst->fs_type_counter);
     AP_INODE_INICATOR_FREE(par_indic);
@@ -386,11 +386,10 @@ off_t ap_lseek(int fd, off_t ops, int origin)
     file = file_info.file_list[fd];
     pthread_mutex_lock(&file->file_lock);
     pthread_mutex_unlock(&file_info.files_lock);
-    if (file->f_ops->llseek == NULL) {
+    if (file->f_ops->llseek != NULL) {
         errno = ESPIPE;
         return -1;
     }
-    now_off = file->f_ops->llseek(file, ops, origin);
     pthread_mutex_unlock(&file->file_lock);
     return now_off;
 }

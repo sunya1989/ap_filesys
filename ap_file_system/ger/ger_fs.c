@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <ap_pthread.h>
 
 static struct ap_file_operations ger_file_operations;
 static struct ap_inode_operations ger_inode_operations;
@@ -52,7 +53,6 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     pthread_mutex_lock(&stem->ch_lock);
     list_for_each(cusor, &stem->children){
         temp_stem = list_entry(cusor, struct ger_stem_node, child);
-        
         if (strcmp(temp_stem->stem_name, name) == 0) {
             counter_get(&temp_stem->stem_inuse);
             pthread_mutex_unlock(&stem->ch_lock);
@@ -262,7 +262,35 @@ static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, vo
     return ind;
 }
 
-struct ger_stem_node *find_stem(struct ger_stem_node *root_stem, char **names, int counts)
+struct ger_stem_node *find_stem_p(const char *p)
+{
+    SHOW_TRASH_BAG;
+    struct ap_inode_indicator *final_indc = MALLOC_INODE_INDICATOR();
+    struct ap_file_pthread *afp = pthread_getspecific(file_thread_key);
+    struct ap_inode *s_inode;
+    
+    TRASH_BAG_PUSH(&final_indc->indic_bag);
+    int set = initial_indicator(p, final_indc, afp);
+    if (set == -1) {
+        B_return(NULL);
+    }
+    
+    int get = walk_path(final_indc);
+    if (get == -1) {
+        B_return(NULL);
+    }
+    if (!final_indc->cur_inode->is_dir) {
+        B_return(NULL);
+    }
+    
+    s_inode = final_indc->cur_inode;
+    if (strcmp(s_inode->mount_inode->fsyst->name, GER_FILE_FS)) {
+        B_return(NULL);
+    }
+    return s_inode->x_object;
+}
+
+struct ger_stem_node *find_stem_r(struct ger_stem_node *root_stem, char **names, int counts)
 {
     int i = 0;
     char *name_cusor;

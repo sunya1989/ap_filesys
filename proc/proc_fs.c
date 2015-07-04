@@ -71,7 +71,8 @@ static char **pull_req(struct ap_msgreq *req)
 
 static struct ap_msgbuf *constr_req(const char *buf, size_t buf_len, size_t list[], int lis_len)
 {
-    struct ap_msgbuf *msgbuf = (struct ap_msgbuf *)Mallocz(sizeof(struct ap_msgbuf) + buf_len + sizeof(size_t)*lis_len);
+    struct ap_msgbuf *msgbuf =
+    (struct ap_msgbuf *)Mallocz(sizeof(struct ap_msgbuf) + buf_len + sizeof(size_t)*lis_len);
     msgbuf->req.index_lenth = lis_len;
     size_t *si = (size_t *)msgbuf->req.req_detail;
     char *cp = (char *)(si + lis_len);
