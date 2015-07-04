@@ -288,12 +288,14 @@ static void __decompose_mt(struct ap_inode *mt)
 
 int decompose_mt(struct ap_inode *mt)
 {
+    pthread_mutex_lock(&mt->mount_inode->mt_ch_lock);
     pthread_mutex_lock(&mt->parent->ch_lock);
     pthread_mutex_lock(&mt->mt_ch_lock);
     if (mt->is_search_mt || mt->mount_p_counter.in_use > 0) {
         errno = EBUSY;
         pthread_mutex_unlock(&mt->mt_ch_lock);
         pthread_mutex_unlock(&mt->parent->ch_lock);
+        pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
         return -1;
     }
     
@@ -302,14 +304,23 @@ int decompose_mt(struct ap_inode *mt)
         errno = EBUSY;
         pthread_mutex_unlock(&mt->mt_ch_lock);
         pthread_mutex_unlock(&mt->parent->ch_lock);
+        pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
         return -1;
     }
     list_del(&mt->mt_child);
     list_del(&mt->child);
     pthread_mutex_unlock(&mt->mt_ch_lock);
     pthread_mutex_unlock(&mt->parent->ch_lock);
+    pthread_mutex_unlock(&mt->mount_inode->mt_ch_lock);
     __decompose_mt(mt);
     return 0;
+}
+
+void clean_inode_tides(struct ap_inode *inode)
+{
+    list_del(&inode->mt_child);
+    list_del(&inode->mt_inodes.inodes);
+    list_del(&inode->child);
 }
 
 
