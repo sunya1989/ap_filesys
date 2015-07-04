@@ -384,6 +384,7 @@ static inline void search_mtp_unlock(struct ap_inode *inode)
 struct ap_file_pthread;
 
 extern struct ap_file_systems f_systems;
+extern void clean_inode_tides(struct ap_inode *inode);
 extern int register_fsyst(struct ap_file_system_type *fsyst);
 extern int walk_path(struct ap_inode_indicator *start);
 extern void inode_add_child(struct ap_inode *parent, struct ap_inode *child);
