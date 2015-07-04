@@ -16,6 +16,7 @@
 struct thread_attr_operations{
     ssize_t (*attr_read)(void *,struct ger_stem_node*, off_t, size_t);
     ssize_t (*attr_write)(void *, struct ger_stem_node*, off_t, size_t);
+    
 };
 
 struct thread_age_attribute{
@@ -28,10 +29,10 @@ struct thread_age_dir{
     pthread_t thr_id;
 };
 
-extern void THREAD_AGE_DIR_INIT(struct thread_age_dir *thr_dir);
-extern void THREAD_AGE_ATTR_INIT(struct thread_age_attribute *thr_attr);
+extern void THREAD_AGE_DIR_INIT(struct thread_age_dir *thr_dir, const char *name);
+extern void THREAD_AGE_ATTR_INIT(struct thread_age_attribute *thr_attr, const char *name);
 
-static inline struct thread_age_dir *MALLOC_THREAD_AGE_DIR()
+static inline struct thread_age_dir *MALLOC_THREAD_AGE_DIR(const char *name)
 {
     struct thread_age_dir *thr_dir;
     thr_dir = malloc(sizeof(*thr_dir));
@@ -39,11 +40,14 @@ static inline struct thread_age_dir *MALLOC_THREAD_AGE_DIR()
         perror("malloc thread_age_dir failed\n");
         exit(1);
     }
-    THREAD_AGE_DIR_INIT(thr_dir);
+    THREAD_AGE_DIR_INIT(thr_dir,name);
     return thr_dir;
     
 }
-static inline struct thread_age_attribute *MALLOC_THREAD_AGE_ATTR(struct thread_attr_operations *thr_attr_ops)
+static inline struct
+thread_age_attribute *MALLOC_THREAD_AGE_ATTR
+(struct thread_attr_operations *thr_attr_ops,
+ const char *name)
 {
     struct thread_age_attribute *thr_attr;
     thr_attr = malloc(sizeof(*thr_attr));
@@ -51,7 +55,7 @@ static inline struct thread_age_attribute *MALLOC_THREAD_AGE_ATTR(struct thread_
         perror("malloc thread_age_attr failed\n");
         exit(1);
     }
-    THREAD_AGE_ATTR_INIT(thr_attr);
+    THREAD_AGE_ATTR_INIT(thr_attr, name);
     thr_attr->thr_attr_ops = thr_attr_ops;
     return thr_attr;
 }

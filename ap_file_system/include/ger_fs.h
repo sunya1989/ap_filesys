@@ -87,6 +87,7 @@ struct stem_inode_operations{
 };
 
 extern int init_fs_ger();
-extern struct ger_stem_node *find_stem(struct ger_stem_node *root_stem, char **names, int counts);
+extern struct ger_stem_node *find_stem_p(const char *p);
+extern struct ger_stem_node *find_stem_r(struct ger_stem_node *root_stem, char **names, int counts);
 extern void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem);
 #endif
