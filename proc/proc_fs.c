@@ -26,6 +26,7 @@
 #define IPC_PATH 0
 #define PROC_NAME 1
 #define IPC_KEY 2
+#define PROC_RECORD_LEN 3
 #define MSG_LEN (sizeof(struct ap_msgseg) - sizeof(long))
 static int client_msid;
 static key_t client_key;
@@ -129,7 +130,7 @@ static int ap_ipc_kick_start(int fd, char *path, size_t len)
         exit(1);
     }
     Un_lock(fd, curoff, SEEK_SET, len);
-    return 1;
+    return 0;
 }
 
 static key_t ap_ftok(pid_t pid, char *ipc_path)
@@ -574,83 +575,51 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
         perror("ap_ipc_sever failed\n");
         exit(1);
     }
-    
+    // /tmp/ap_procs/pid : process name : key
     snprintf(ap_ipc_path, AP_IPC_PATH_LEN, "/tmp/ap_procs/%ld:%s:%ld\n",(long)pid,name,(long)key[0]);
     
     path_len = strlen(ap_ipc_path);
     ap_ipc_kick_start(fd, ap_ipc_path, path_len);
     //initialize inode
     init_inode = MALLOC_AP_INODE();
+    init_inode->is_dir = 1;
     init_inode->i_ops = &procfs_inode_operations;
     return init_inode;
 }
 
-static char **proc_path_analy(const char *path_s, const char *path_d)
+static char **__proc_path_analy(const char *path_s, const char *path_d)
 {
     const char *indic,*head;
-    head = path_s;
-    indic = strchr(path_s, ':');
-    size_t str_len;
-    if (indic == NULL) {
-        printf("proc_file was wrong\n");
-        exit(1);
+    size_t p_l = strlen(path_s);
+    char *tm_path = Mallocz(p_l+1);
+    strncpy(tm_path, path_s, p_l);
+    head = tm_path;
+    char **analy_r = Mallocz(sizeof(char*)*PROC_RECORD_LEN);
+    int i = 0;
+    
+    while ((indic = strchr(head, ':') )!= NULL || i < PROC_RECORD_LEN) {
+        indic = strchr(path_s, ':');
+        size_t str_len;
+        indic = '\0';
+        str_len = strlen(head);
+        char *item = Mallocz(str_len+1);
+        memcpy(item, path_d, str_len);
+        *(item + str_len) = '\0';
+        analy_r[i] = item;
+        head = indic++;
+        i++;
     }
-    indic = '\0';
-    if (strcmp(path_d, path_s) != 0){
+    free(tm_path);
+    return analy_r;
+}
+
+static char **proc_path_analy(const char *path_s, const char *path_d)
+{
+    char **items = __proc_path_analy(path_s, path_d);
+    if (strcmp(path_d, items[0]) != 0) {
         return NULL;
     }
-    str_len = strlen(path_d);
-    
-    char **analy_r = malloc(sizeof(char*)*3);
-    if (analy_r == NULL) {
-        perror("malloc failed\n");
-        exit(1);
-    }
-    
-    char *path_name = malloc(str_len+1);
-    if (path_name == NULL) {
-        perror("malloc failed\n");
-        exit(1);
-    }
-    
-    memcpy(path_name, path_d, str_len);
-    *(path_name + str_len) = '\0';
-    *analy_r = path_name;
-    
-    head = indic++;
-    indic = strchr(head, ':');
-    if (indic == NULL) {
-        printf("proc_file was wrong\n");
-        exit(1);
-    }
-    
-    str_len = strlen(head);
-    char *proc_name = malloc(str_len + 1);
-    if (proc_name == NULL) {
-        perror("malloc failed\n");
-        exit(1);
-    }
-    memcpy(proc_name, head, str_len);
-    *(proc_name + str_len) = '\0';
-    *(analy_r + 1) = proc_name;
-    head = indic++;
-    
-    if (strchr(head, ':') != NULL) {
-        printf("proc_file was wrong\n");
-        exit(1);
-    }
-    
-    str_len = strlen(head);
-    char *key = malloc(str_len + 1);
-    if (key == NULL) {
-        perror("malloc failed\n");
-        exit(1);
-    }
-    
-    memcpy(key, head, str_len);
-    *(key + str_len) = '\0';
-    *(analy_r + 2) = key;
-    return analy_r;
+    return items;
 }
 
 static int procfs_get_inode(struct ap_inode_indicator *indc)
@@ -689,13 +658,13 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     }
     //initialize inode
     inode = MALLOC_AP_INODE();
+    inode->is_dir = 1;
     inode->i_ops = &proc_inode_operations;
     inode->x_object = MALLOC_IPC_INFO();
     ap_inode_get(inode);
     indc->cur_inode = inode;
     return 0;
 }
-
 
 static int get_proc_inode(struct ap_inode_indicator *indc)
 {
@@ -1113,6 +1082,15 @@ static struct ap_file_operations proc_file_operations = {
     .release = proc_release,
     .open = proc_open,
 };
+
+int init_proc_fs()
+{
+    struct ap_file_system_type *proc_fsys = MALLOC_FILE_SYS_TYPE();
+    proc_fsys->name = PROC_FILE_FS;
+    
+    proc_fsys->get_initial_inode = proc_get_initial_inode;
+    return register_fsyst(proc_fsys);
+}
 
 
 

@@ -2,6 +2,7 @@
 #define ap_file_system_ap_file_h
 extern int ap_open(const char *path, int flags);
 extern int ap_mount(void *m_info, char *file_system, const char *path);
+extern int ap_mount2(char *file_system, const char *path);
 extern int ap_file_thread_init();
 extern int ap_close(int fd);
 extern int ap_mkdir(char *path, unsigned long mode);

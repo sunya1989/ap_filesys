@@ -302,6 +302,7 @@ struct ap_file_system_type{
     struct list_head mts;
     struct counter fs_type_counter;
     struct ap_inode *(*get_initial_inode)(struct ap_file_system_type *, void *);
+    void *(*get_mount_info)(const char *path);
 };
 
 static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
@@ -311,6 +312,8 @@ static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
         perror("file_sys_type malloc filed\n");
         exit(1);
     }
+    INIT_LIST_HEAD(&fsyst->mts);
+    INIT_LIST_HEAD(&fsyst->systems);
     COUNTER_INIT(&fsyst->fs_type_counter);
     fsyst->name = NULL;
     fsyst->get_initial_inode =  NULL;

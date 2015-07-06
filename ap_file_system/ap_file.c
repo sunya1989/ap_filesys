@@ -95,7 +95,7 @@ int ap_open(const char *path, int flags)
         exit(1);
     }
     
-   int set = __initial_indicator(path, final_inode, ap_fpthr);
+    int set = __initial_indicator(path, final_inode, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         AP_INODE_INICATOR_FREE(final_inode);
@@ -150,45 +150,39 @@ int ap_open(const char *path, int flags)
     return ap_fd;
 }
 
-int ap_mount(void *m_info, char *file_system, const char *path)
+static inline int conunt_slash(const char *path)
 {
-    if (file_system == NULL || path ==NULL) {
-        errno = EINVAL;
-        return -1;
-    }
+    int i;
+    for (i = 0; strchr(path, '/') != NULL; i++)
+        ;
+    
+    return i;
+}
+
+static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const char *path)
+{
     int get;
     struct ap_inode_indicator *par_indic;
     struct ap_inode *mount_point, *parent, *mount_inode;
-    int slash_no;
-    
-    path = regular_path(path, &slash_no);
-    if (path == NULL) {
-        errno = EINVAL;
-        return -1;
-    }
     
     par_indic = MALLOC_INODE_INDICATOR();
     mount_point = MALLOC_AP_INODE();
     
     mount_point->is_mount_point = 1;
-    
-    struct ap_file_system_type *fsyst = find_filesystem(file_system);
-    if (fsyst == NULL) {
-        fprintf(stderr, "file_system didn't find\n");
-        errno = EINVAL;
-        return -1;
-    }
-    
+
     mount_inode = fsyst->get_initial_inode(fsyst,m_info);
     mount_point->real_inode = mount_inode;
     mount_inode->mount_inode = mount_point;
+    
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
         fprintf(stderr, "ap_thread didn't find\n");
         exit(1);
     }
     
-    __initial_indicator(path, par_indic, ap_fpthr);
+    if((__initial_indicator(path, par_indic, ap_fpthr)) == -1)
+        return -1;
+    
     get = walk_path(par_indic);
     
     if ((get == -1 && par_indic->slash_remain > 0) ||
@@ -227,6 +221,48 @@ int ap_mount(void *m_info, char *file_system, const char *path)
     counter_put(&fsyst->fs_type_counter);
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;
+}
+
+extern int ap_mount2(char *file_system, const char *path)
+{
+    if (file_system == NULL || path == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    const char *tmp_path;
+    int slash_no;
+    void *m_info;
+    tmp_path = regular_path(path, &slash_no);
+    if (path == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    struct ap_file_system_type *fsyst = find_filesystem(file_system);
+    if (fsyst == NULL || fsyst->get_mount_info == NULL) {
+        fprintf(stderr, "file_system didn't find\n");
+        errno = EINVAL;
+        return -1;
+    }
+    
+    m_info = fsyst->get_mount_info(tmp_path);
+    return __ap_mount(m_info, fsyst, path);
+}
+
+int ap_mount(void *m_info, char *file_system, const char *path)
+{
+    if (file_system == NULL || path ==NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    struct ap_file_system_type *fsyst = find_filesystem(file_system);
+    if (fsyst == NULL) {
+        fprintf(stderr, "file_system didn't find\n");
+        errno = EINVAL;
+        return -1;
+    }
+    return __ap_mount(m_info, fsyst, path);
 }
 
 int ap_unmount(const char *path)

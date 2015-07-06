@@ -39,6 +39,22 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     return ind;
 }
 
+void *ger_ger_mount_info(const char *path)
+{
+    char *d = strrchr(path, '/');
+    int add = 0;
+    size_t strl = strlen(d);
+    struct ger_stem_node *node = MALLOC_STEM();
+    add = strl == 1? 0:1;
+    d += add;
+    char *name = Mallocz(strl + 1);
+    strncpy(name, d, strl);
+    
+    node->stem_name = name;
+    node->is_dir = 1;
+    return node;
+}
+
 static int ger_get_inode(struct ap_inode_indicator *indc)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)indc->cur_inode->x_object; //类型检查？
