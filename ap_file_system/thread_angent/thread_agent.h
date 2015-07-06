@@ -73,4 +73,8 @@ static inline void THREAD_AGE_DIR_FREE(struct thread_age_dir *thr_dir)
     pthread_mutex_destroy(&thr_dir->thr_dir_stem.ch_lock);
     free(thr_dir);
 }
+
+extern struct thread_age_dir *thr_compose_attrs
+(const char *dir_name, struct thread_age_attribute **attrs, size_t size);
+
 #endif

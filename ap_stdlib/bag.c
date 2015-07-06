@@ -10,7 +10,6 @@
 #include <bag.h>
 #include <envelop.h>
 
-
 struct bag_head *MALLOC_BAG_HEAD()
 {
     struct bag_head *bh;
