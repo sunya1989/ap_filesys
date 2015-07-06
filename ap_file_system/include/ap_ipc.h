@@ -8,12 +8,15 @@
 
 #ifndef ap_file_system_ap_ipc_h
 #define ap_file_system_ap_ipc_h
+#include <list.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #define AP_IPC_PATH_CIL "/tmp/ap_procs/%ld_0"
 #define AP_IPC_PATH_SER "/tmp/ap_procs/%ld_1"
 #define AP_IPC_PATH_LEN 512
 
-#include <list.h>
+
 /* our record locking macros */
 #define	read_lock(fd, offset, whence, len) \
 lock_reg(fd, F_SETLK, F_RDLCK, offset, whence, len)
