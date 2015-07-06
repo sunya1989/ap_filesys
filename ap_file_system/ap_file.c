@@ -16,12 +16,12 @@
 
 static inline struct ap_inode *convert_to_mountp(struct ap_inode *ind)
 {
-    return ind->mount_inode == NULL? ind:ind->mount_inode;
+    return ind->mount_inode->real_inode == ind? ind->mount_inode:ind;
 }
 
 static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
 {
-    return ind->real_inode == NULL? ind:ind->real_inode;
+    return ind->real_inode == ind? ind:ind->real_inode;
 }
 
 static int __initial_indicator(const char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)

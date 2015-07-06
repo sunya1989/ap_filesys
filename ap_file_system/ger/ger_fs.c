@@ -329,6 +329,7 @@ void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem)
 {
     pthread_mutex_lock(&par->ch_lock);
     list_add(&stem->child, &par->children);
+    stem->parent = par;
     pthread_mutex_unlock(&par->ch_lock);
 }
 
