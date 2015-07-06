@@ -17,9 +17,11 @@ struct ap_inode_indicator;
 
 struct ap_inode{
 	char *name;
+    
 	int is_dir;
     int is_mount_point,is_gate; //是否为挂载点,是否为link点
     int is_search_mt;
+    int links;
     
     struct ap_file_system_type *fsyst;
     
@@ -27,7 +29,6 @@ struct ap_inode{
     struct ap_inode *mount_inode;
     struct ap_inode *parent;
     
-    int links;
     struct counter inode_counter;
     struct counter mount_p_counter;
     
@@ -43,7 +44,6 @@ struct ap_inode{
     struct list_head children;
     struct list_head child;
     struct list_head mt_children;
-    
     struct list_head mt_child;
     
     pthread_mutex_t inodes_lock;

@@ -38,6 +38,16 @@ void THREAD_AGE_ATTR_INIT(struct thread_age_attribute *thr_attr, const char *nam
     return;
 }
 
+struct thread_age_dir *thr_compose_attrs
+(const char *dir_name, struct thread_age_attribute **attrs, size_t size)
+{
+    struct thread_age_dir *dir = MALLOC_THREAD_AGE_DIR(dir_name);
+    for (size_t i = 0; i < size; i++) {
+        list_add(&attrs[i]->thr_stem.child, &dir->thr_dir_stem.children);
+    }
+    return dir;
+}
+
 static ssize_t thread_age_read(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
 {
     struct thread_age_attribute *thr_attr = container_of(stem, struct thread_age_attribute, thr_stem);

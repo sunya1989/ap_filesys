@@ -721,7 +721,7 @@ int ap_rmdir(const char *path)
     pthread_mutex_unlock(&op_inode->mount_inode->mt_ch_lock);
     op_inode = convert_to_real_ind(op_inode);
     
-    if (op_inode->mount_inode != NULL) {
+    if (op_inode->mount_inode->real_inode == op_inode) {
         AP_INODE_FREE(op_inode->mount_inode);
     }
     AP_INODE_INICATOR_FREE(final_indc);
