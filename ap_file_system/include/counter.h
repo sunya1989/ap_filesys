@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <bag.h>
 
+#define INIT_COUNTER {PTHREAD_MUTEX_INITIALIZER,0}
+
 struct counter{
     pthread_mutex_t counter_lock;
     int in_use;

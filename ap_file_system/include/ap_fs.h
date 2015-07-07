@@ -17,7 +17,6 @@ struct ap_inode_indicator;
 
 struct ap_inode{
 	char *name;
-    
 	int is_dir;
     int is_mount_point,is_gate; //是否为挂载点,是否为link点
     int is_search_mt;
@@ -328,24 +327,18 @@ static inline void FILE_SYS_TYPE_FREE(struct ap_file_system_type *fsyst)
 
 struct ap_file_systems{
     pthread_mutex_t f_system_lock;
-    pthread_mutex_t mt_lock;
-    struct list_head mts;
     struct list_head i_file_system;
 };
 
 extern struct ap_file_systems f_systems;
 
 static inline void
-add_inodes_to_fsys(struct ap_inode *ind, struct ap_inode *mt_par)
+add_mt_inodes(struct ap_inode *ind, struct ap_inode *mt_par)
 {
-    if (mt_par != NULL) {
-        pthread_mutex_lock(&mt_par->mt_ch_lock);
-        list_add(&ind->mt_child, &mt_par->children);
-        pthread_mutex_unlock(&mt_par->mt_ch_lock);
-    }
-    pthread_mutex_lock(&f_systems.mt_lock);
-    list_add(&ind->mt_child, &f_systems.mts);
-    pthread_mutex_unlock(&f_systems.mt_lock);
+    pthread_mutex_lock(&mt_par->mt_ch_lock);
+    list_add(&ind->mt_child, &mt_par->mt_children);
+    pthread_mutex_unlock(&mt_par->mt_ch_lock);
+    
 }
 
 static inline void add_inode_to_mt(struct ap_inode *inode, struct ap_inode *mt)
@@ -360,13 +353,6 @@ static inline void del_inode_from_mt(struct ap_inode *inode)
     pthread_mutex_lock(&inode->mount_inode->inodes_lock);
     list_del(&inode->mt_inodes.inodes);
     pthread_mutex_unlock(&inode->mount_inode->inodes_lock);
-}
-
-static inline void del_inode_from_fsys(struct ap_file_system_type *fsyst, struct ap_inode *inod)
-{
-    pthread_mutex_lock(&f_systems.mt_lock);
-    list_del(&inod->mt_child);
-    pthread_mutex_unlock(&f_systems.mt_lock);
 }
 
 static inline void search_mtp_lock(struct ap_inode *inode)

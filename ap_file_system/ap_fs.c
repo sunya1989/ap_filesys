@@ -5,6 +5,7 @@
 
 static struct ap_file_operations root_file_operations;
 static struct ap_inode_operations root_dir_operations;
+static struct ap_inode root_mt;
 
 #define extra_real_inode(inode) ((inode->is_mount_point)? (inode->real_inode):(inode))
 
@@ -12,12 +13,24 @@ static struct ap_inode root_dir = {
     .name = "root_t",
     .is_dir = 1,
     .links = 1,
+    .mount_inode = &root_mt,
     .data_lock = PTHREAD_MUTEX_INITIALIZER,
+    .inode_counter = INIT_COUNTER,
     .ch_lock = PTHREAD_MUTEX_INITIALIZER,
     .children = LIST_HEAD_INIT(root_dir.children),
     .child = LIST_HEAD_INIT(root_dir.child),
     .i_ops = &root_dir_operations,
     .f_ops = &root_file_operations,
+};
+
+static struct ap_inode root_mt = {
+    .name = "",
+    .is_mount_point = 1,
+    .real_inode = &root_dir,
+    .links = 1,
+    .mt_pass_lock = PTHREAD_MUTEX_INITIALIZER,
+    .mt_ch_lock = PTHREAD_MUTEX_INITIALIZER,
+    .mt_children =LIST_HEAD_INIT(root_mt.mt_children),
 };
 
 struct ap_file_struct file_info = {
@@ -27,14 +40,12 @@ struct ap_file_struct file_info = {
 
 struct ap_file_root f_root = {
     .f_root_lock = PTHREAD_MUTEX_INITIALIZER,
-    .f_root_inode = &root_dir,
+    .f_root_inode = &root_mt,
 };
 
 struct ap_file_systems f_systems = {
     .f_system_lock = PTHREAD_MUTEX_INITIALIZER,
-    .mt_lock = PTHREAD_MUTEX_INITIALIZER,
     .i_file_system = LIST_HEAD_INIT(f_systems.i_file_system),
-    .mts = LIST_HEAD_INIT(f_systems.mts),
 };
 
 BAG_IMPOR_FREE(AP_INODE_INICATOR_FREE, struct ap_inode_indicator);
@@ -46,7 +57,7 @@ int walk_path(struct ap_inode_indicator *start)
     char *temp_path;
 	const char *path = start->path;
     int get;
-    struct ap_inode *curr_mount_p = NULL;
+    struct ap_inode *curr_mount_p = start->cur_mtp;
     struct bag_head mount_ps = BAG_HEAD_INIT(mount_ps);
     
     size_t str_len = strlen(path);
@@ -56,6 +67,8 @@ int walk_path(struct ap_inode_indicator *start)
     }
 
     struct ap_inode *cursor_inode = start->cur_inode;
+    search_mtp_lock(curr_mount_p);
+    BAG_RAW_PUSH(curr_mount_p, BAG_search_mtp_unlock, &mount_ps);
   
     start->slash_remain++;
     
@@ -80,6 +93,7 @@ AGAIN:
     while (1){
         if (!cursor_inode->is_dir) {
             errno = ENOTDIR;
+            BAG_EXCUTE(&mount_ps);
             return(-1);
         }
         
@@ -322,7 +336,6 @@ void clean_inode_tides(struct ap_inode *inode)
     list_del(&inode->mt_inodes.inodes);
     list_del(&inode->child);
 }
-
 
 const char *regular_path(const char *path, int *slash_no)
 {

@@ -27,8 +27,6 @@ static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
 static int __initial_indicator(const char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)
 {
     int slash_no;
-    
-    indc->path = path;
     indc->cur_inode = ap_fpthr->c_wd;
     
     path = regular_path(path, &slash_no);
@@ -50,15 +48,18 @@ static int __initial_indicator(const char *path, struct ap_inode_indicator *indc
             path = path + 2;
             indc->slash_remain--;
             if (ap_fpthr->c_wd == ap_fpthr->m_wd) {
-                indc->cur_inode = ap_fpthr->c_wd;
-                return 0;
+                indc->cur_inode = ap_fpthr->m_wd;
+                goto COMPLETE;
             }
             struct ap_inode *par = ap_fpthr->c_wd->parent;
             struct ap_inode *cur_inode = ap_fpthr->c_wd;
-            indc->cur_inode = cur_inode->mount_inode == NULL ? par:cur_inode->mount_inode->parent;
+            indc->cur_inode = cur_inode->mount_inode->real_inode == indc->cur_inode ?
+            cur_inode->mount_inode->parent:par;
         }
     }
+COMPLETE:
     indc->path = path;
+    indc->cur_mtp = indc->cur_inode->mount_inode;
     strncpy(indc->full_path, path, strlen(path));
     ap_inode_get(indc->cur_inode);
     return 0;
@@ -150,15 +151,6 @@ int ap_open(const char *path, int flags)
     return ap_fd;
 }
 
-static inline int conunt_slash(const char *path)
-{
-    int i;
-    for (i = 0; strchr(path, '/') != NULL; i++)
-        ;
-    
-    return i;
-}
-
 static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const char *path)
 {
     int get;
@@ -214,9 +206,8 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     memcpy(mount_path, par_indic->full_path, len);
     mount_point->name = mount_path;
     mount_point->fsyst = fsyst;
-    add_inodes_to_fsys(mount_point,par_indic->cur_mtp);
-    mount_point->mount_inode =
-    par_indic->cur_mtp == NULL? mount_point:par_indic->cur_mtp;
+    add_mt_inodes(mount_point,par_indic->cur_mtp);
+    mount_point->mount_inode = par_indic->cur_mtp;
     
     counter_put(&fsyst->fs_type_counter);
     AP_INODE_INICATOR_FREE(par_indic);
@@ -726,6 +717,7 @@ int ap_rmdir(const char *path)
     if (op_inode->inode_counter.in_use > 1) {
         pthread_mutex_unlock(&op_inode->inode_counter.counter_lock);
         pthread_mutex_unlock(&parent->ch_lock);
+        pthread_mutex_unlock(&op_inode->ch_lock);
         pthread_mutex_unlock(&op_inode->mount_inode->mt_ch_lock);
         AP_INODE_INICATOR_FREE(final_indc);
         errno = EBUSY;
