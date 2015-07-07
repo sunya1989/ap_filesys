@@ -1,5 +1,7 @@
 #ifndef ap_file_system_ap_file_h
 #define ap_file_system_ap_file_h
+#define AP_REWIND_DIR "sunya_rewind_dir_19891102"
+
 extern int ap_open(const char *path, int flags);
 extern int ap_mount(void *m_info, char *file_system, const char *path);
 extern int ap_mount2(char *file_system, const char *path);

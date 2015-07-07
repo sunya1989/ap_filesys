@@ -765,13 +765,19 @@ int ap_chdir(const char *path)
         errno = EFAULT;
         return -1;
     }
-    SHOW_TRASH_BAG;
     struct ap_file_pthread *ap_fpthr;
+    ap_fpthr = pthread_getspecific(file_thread_key);
+    if (strcmp(path, AP_REWIND_DIR) == 0) {
+        ap_inode_put(ap_fpthr->c_wd);
+        ap_fpthr->c_wd = ap_fpthr->m_wd;
+        return 0;
+    }
+
+    SHOW_TRASH_BAG;
     struct ap_inode_indicator *final_indc;
     final_indc = MALLOC_INODE_INDICATOR();
     TRASH_BAG_PUSH(&final_indc->indic_bag);
     
-    ap_fpthr = pthread_getspecific(file_thread_key);
     int set = __initial_indicator(path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
@@ -787,6 +793,7 @@ int ap_chdir(const char *path)
         errno = ENOTDIR;
         B_return(-1);
     }
+    ap_inode_put(ap_fpthr->c_wd);
     ap_inode_get(final_indc->cur_inode);
     ap_fpthr->c_wd = final_indc->cur_inode;
     B_return(0);

@@ -58,8 +58,8 @@ static inline void counter_get(struct counter *counter)
     pthread_mutex_unlock(&counter->counter_lock);
     return;
 }
-BAG_DEFINE_FREE(counter_put);
 
+BAG_DEFINE_FREE(counter_put);
 static inline void counter_put(struct counter *counter)
 {
     pthread_mutex_lock(&counter->counter_lock);
