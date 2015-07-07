@@ -209,7 +209,6 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     add_mt_inodes(mount_point,par_indic->cur_mtp);
     mount_point->mount_inode = par_indic->cur_mtp;
     
-    counter_put(&fsyst->fs_type_counter);
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;
 }
@@ -237,7 +236,9 @@ extern int ap_mount2(char *file_system, const char *path)
     }
     
     m_info = fsyst->get_mount_info(tmp_path);
-    return __ap_mount(m_info, fsyst, path);
+    __ap_mount(m_info, fsyst, path);
+    counter_put(&fsyst->fs_type_counter);
+    return 0;
 }
 
 int ap_mount(void *m_info, char *file_system, const char *path)
@@ -253,7 +254,9 @@ int ap_mount(void *m_info, char *file_system, const char *path)
         errno = EINVAL;
         return -1;
     }
-    return __ap_mount(m_info, fsyst, path);
+    __ap_mount(m_info, fsyst, path);
+    counter_put(&fsyst->fs_type_counter);
+    return 0;
 }
 
 int ap_unmount(const char *path)

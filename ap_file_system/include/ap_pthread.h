@@ -19,7 +19,9 @@ struct ap_file_pthread{
 };
 
 static inline void AP_FILE_THREAD_INIT(struct ap_file_pthread *fpth){
-    fpth->c_wd = fpth->m_wd = f_root.f_root_inode->real_inode;
+    struct ap_inode *tmp = f_root.f_root_inode;
+    fpth->c_wd = tmp->real_inode;
+    fpth->m_wd = tmp->real_inode;
 }
 
 #endif

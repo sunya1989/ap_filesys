@@ -5,9 +5,18 @@
 
 static struct ap_file_operations root_file_operations;
 static struct ap_inode_operations root_dir_operations;
-static struct ap_inode root_mt;
+static struct ap_inode root_dir;
 
 #define extra_real_inode(inode) ((inode->is_mount_point)? (inode->real_inode):(inode))
+static struct ap_inode root_mt = {
+    .name = "",
+    .is_mount_point = 1,
+    .real_inode = &root_dir,
+    .links = 1,
+    .mt_pass_lock = PTHREAD_MUTEX_INITIALIZER,
+    .mt_ch_lock = PTHREAD_MUTEX_INITIALIZER,
+    .mt_children =LIST_HEAD_INIT(root_mt.mt_children),
+};
 
 static struct ap_inode root_dir = {
     .name = "root_t",
@@ -21,16 +30,6 @@ static struct ap_inode root_dir = {
     .child = LIST_HEAD_INIT(root_dir.child),
     .i_ops = &root_dir_operations,
     .f_ops = &root_file_operations,
-};
-
-static struct ap_inode root_mt = {
-    .name = "",
-    .is_mount_point = 1,
-    .real_inode = &root_dir,
-    .links = 1,
-    .mt_pass_lock = PTHREAD_MUTEX_INITIALIZER,
-    .mt_ch_lock = PTHREAD_MUTEX_INITIALIZER,
-    .mt_children =LIST_HEAD_INIT(root_mt.mt_children),
 };
 
 struct ap_file_struct file_info = {

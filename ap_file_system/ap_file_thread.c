@@ -31,11 +31,8 @@ int ap_file_thread_init()
     struct ap_file_pthread *file_pthr;
     
     pthread_once(&thread_once, thread_init);
-    file_pthr = malloc(sizeof(*file_pthr));
-    if (file_pthr == NULL) {
-        perror("ap_thread_init failed\n");
-        exit(1);
-    }
+    file_pthr = Mallocz(sizeof(*file_pthr));
+   
     AP_FILE_THREAD_INIT(file_pthr);
     
     int set = pthread_setspecific(file_thread_key, file_pthr);
