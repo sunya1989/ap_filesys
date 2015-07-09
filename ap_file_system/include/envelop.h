@@ -11,6 +11,7 @@
 #include <sys/msg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 static inline void *Mallocx(size_t size)
 {
     char *buf = malloc(size);
@@ -33,6 +34,7 @@ static inline void *Mallocz(size_t size)
 
 static inline int Msgget(key_t key, int flag)
 {
+    errno = 0;
     int msgget_s = msgget(key, flag);
     if (msgget_s == -1) {
         perror("msgget faild\n");

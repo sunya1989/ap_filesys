@@ -21,6 +21,7 @@
 #include <ap_hash.h>
 #include <stdlib.h>
 #include <list.h>
+#include <sys/stat.h>
 #include <convert.h>
 #include "proc_fs.h"
 #define IPC_PATH 0
@@ -30,6 +31,9 @@
 #define MSG_LEN (sizeof(struct ap_msgseg) - sizeof(long))
 static int client_msid;
 static key_t client_key;
+
+key_t key[2];
+int msgid[2];
 
 struct ipc_holder_hash ipc_hold_table;
 
@@ -103,7 +107,6 @@ static inline unsigned long get_channel()
     channel_n++;
     pthread_mutex_unlock(&channel_lock);
     return ch_n;
-
 }
 
 static void handle_disc(struct ap_inode *inde)
@@ -122,10 +125,11 @@ static int ap_ipc_kick_start(int fd, char *path, size_t len)
 {
     channel_n = random();
     
-    Write_lock(fd, 0, SEEK_END, len);
+    Write_lock(fd, 0, SEEK_SET, len);
     off_t curoff = lseek(fd, 0, SEEK_END);
     ssize_t w_l = write(fd, path, len);
-    if (w_l < len) {
+    if (w_l < len || w_l == -1) {
+        perror("kik_start failed\n");
         printf("ipc_path write failed\n");
         exit(1);
     }
@@ -137,12 +141,14 @@ static key_t ap_ftok(pid_t pid, char *ipc_path)
 {
     int cr_s;
     key_t key;
-    cr_s = creat(ipc_path, 777);
-    if (cr_s != 0) {
+    
+    open(ipc_path, O_CREAT | O_TRUNC | O_WRONLY);
+    if (cr_s == -1) {
         perror("ap_ipc_file creation failed\n");
         exit(1);
     }
-    
+    chmod(ipc_path, 0777);
+    close(cr_s);
     key = ftok(ipc_path, (int)pid);
     return key;
 }
@@ -164,9 +170,9 @@ static ssize_t ap_msgrcv(int msgid, char **d_buf, unsigned long wait_seq)
     int data_l = 0;
     
     do {
-        recv_s = msgrcv(msgid, &buf, MSG_LEN, wait_seq, 0);
+        recv_s = msgrcv(msgid, (void *)&buf, MSG_LEN, wait_seq, 0);
         if (recv_s == -1) {
-            errno = EBADF;
+            perror("rcv failed");
             return -1;
         }
         if (dl == -1) {
@@ -546,8 +552,7 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
 {
     int fd;
     pid_t pid;
-    key_t key[2];
-    int msgid[2];
+    
     size_t path_len;
     pthread_t thr_n;
     struct ap_inode *init_inode;
@@ -555,17 +560,20 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
     char ap_ipc_path[AP_IPC_PATH_LEN];
     char ipc_path[AP_IPC_PATH_LEN];
     char *name = (char *)x_object;
-    fd = open(AP_PROC_FILE, O_CREAT, 777);
+    
+    fd = open(AP_PROC_FILE, O_CREAT | O_RDWR);
     if (fd < 0) {
         perror("open failed\n");
         exit(1);
     }
+    chmod(AP_PROC_FILE, 0777);
+    
     //key[0]作为服务器端 key[1]作为客户端
     pid = getpid();
     for (int i=0; i<2; i++) {
         snprintf(ipc_path, AP_IPC_PATH_LEN, "/tmp/ap_procs/%ld_%d",(long)pid,i);
         key[i] = ap_ftok(pid,ipc_path);
-        msgid[i] = Msgget(key[i], IPC_CREAT);
+        msgid[i] = Msgget(key[i], IPC_CREAT | IPC_W | IPC_R);
     }
     
     client_msid = msgid[1];

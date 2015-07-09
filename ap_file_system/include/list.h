@@ -10,7 +10,6 @@
 
 #define _offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 
-
 struct list_head{
 	struct list_head *prev;
 	struct list_head *next;
@@ -22,28 +21,28 @@ static inline void INIT_LIST_HEAD(struct list_head *list)
     list->prev = list;
 }
 
-static inline void list_add(struct list_head *_new, struct list_head *head)
+static inline void list_add(struct list_head *new_h, struct list_head *head)
 {
-    if (_new == NULL || head == NULL) {
+    if (new_h == NULL || head == NULL) {
         fprintf(stderr, "list can't be null\n");
         exit(1);
     }
-    _new->prev = head;
-    _new->next = head->next;
-    head->next->prev = _new;
-    head->next = _new;
+    new_h->prev = head;
+    new_h->next = head->next;
+    head->next->prev = new_h;
+    head->next = new_h;
 }
 
-static inline void list_add_tail(struct list_head *_new, struct list_head *head)
+static inline void list_add_tail(struct list_head *new_h, struct list_head *head)
 {  
-  if (_new == NULL || head == NULL) {
+  if (new_h == NULL || head == NULL) {
        fprintf(stderr, "list can't be null\n");
         exit(1);
     }
-    _new->next = head;
-    _new->prev = head->prev;
-    head->prev->next = _new;
-    head->prev = _new;
+    new_h->next = head;
+    new_h->prev = head->prev;
+    head->prev->next = new_h;
+    head->prev = new_h;
 }
 
 static inline int list_empty(struct list_head *head)
@@ -63,9 +62,6 @@ static inline void list_del(struct list_head *entry)
     entry->next = entry;
     entry->prev = entry;
 }
-
-
-
 
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 
