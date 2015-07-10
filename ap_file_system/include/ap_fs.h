@@ -10,7 +10,7 @@
 #include "ap_hash.h"
 
 #define _OPEN_MAX 1024
-#define FULL_PATH_LEN 255
+#define FULL_PATH_LEN 300
 struct ap_inode_operations;
 struct ap_file_operations;
 struct ap_inode_indicator;

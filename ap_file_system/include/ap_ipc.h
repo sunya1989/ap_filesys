@@ -52,8 +52,14 @@ Lock_test(fd, F_WRLCK, offset, whence, len)
 int lock_reg(int, int, int, off_t, int, off_t);
 void Lock_reg(int, int, int, off_t, int, off_t);
 
+#define AP_IPC_PID 0
+#define AP_IPC_PROC_NAME 1
+#define AP_IPC_MSGID 2
+
 struct ipc_sock{
     char *sever_name;
+    pid_t pid;
+    int msgid;
     key_t key;
 };
 

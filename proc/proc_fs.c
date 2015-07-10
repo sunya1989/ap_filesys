@@ -583,14 +583,17 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
         perror("ap_ipc_sever failed\n");
         exit(1);
     }
-    // /tmp/ap_procs/pid : process name : key
-    snprintf(ap_ipc_path, AP_IPC_PATH_LEN, "/tmp/ap_procs/%ld:%s:%ld\n",(long)pid,name,(long)key[0]);
+    // /tmp/ap_procs/pid : process name : msgid
+    snprintf(ap_ipc_path, AP_IPC_PATH_LEN, "/tmp/ap_procs/%ld:%s:%ld\n",(long)pid,name,(long)msgid[0]);
     
     path_len = strlen(ap_ipc_path);
     ap_ipc_kick_start(fd, ap_ipc_path, path_len);
     //initialize inode
+    
     init_inode = MALLOC_AP_INODE();
     init_inode->is_dir = 1;
+    init_inode->name = Mallocz(strlen(name) + 1);
+    strcpy(init_inode->name, name);
     init_inode->i_ops = &procfs_inode_operations;
     return init_inode;
 }
@@ -635,8 +638,10 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     int fd;
     FILE *fs;
     char **cut = NULL;
+    size_t strl;
     char ap_ipc_path[AP_IPC_PATH_LEN];
     struct ap_inode *inode;
+    struct ap_ipc_info *info;
     
     fd = open(AP_PROC_FILE, O_RDONLY);
     if (fd < 0) {
@@ -665,10 +670,18 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
         return -1;
     }
     //initialize inode
+    
+    strl = strlen(cut[AP_IPC_PROC_NAME]);
+    inode->name = Mallocz(strl + 1);
+    strncpy(inode->name, cut[1], strl);
+    
     inode = MALLOC_AP_INODE();
     inode->is_dir = 1;
     inode->i_ops = &proc_inode_operations;
-    inode->x_object = MALLOC_IPC_INFO();
+    info = MALLOC_IPC_INFO();
+    info->sock.msgid = atoi(cut[AP_IPC_MSGID]);
+    info->sock.pid = atoi(cut[AP_IPC_PID]);
+    inode->x_object = info;
     ap_inode_get(inode);
     indc->cur_inode = inode;
     return 0;
@@ -696,12 +709,8 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     buf->pid = pid;
     buf->ch_n = get_channel();
     buf->key = client_key;
-    
-    msgid = msgget(info->sock.key, 0);
-    if (msgid == -1) {
-        errno = ENOENT;
-        return -1;
-    }
+    msgid = info->sock.msgid;
+
     int sent_s = ap_msgsnd(msgid, buf, sizeof(struct ap_msgbuf) + str_len, 0, 0);
     if (sent_s == -1) {
         errno = ENOENT;
@@ -791,12 +800,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
-    msgid = msgget(sock->key, 0);
-    if (msgid == -1) {
-        errno = EBADF;
-        handle_disc(inde);
-        return -1;
-    }
+    msgid = sock->msgid;
     
     size_t str_len = strlen(path);
     size_t str_len_f = strlen(f_idec);
@@ -849,13 +853,8 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
-    msgid = msgget(sock->key, 0);
-    if (msgid == -1) {
-        errno = EBADF;
-        handle_disc(inde);
-        return -1;
-    }
-    
+    msgid = sock->msgid;
+ 
     size_t str_len = strlen(path);
     size_t str_len_f = strlen(f_idec);
     size_t t_str_len = str_len + str_len_f;
@@ -902,13 +901,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
-    msgid = msgget(sock->key, 0);
-    if (msgid == -1) {
-        errno = EBADF;
-        handle_disc(inde);
-        return -1;
-    }
-    
+    msgid = sock->msgid;
     
     char *rand_c = ultoa(rand() % _OPEN_MAX, NULL, 10);
     size_t str_len = strlen(path);
@@ -976,12 +969,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
-    msgid = msgget(sock->key, 0);
-    if (msgid == -1) {
-        errno = EBADF;
-        handle_disc(inode);
-        return -1;
-    }
+    msgid = sock->msgid;
     
     size_t str_len = strlen(path);
     size_t str_len_f = strlen(f_idec);
@@ -1028,12 +1016,7 @@ static int proc_destory(struct ap_inode *inode)
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
-    msgid = msgget(sock->key, 0);
-    if (msgid == -1) {
-        errno = EBADF;
-        handle_disc(inode);
-        return -1;
-    }
+    msgid = sock->msgid;
     
     size_t str_len = strlen(path);
     size_t list[] = {str_len};
