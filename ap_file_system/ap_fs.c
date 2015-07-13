@@ -286,6 +286,9 @@ static void __decompose_mt(struct ap_inode *mt)
         list_for_each_use(lis_pos_inode, lis_pos1, &pos_mt->mt_inodes.mt_inode_h){
             pos_inode = list_entry(lis_pos_inode, struct ap_inode, mt_inodes.inodes);
             list_del(lis_pos_inode);
+            if (pos_inode->is_gate) {
+                inode_put_link(pos_inode->real_inode);
+            }
             if (pos_inode->links <= 1) {
                 AP_INODE_FREE(pos_inode);
             }

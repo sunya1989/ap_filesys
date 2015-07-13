@@ -141,6 +141,30 @@ static inline struct ap_inode *MALLOC_AP_INODE()
     return inode;
 }
 
+static inline void inode_get_link(struct ap_inode *inode)
+{
+    if (inode->links < 0) {
+        printf("links wrong");
+        exit(1);
+    }
+    
+    pthread_mutex_lock(&inode->data_lock);
+    inode->links++;
+    pthread_mutex_unlock(&inode->data_lock);
+}
+
+static inline void inode_put_link(struct ap_inode *inode)
+{
+    if (inode->links <= 0) {
+        printf("links wrong");
+        exit(1);
+    }
+    
+    pthread_mutex_lock(&inode->data_lock);
+    inode->links--;
+    pthread_mutex_unlock(&inode->data_lock);
+}
+
 static inline void ap_inode_get(struct ap_inode *inode)
 {
     if (inode->mount_inode != NULL) {

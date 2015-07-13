@@ -156,6 +156,7 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     int get;
     struct ap_inode_indicator *par_indic;
     struct ap_inode *mount_point, *parent, *mount_inode;
+    char *dir_name;
     
     par_indic = MALLOC_INODE_INDICATOR();
     mount_point = MALLOC_AP_INODE();
@@ -208,6 +209,16 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     mount_point->fsyst = fsyst;
     add_mt_inodes(mount_point,par_indic->cur_mtp);
     mount_point->mount_inode = par_indic->cur_mtp;
+    
+    if (mount_inode->name == NULL) {
+        dir_name = strrchr(path, '/');
+        if (strcmp(path, "/")) {
+            dir_name++;
+        }
+        len = strlen(dir_name);
+        mount_inode->name = Mallocz(len + 1);
+        strncpy(mount_inode->name, dir_name, len);
+    }
     
     AP_INODE_INICATOR_FREE(par_indic);
     return 0;
@@ -643,10 +654,7 @@ int ap_link(const char *l_path, const char *t_path)
         return -1;
     }
     
-    pthread_mutex_lock(&op_inode->data_lock);
-    op_inode->links++;
-    pthread_mutex_unlock(&op_inode->data_lock);
- 
+    inode_get_link(op_inode);
     inode_gate = MALLOC_AP_INODE();
     inode_gate->is_gate = 1;
     inode_gate->name = gate_name;

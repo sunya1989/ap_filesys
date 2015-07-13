@@ -27,7 +27,7 @@
 #define IPC_PATH 0
 #define PROC_NAME 1
 #define IPC_KEY 2
-#define PROC_RECORD_LEN 3
+#define PROC_RECORD_LEN 4
 #define MSG_LEN (sizeof(struct ap_msgseg) - sizeof(long))
 static int client_msid;
 static key_t client_key;
@@ -592,8 +592,6 @@ static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst
     
     init_inode = MALLOC_AP_INODE();
     init_inode->is_dir = 1;
-    init_inode->name = Mallocz(strlen(name) + 1);
-    strcpy(init_inode->name, name);
     init_inode->i_ops = &procfs_inode_operations;
     return init_inode;
 }
@@ -681,6 +679,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     info = MALLOC_IPC_INFO();
     info->sock.msgid = atoi(cut[AP_IPC_MSGID]);
     info->sock.pid = atoi(cut[AP_IPC_PID]);
+    info->sock.key = atoi(cut[AP_IPC_KEY]);
     inode->x_object = info;
     ap_inode_get(inode);
     indc->cur_inode = inode;
@@ -801,6 +800,11 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     char *msg_reply;
     pid_t pid = getpid();
     msgid = sock->msgid;
+    if (msgget(sock->key, 0) == -1) {
+        errno = EBADF;
+        handle_disc(inde);
+        return -1;
+    }
     
     size_t str_len = strlen(path);
     size_t str_len_f = strlen(f_idec);
@@ -854,6 +858,11 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     char *msg_reply;
     pid_t pid = getpid();
     msgid = sock->msgid;
+    if (msgget(sock->key, 0) == -1) {
+        errno = EBADF;
+        handle_disc(inde);
+        return -1;
+    }
  
     size_t str_len = strlen(path);
     size_t str_len_f = strlen(f_idec);
@@ -902,6 +911,11 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     char *msg_reply;
     pid_t pid = getpid();
     msgid = sock->msgid;
+    if (msgget(sock->key, 0) == -1) {
+        errno = EBADF;
+        handle_disc(inde);
+        return -1;
+    }
     
     char *rand_c = ultoa(rand() % _OPEN_MAX, NULL, 10);
     size_t str_len = strlen(path);
@@ -970,6 +984,11 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     char *msg_reply;
     pid_t pid = getpid();
     msgid = sock->msgid;
+    if (msgget(sock->key, 0) == -1) {
+        errno = EBADF;
+        handle_disc(inode);
+        return -1;
+    }
     
     size_t str_len = strlen(path);
     size_t str_len_f = strlen(f_idec);
