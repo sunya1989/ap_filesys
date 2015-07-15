@@ -10,6 +10,7 @@
 #define ap_file_system_proc_fs_h
 #include <ap_ipc.h>
 #define AP_PROC_FILE "/var/lock/ap_procs"
+#define AP_PROC_DISC_F "/tmp/ap_proc_disc"
 #define MY_DATA_LEN 2048
 #define AP_MSGSEG_LEN 2048
 #define AP_PNOEXIST 0

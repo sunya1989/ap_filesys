@@ -15,6 +15,7 @@
 #define AP_IPC_PATH_CIL "/tmp/ap_procs/%ld_0"
 #define AP_IPC_PATH_SER "/tmp/ap_procs/%ld_1"
 #define AP_IPC_PATH_LEN 512
+#define AP_IPC_RECODE_LEN 100
 
 
 /* our record locking macros */
@@ -53,9 +54,10 @@ int lock_reg(int, int, int, off_t, int, off_t);
 void Lock_reg(int, int, int, off_t, int, off_t);
 
 #define AP_IPC_PID 0
-#define AP_IPC_PROC_NAME 1
-#define AP_IPC_MSGID 2
-#define AP_IPC_KEY 3
+#define AP_IPC_MSGID 1
+#define AP_IPC_KEY 2
+#define AP_IPC_RECODE_NUM 3
+
 
 struct ipc_sock{
     char *sever_name;
