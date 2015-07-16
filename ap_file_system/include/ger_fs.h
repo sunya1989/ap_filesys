@@ -83,7 +83,8 @@ struct stem_inode_operations{
     int (*stem_rmdir) (struct ger_stem_node *);
     int (*stem_unlink) (struct ger_stem_node *);
     struct ger_stem_node *(*stem_mkdir) (struct ger_stem_node *);
-    int (*stem_destory)(struct ger_stem_node *);
+    int (*stem_destory) (struct ger_stem_node *);
+    ssize_t (*stem_readdir) (struct ger_stem_node *, void *, size_t size);
 };
 
 extern int init_fs_ger();

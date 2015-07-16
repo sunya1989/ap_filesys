@@ -665,7 +665,6 @@ static int proc_creat_file(const char *sever_name)
 
 static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
 {
-
     pthread_t thr_n;
     struct ap_inode *init_inode;
     
@@ -728,7 +727,6 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     memset(msgid_key, '\0', AP_IPC_RECODE_LEN);
     
     strncpy(ap_ipc_path, AP_PROC_FILE, sizeof(AP_PROC_FILE));
-    path_name_cat(ap_ipc_path, sever_name, strl,"/");
     dp = opendir(ap_ipc_path);
     if (dp == NULL) {
         return -1;
@@ -754,6 +752,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
             return 0;
         }
     }
+    closedir(dp);
     return -1;
 }
 
@@ -804,13 +803,17 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     info->sock.msgid = atoi(cut[AP_IPC_MSGID]);
     info->sock.pid = atoi(cut[AP_IPC_PID]);
     info->sock.sever_name = Mallocz(strl0 + 1);
-    strncpy(info->sock.sever_name, indc->the_name, strl0);
+    strncpy(info->sock.sever_name, sever_name, strl0);
     
     inode->name = Mallocz(strl1 + 1);
     strncpy(inode->name, indc->the_name, strl1);
     inode->parent = indc->cur_inode;
     inode->mount_inode = indc->cur_inode->mount_inode;
     inode->i_ops = &proc_inode_operations;
+    inode->x_object = info;
+    ap_inode_put(indc->cur_inode);
+    ap_inode_get(inode);
+    indc->cur_inode = inode;
     return 0;
 }
 

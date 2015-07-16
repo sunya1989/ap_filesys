@@ -127,7 +127,6 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
         return;
     }
     chdir(sa_dir->target_dir);
-    
     if (stem->raw_data_isset == 0) {
         while ((dirp = readdir(dp)) != NULL) {
             path = dirp->d_name;

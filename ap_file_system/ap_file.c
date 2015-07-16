@@ -807,6 +807,55 @@ int ap_chdir(const char *path)
     B_return(0);
 }
 
+AP_DIR *ap_open_dir(const char *path)
+{
+    AP_DIR *dir;
+    struct ap_inode_indicator *indc;
+    struct ap_file_pthread *ap_fpthr;
+    
+    SHOW_TRASH_BAG;
+    indc = MALLOC_INODE_INDICATOR();
+    TRASH_BAG_PUSH(&indc->indic_bag);
+    
+    int set = __initial_indicator(path, indc, ap_fpthr);
+    if (set == -1) {
+        errno = EINVAL;
+        B_return(NULL);
+    }
+    
+    int get = walk_path(indc);
+    if (get == -1) {
+        errno = ENOENT;
+        B_return(NULL);
+    }
+    if (!indc->cur_inode->is_dir) {
+        errno = ENOTDIR;
+        B_return(NULL);
+    }
+    
+    dir = MALLOC_AP_DIR();
+    dir->dir_i = indc->cur_inode;
+    ap_inode_get(indc->cur_inode);
+    B_return(dir);
+}
+struct ap_dirent *ap_readdir(AP_DIR *dir)
+{
+    struct ap_inode *inode = dir->dir_i;
+    ssize_t read;
+    struct ap_dirent *dirt;
+    if (dir->d_buff_p == dir->d_buff_end) {
+        memset(dir->d_buff_p, '\0', (dir->d_buff_end - dir->d_buff));
+        read = inode->i_ops->readdir(inode,dir->d_buff,DEAFUL_DIR_RD_ONECE_NUM);
+        dir->d_buff_end = dir->d_buff + read;
+        if (read == -1) {
+            errno = ENOENT;
+            return NULL;
+        }
+    }
+    dirt = Mallocz(sizeof(*dirt));
+    memcpy(dirt, dir->d_buff_p, sizeof(*dirt));
+    return dirt;
+}
 #ifdef DEBUG
 int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
 {

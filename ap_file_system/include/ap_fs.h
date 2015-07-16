@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <bag.h>
+#include <ap_file.h>
 #include "counter.h"
 #include "list.h"
 #include "ap_hash.h"
@@ -58,6 +59,25 @@ struct ap_inode{
     struct ap_inode_operations *i_ops;
 };
 
+struct ap_dir_t{
+    char *d_buff;
+    char *d_buff_end;
+    char *d_buff_p;
+    struct ap_inode *dir_i;
+};
+
+#define DEAFUL_DIR_RD_ONECE_NUM (4096 / sizeof(struct ap_dirent)) 
+#define DEAFUL_DIR_RD_ONECE_LEN (DEAFUL_DIR_RD_ONECE_NUM * sizeof(struct ap_dirent))
+
+static inline AP_DIR *MALLOC_AP_DIR()
+{
+    AP_DIR *dir = Mallocz(sizeof(*dir));
+    dir->d_buff = Mallocz(DEAFUL_DIR_RD_ONECE_LEN);
+    dir->d_buff = dir->d_buff + DEAFUL_DIR_RD_ONECE_LEN;
+    dir->d_buff_p = dir->d_buff;
+    return dir;
+}
+
 struct ap_inode_operations{
     int (*get_inode) (struct ap_inode_indicator *);
     int (*find_inode) (struct ap_inode_indicator *);
@@ -66,6 +86,7 @@ struct ap_inode_operations{
     int (*mkdir) (struct ap_inode_indicator *);
     int (*destory) (struct ap_inode *);
     int (*unlink) (struct ap_inode *);
+    ssize_t (*readdir) (struct ap_inode *, void *, size_t size);
 };
 
 struct ipc_inode_holder{
@@ -300,7 +321,6 @@ struct ap_file_operations{
     off_t (*llseek) (struct ap_file *, off_t, int);
     int (*release) (struct ap_file *,struct ap_inode *);
     int (*open) (struct ap_file *, struct ap_inode *, unsigned long);
-	int (*readdir) (struct ap_file *, void *);
     int (*destory) (struct ap_inode *);
 };
 
