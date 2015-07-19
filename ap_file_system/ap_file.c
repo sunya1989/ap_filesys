@@ -14,65 +14,6 @@
 #include <ap_pthread.h>
 #include <bag.h>
 
-static inline struct ap_inode *convert_to_mountp(struct ap_inode *ind)
-{
-    return ind->mount_inode->real_inode == ind? ind->mount_inode:ind;
-}
-
-static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
-{
-    return ind->real_inode == ind? ind:ind->real_inode;
-}
-
-static int __initial_indicator(const char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)
-{
-    int slash_no;
-    indc->cur_inode = ap_fpthr->c_wd;
-    
-    path = regular_path(path, &slash_no);
-    if (path == NULL) {
-        errno = EINVAL;
-        return -1;
-    }
-    
-    indc->slash_remain = slash_no;
-    
-    if (*path == '/') {
-        indc->cur_inode = ap_fpthr->m_wd;
-    }else if(*path == '.'){
-        if (*(path + 1) == '/' || *(path + 1) == '\0') {  // path 可能为./ ../ ../* ./*
-            path = *(path+1) == '/' ? path + 2 : path + 1;
-            indc->cur_inode = ap_fpthr->c_wd;
-            indc->slash_remain--;
-        }else if(*(path+2) == '/'){
-            path = path + 2;
-            indc->slash_remain--;
-            if (ap_fpthr->c_wd == ap_fpthr->m_wd) {
-                indc->cur_inode = ap_fpthr->m_wd;
-                goto COMPLETE;
-            }
-            struct ap_inode *par = ap_fpthr->c_wd->parent;
-            struct ap_inode *cur_inode = ap_fpthr->c_wd;
-            indc->cur_inode = cur_inode->mount_inode->real_inode == indc->cur_inode ?
-            cur_inode->mount_inode->parent:par;
-        }
-    }
-COMPLETE:
-    indc->path = path;
-    indc->cur_mtp = indc->cur_inode->mount_inode;
-    strncpy(indc->full_path, path, strlen(path));
-    ap_inode_get(indc->cur_inode);
-    return 0;
-}
-
-int initial_indicator(const char *path,
-                      struct ap_inode_indicator *ind,
-                      struct ap_file_pthread *ap_fpthr)
-{
-     return __initial_indicator(path, ind, ap_fpthr);
-}
-
-
 /*每当一个独立线程调用ap_open时都会产生新的file结构
  *以后能使用hash使得同一个文件对应一个fd（相对于不同线程来说）
  */
@@ -96,7 +37,7 @@ int ap_open(const char *path, int flags)
         exit(1);
     }
     
-    int set = __initial_indicator(path, final_inode, ap_fpthr);
+    int set = initial_indicator(path, final_inode, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         AP_INODE_INICATOR_FREE(final_inode);
@@ -173,7 +114,7 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
         exit(1);
     }
     
-    if((__initial_indicator(path, par_indic, ap_fpthr)) == -1)
+    if((initial_indicator(path, par_indic, ap_fpthr)) == -1)
         return -1;
     
     get = walk_path(par_indic);
@@ -289,7 +230,7 @@ int ap_unmount(const char *path)
     
     ap_indic = MALLOC_INODE_INDICATOR();
     TRASH_BAG_PUSH(&ap_indic->indic_bag);
-    set = __initial_indicator(path, ap_indic, ap_fpthr);
+    set = initial_indicator(path, ap_indic, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         B_return(-1);
@@ -462,7 +403,7 @@ int ap_mkdir(char *path, unsigned long mode)
         exit(1);
     }
     
-    int set = __initial_indicator(path, par_indic, ap_fpthr);
+    int set = initial_indicator(path, par_indic, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         return -1;
@@ -520,7 +461,7 @@ int ap_unlink(const char *path)
         exit(1);
     }
     
-    int set = __initial_indicator(path, final_indc, ap_fpthr);
+    int set = initial_indicator(path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         return -1;
@@ -600,7 +541,7 @@ int ap_link(const char *l_path, const char *t_path)
         exit(1);
     }
     
-    set = __initial_indicator(t_path, gate_indc, ap_fpthr);
+    set = initial_indicator(t_path, gate_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         AP_INODE_INICATOR_FREE(gate_indc);
@@ -634,7 +575,7 @@ int ap_link(const char *l_path, const char *t_path)
     mt_p = gate_indc->cur_mtp;
     AP_INODE_INICATOR_FREE(gate_indc);
     
-    set = __initial_indicator(l_path, or_indc, ap_fpthr);
+    set = initial_indicator(l_path, or_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         AP_INODE_INICATOR_FREE(or_indc);
@@ -691,7 +632,7 @@ int ap_rmdir(const char *path)
         exit(1);
     }
     
-    int set = __initial_indicator(path, final_indc, ap_fpthr);
+    int set = initial_indicator(path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         AP_INODE_INICATOR_FREE(final_indc);
@@ -786,7 +727,7 @@ int ap_chdir(const char *path)
     final_indc = MALLOC_INODE_INDICATOR();
     TRASH_BAG_PUSH(&final_indc->indic_bag);
     
-    int set = __initial_indicator(path, final_indc, ap_fpthr);
+    int set = initial_indicator(path, final_indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         B_return(-1);
@@ -809,6 +750,11 @@ int ap_chdir(const char *path)
 
 AP_DIR *ap_open_dir(const char *path)
 {
+    if (path == NULL) {
+        errno = EINVAL;
+        return NULL;
+    }
+    
     AP_DIR *dir;
     struct ap_inode_indicator *indc;
     struct ap_file_pthread *ap_fpthr;
@@ -817,7 +763,7 @@ AP_DIR *ap_open_dir(const char *path)
     indc = MALLOC_INODE_INDICATOR();
     TRASH_BAG_PUSH(&indc->indic_bag);
     
-    int set = __initial_indicator(path, indc, ap_fpthr);
+    int set = initial_indicator(path, indc, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
         B_return(NULL);
@@ -841,12 +787,22 @@ AP_DIR *ap_open_dir(const char *path)
 
 struct ap_dirent *ap_readdir(AP_DIR *dir)
 {
+    if (dir == NULL) {
+        errno = EINVAL;
+        return NULL;
+    }
     struct ap_inode *inode = dir->dir_i;
+    if (inode->i_ops->readdir == NULL) {
+        errno = ESRCH;
+        return NULL;
+    }
+    
     ssize_t read;
     struct ap_dirent *dirt;
     if (dir->d_buff_p == dir->d_buff_end) {
         memset(dir->d_buff_p, '\0', (dir->d_buff_end - dir->d_buff));
-        read = inode->i_ops->readdir(inode,dir->d_buff, DEFALUT_DIR_RD_ONECE_NUM);
+        read = inode->i_ops->
+        readdir(inode, dir, dir->d_buff, DEFALUT_DIR_RD_ONECE_NUM);
         dir->d_buff_end = dir->d_buff + read;
         if (read <= 0) {
             errno = ENOENT;
@@ -858,17 +814,19 @@ struct ap_dirent *ap_readdir(AP_DIR *dir)
     return dirt;
 }
 
-#ifdef DEBUG
-int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
+int ap_closedir(AP_DIR *dir)
 {
-    return __initial_indicator(path, ind, ap_fpthr);
+    if (dir == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    free(dir->d_buff);
+    ap_inode_put(dir->dir_i);
+    if (dir->cursor != NULL) {
+        dir->relese(dir->cursor);
+    }
+    free(dir);
+    return 0;
 }
-void deug_regular_path(char *path, int *slash_no)
-{
-    regular_path(path, slash_no);
-}
-#endif
-
-
-
 

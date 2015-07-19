@@ -33,6 +33,7 @@ typedef enum op_type{
     g = 0,
     w,
     r,
+    rdir,
     o,
     c,
     d,
@@ -55,7 +56,7 @@ struct ap_msgrep_type{
 
 struct ap_msgreq{
     struct ap_msgreq_type req_t;
-    int index_lenth;
+    int index_lenth; //the lenth of the list of the lenth of every single req_detail
     char req_detail[0];
 };
 

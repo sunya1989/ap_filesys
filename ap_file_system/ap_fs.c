@@ -339,6 +339,55 @@ void clean_inode_tides(struct ap_inode *inode)
     list_del(&inode->child);
 }
 
+static int __initial_indicator(const char *path, struct ap_inode_indicator *indc, struct ap_file_pthread *ap_fpthr)
+{
+    int slash_no;
+    indc->cur_inode = ap_fpthr->c_wd;
+    
+    path = regular_path(path, &slash_no);
+    if (path == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    indc->slash_remain = slash_no;
+    
+    if (*path == '/') {
+        indc->cur_inode = ap_fpthr->m_wd;
+    }else if(*path == '.'){
+        if (*(path + 1) == '/' || *(path + 1) == '\0') {  // path 可能为./ ../ ../* ./*
+            path = *(path+1) == '/' ? path + 2 : path + 1;
+            indc->cur_inode = ap_fpthr->c_wd;
+            indc->slash_remain--;
+        }else if(*(path+2) == '/'){
+            path = path + 2;
+            indc->slash_remain--;
+            if (ap_fpthr->c_wd == ap_fpthr->m_wd) {
+                indc->cur_inode = ap_fpthr->m_wd;
+                goto COMPLETE;
+            }
+            struct ap_inode *par = ap_fpthr->c_wd->parent;
+            struct ap_inode *cur_inode = ap_fpthr->c_wd;
+            indc->cur_inode = cur_inode->mount_inode->real_inode == indc->cur_inode ?
+            cur_inode->mount_inode->parent:par;
+        }
+    }
+COMPLETE:
+    indc->path = path;
+    indc->cur_mtp = indc->cur_inode->mount_inode;
+    strncpy(indc->full_path, path, strlen(path));
+    ap_inode_get(indc->cur_inode);
+    return 0;
+}
+
+int initial_indicator(const char *path,
+                      struct ap_inode_indicator *ind,
+                      struct ap_file_pthread *ap_fpthr)
+{
+    return __initial_indicator(path, ind, ap_fpthr);
+}
+
+
 const char *regular_path(const char *path, int *slash_no)
 {
     char *slash;

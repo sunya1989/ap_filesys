@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <bag.h>
 #include <ap_file.h>
+#include <ap_hash.h>
 #include "counter.h"
 #include "list.h"
 #include "ap_hash.h"
@@ -64,7 +65,8 @@ struct ap_dir_t{
     char *d_buff_end;
     char *d_buff_p;
     struct ap_inode *dir_i;
-    void *cousor;
+    void *cursor;
+    struct hash_identity cursor_ide; //track the dir within diffrent process
     void (*relese)(void *);
 };
 
@@ -77,6 +79,7 @@ static inline AP_DIR *MALLOC_AP_DIR()
     dir->d_buff = Mallocz(DEFALUT_DIR_RD_ONECE_LEN);
     dir->d_buff = dir->d_buff + DEFALUT_DIR_RD_ONECE_LEN;
     dir->d_buff_p = dir->d_buff;
+    dir->cursor = NULL;
     return dir;
 }
 
@@ -88,12 +91,12 @@ struct ap_inode_operations{
     int (*mkdir) (struct ap_inode_indicator *);
     int (*destory) (struct ap_inode *);
     int (*unlink) (struct ap_inode *);
-    ssize_t (*readdir) (struct ap_inode *, void *, size_t);
+    ssize_t (*readdir) (struct ap_inode *, AP_DIR *, void *, size_t);
 };
 
 struct ipc_inode_holder{
     struct ap_inode *inde;
-    struct ap_hash *ipc_file_hash;
+    struct ap_hash *ipc_file_hash; //hash ap_file
 };
 
 static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
@@ -188,6 +191,18 @@ static inline void inode_put_link(struct ap_inode *inode)
     pthread_mutex_unlock(&inode->data_lock);
 }
 
+
+static inline struct ap_inode *convert_to_mountp(struct ap_inode *ind)
+{
+    return ind->mount_inode->real_inode == ind? ind->mount_inode:ind;
+}
+
+static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
+{
+    return ind->real_inode == ind? ind:ind->real_inode;
+}
+
+
 static inline void ap_inode_get(struct ap_inode *inode)
 {
     if (inode->mount_inode != NULL) {
@@ -276,7 +291,9 @@ struct ap_file{
 	struct ap_file_operations *f_ops;
     off_t off_size;
     
-    char *f_idec;
+    char *f_idec;  /*used as key by which ap_file can be hashed into
+                    *ipc_file_hash in struct ip_inode_holde
+                    */
     
     struct hash_union f_hash_union;
     void *x_object;

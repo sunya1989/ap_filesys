@@ -38,6 +38,12 @@ int msgid[2];
 
 struct ipc_holder_hash ipc_hold_table;
 
+struct rddir_re{
+    int is_hold;
+    struct hash_identity ide;
+    char *dirs[0];
+};
+
 pthread_mutex_t channel_lock = PTHREAD_MUTEX_INITIALIZER;
 unsigned long channel_n;
 static int ap_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg);
@@ -710,7 +716,10 @@ static char **cut_str(const char *s, int d, size_t len)
     free(tm_path);
     return cut;
 }
-
+/*
+ *get the dir of certain kind of service under which can have diffrent process porvide same service
+ *then we can get the inode of the process with particular pid by invoke procff_get_inode
+ */
 static int procfs_get_inode(struct ap_inode_indicator *indc)
 {
     DIR *dp;
@@ -754,6 +763,10 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     closedir(dp);
     return -1;
 }
+
+/*
+ *get the inode of the process specified with pid
+ */
 
 static int procff_get_inode(struct ap_inode_indicator *indc)
 {
@@ -832,8 +845,8 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     info = (struct ap_ipc_info *)indc->cur_inode->x_object;
     
     str_len = strlen(indc->the_name);
-    size_t si[] = {str_len};
-    buf = constr_req(indc->the_name, str_len, si, 1);
+    size_t lis[] = {str_len};
+    buf = constr_req(indc->the_name, str_len, lis, 1);
     buf->req.req_t.op_type = g;
     buf->pid = pid;
     buf->ch_n = get_channel();
@@ -956,7 +969,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     msgbuf->ch_n = get_channel();
     msgbuf->key = client_key;
     
-    send_s = ap_msgsnd(sock->key, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1014,7 +1027,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     msgbuf->ch_n = get_channel();
     msgbuf->key = client_key;
     
-    send_s = ap_msgsnd(sock->key, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1068,7 +1081,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     msgbuf->ch_n = get_channel();
     msgbuf->key = client_key;
     
-    send_s = ap_msgsnd(sock->key, msgbuf, sizeof(struct ap_msgbuf) + 2*str_len + str_len_r, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + 2*str_len + str_len_r, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1138,7 +1151,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     msgbuf->ch_n = get_channel();
     msgbuf->key = client_key;
     
-    send_s = ap_msgsnd(sock->key, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1157,7 +1170,62 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     int o = (int)msgre->rep_t.re_type;
     free(msgbuf);
     free(msgre);
+    free(send_buf);
     return o;
+}
+
+static ssize_t proc_readdir
+(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
+{
+    struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
+    struct ap_msgbuf *msgbuf;
+    const char *path = inode->ipc_path_hash.ide.ide_c;
+    int send_s;
+    ssize_t recv_s;
+    char *msg_reply;
+    pid_t pid = getpid();
+    SHOW_TRASH_BAG;
+    if (msgget(sock->key, 0) == -1) {
+        errno = EBADF;
+        handle_disc(inode,sock);
+        return -1;
+    }
+    size_t str_len = strlen(path);
+    size_t lis[] = {str_len};
+    
+    msgbuf = constr_req(path, str_len, lis, 1);
+    TRASH_BAG_RAW_PUSH(msgbuf, free);
+    msgbuf->key = client_key;
+    msgbuf->pid = pid;
+    msgbuf->req.req_t.op_type = rdir;
+    msgbuf->req.req_t.read_len = num;
+    msgbuf->ch_n = get_channel();
+    
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(*msgbuf) + str_len, msgbuf->ch_n, 0);
+    if (send_s == -1) {
+        B_return(-1);
+    }
+    recv_s = ap_msgrcv(client_msid, &msg_reply, msgbuf->ch_n);
+    if (recv_s == -1) {
+        B_return(-1);
+    }
+    TRASH_BAG_RAW_PUSH(msg_reply, free);
+    struct ap_msgreply *msgre = (struct ap_msgreply *)msg_reply;
+    if (msgre->rep_t.re_type == -1 || msgre->struct_l == 0) {
+        errno = msgre->rep_t.err;
+        B_return(-1);
+    }
+    struct rddir_re *re = (struct rddir_re *)msgre->re_struct;
+    memcpy(buff, re->dirs, msgre->rep_t.read_n);
+    if (!re->is_hold) {
+        char *tmp_path;
+        size_t strl = strlen(re->ide.ide_c);
+        tmp_path = Mallocz(strl + 1);
+        strncpy(tmp_path, re->ide.ide_c, strl);
+        dir->cursor_ide.ide_c = tmp_path;
+        dir->cursor_ide.ide_i = re->ide.ide_i;
+    }
+    B_return(0);
 }
 
 static int proc_destory(struct ap_inode *inode)
@@ -1183,7 +1251,7 @@ static int proc_destory(struct ap_inode *inode)
     msgbuf->ch_n = get_channel();
     msgbuf->pid = pid;
     
-    send_s = ap_msgsnd(sock->key, msgbuf, sizeof(struct ap_msgbuf) + str_len, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + str_len, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }

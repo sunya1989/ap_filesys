@@ -224,24 +224,51 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
     return 0;
 }
 
-static ssize_t ger_readdir(struct ap_inode *inode, void *buff, size_t num)
+static void ger_dir_cursor_release(void *cursor)
+{
+    struct ger_stem_node *c = cursor;
+    counter_put(&c->stem_inuse);
+    return;
+}
+
+static ssize_t
+ger_readdir(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
 {
     struct ap_dirent *dirt_p = buff;
     struct ger_stem_node *pos;
     struct ger_stem_node *node = inode->x_object;
     int num_c = 0;
+    
+    struct list_head *start = dir->cursor == NULL?
+    &node->children : dir->cursor;
+    
     pthread_mutex_lock(&node->ch_lock);
-    list_for_each_entry(pos, &node->children, child){
+    list_for_each_entry_middle(pos, &node->children, start, child){
         if (num_c == num) {
             break;
         }
         dirt_p->name_l = strlen(pos->stem_name);
         strncpy(dirt_p->name, pos->stem_name, dirt_p->name_l);
         dirt_p++;
-        num++;
+        num_c++;
+    }
+    if (dir->cursor == NULL) {
+        dir->relese = ger_dir_cursor_release;
+    }
+    if (num_c != 0 && pos != node) {
+        if (dir->cursor != NULL) {
+            counter_put(&((struct ger_stem_node *)
+                          dir->cursor)->stem_inuse);
+        }
+        counter_get(&pos->stem_inuse);
+        dir->cursor = pos;
+    }else if(dir->cursor != NULL){
+        counter_put(&((struct ger_stem_node *)
+                      dir->cursor)->stem_inuse);
+        dir->cursor = NULL;
     }
     pthread_mutex_unlock(&node->ch_lock);
-    return (num * sizeof(*dirt_p));
+    return (num_c * sizeof(*dirt_p));
 }
 
 static int ger_destory(struct ap_inode *ind)
@@ -252,7 +279,8 @@ static int ger_destory(struct ap_inode *ind)
         struct ger_stem_node *i_stem = stem->is_dir? stem:stem->parent;
         counter_put(&stem->stem_inuse);
         ind->x_object = NULL;
-        if (i_stem->si_ops != NULL && i_stem->si_ops->stem_destory != NULL) {
+        if (i_stem->si_ops != NULL &&
+            i_stem->si_ops->stem_destory != NULL) {
             return stem->si_ops->stem_destory(stem);
         }
     }
@@ -272,6 +300,7 @@ static struct ap_inode_operations ger_inode_operations = {
     .rmdir = ger_rmdir,
     .mkdir = ger_mkdir,
     .destory = ger_destory,
+    .readdir = ger_readdir,
     .unlink = ger_unlink,
 };
 

@@ -88,4 +88,9 @@ for (pos = list_first_entry(head, typeof(*pos), member);	\
 &pos->member != (head);					\
 pos = list_next_entry(pos, member))
 
+#define list_for_each_entry_middle(pos, head, middle, member)   \
+for (pos = list_first_entry(middle, typeof(*pos), member);	\
+&pos->member != (head);					\
+pos = list_next_entry(pos, member))
+
 #endif
