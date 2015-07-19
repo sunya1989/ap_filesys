@@ -544,7 +544,7 @@ int ap_unlink(const char *path)
         pthread_mutex_lock(&gate->parent->ch_lock);
         list_del(&gate->child);
         list_del(&gate->mt_inodes.inodes);
-        gate->links--;
+        inode_put_link(gate);
         pthread_mutex_unlock(&gate->parent->ch_lock);
         pthread_mutex_unlock(&gate->mount_inode->inodes_lock);
     }else{
@@ -838,6 +838,7 @@ AP_DIR *ap_open_dir(const char *path)
     ap_inode_get(indc->cur_inode);
     B_return(dir);
 }
+
 struct ap_dirent *ap_readdir(AP_DIR *dir)
 {
     struct ap_inode *inode = dir->dir_i;
@@ -845,17 +846,18 @@ struct ap_dirent *ap_readdir(AP_DIR *dir)
     struct ap_dirent *dirt;
     if (dir->d_buff_p == dir->d_buff_end) {
         memset(dir->d_buff_p, '\0', (dir->d_buff_end - dir->d_buff));
-        read = inode->i_ops->readdir(inode,dir->d_buff,DEAFUL_DIR_RD_ONECE_NUM);
+        read = inode->i_ops->readdir(inode,dir->d_buff, DEFALUT_DIR_RD_ONECE_NUM);
         dir->d_buff_end = dir->d_buff + read;
-        if (read == -1) {
+        if (read <= 0) {
             errno = ENOENT;
             return NULL;
         }
     }
-    dirt = Mallocz(sizeof(*dirt));
-    memcpy(dirt, dir->d_buff_p, sizeof(*dirt));
+    dirt = (struct ap_dirent *)dir->d_buff_p;
+    dir->d_buff_p += sizeof(*dir);
     return dirt;
 }
+
 #ifdef DEBUG
 int export_initial_indicator(char *path, struct ap_inode_indicator *ind, struct ap_file_pthread *ap_fpthr)
 {
@@ -865,7 +867,6 @@ void deug_regular_path(char *path, int *slash_no)
 {
     regular_path(path, slash_no);
 }
-
 #endif
 
 

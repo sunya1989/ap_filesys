@@ -64,16 +64,18 @@ struct ap_dir_t{
     char *d_buff_end;
     char *d_buff_p;
     struct ap_inode *dir_i;
+    void *cousor;
+    void (*relese)(void *);
 };
 
-#define DEAFUL_DIR_RD_ONECE_NUM (4096 / sizeof(struct ap_dirent)) 
-#define DEAFUL_DIR_RD_ONECE_LEN (DEAFUL_DIR_RD_ONECE_NUM * sizeof(struct ap_dirent))
+#define DEFALUT_DIR_RD_ONECE_NUM (4096 / sizeof(struct ap_dirent))
+#define DEFALUT_DIR_RD_ONECE_LEN (DEFALUT_DIR_RD_ONECE_NUM * sizeof(struct ap_dirent))
 
 static inline AP_DIR *MALLOC_AP_DIR()
 {
     AP_DIR *dir = Mallocz(sizeof(*dir));
-    dir->d_buff = Mallocz(DEAFUL_DIR_RD_ONECE_LEN);
-    dir->d_buff = dir->d_buff + DEAFUL_DIR_RD_ONECE_LEN;
+    dir->d_buff = Mallocz(DEFALUT_DIR_RD_ONECE_LEN);
+    dir->d_buff = dir->d_buff + DEFALUT_DIR_RD_ONECE_LEN;
     dir->d_buff_p = dir->d_buff;
     return dir;
 }
@@ -86,7 +88,7 @@ struct ap_inode_operations{
     int (*mkdir) (struct ap_inode_indicator *);
     int (*destory) (struct ap_inode *);
     int (*unlink) (struct ap_inode *);
-    ssize_t (*readdir) (struct ap_inode *, void *, size_t size);
+    ssize_t (*readdir) (struct ap_inode *, void *, size_t);
 };
 
 struct ipc_inode_holder{

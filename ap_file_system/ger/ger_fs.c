@@ -224,6 +224,26 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
     return 0;
 }
 
+static ssize_t ger_readdir(struct ap_inode *inode, void *buff, size_t num)
+{
+    struct ap_dirent *dirt_p = buff;
+    struct ger_stem_node *pos;
+    struct ger_stem_node *node = inode->x_object;
+    int num_c = 0;
+    pthread_mutex_lock(&node->ch_lock);
+    list_for_each_entry(pos, &node->children, child){
+        if (num_c == num) {
+            break;
+        }
+        dirt_p->name_l = strlen(pos->stem_name);
+        strncpy(dirt_p->name, pos->stem_name, dirt_p->name_l);
+        dirt_p++;
+        num++;
+    }
+    pthread_mutex_unlock(&node->ch_lock);
+    return (num * sizeof(*dirt_p));
+}
+
 static int ger_destory(struct ap_inode *ind)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)ind->x_object; //类型检查？

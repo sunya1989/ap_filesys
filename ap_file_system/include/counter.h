@@ -72,4 +72,19 @@ static inline void counter_put(struct counter *counter)
     return;
 }
 
+static inline void
+counter_put_release(struct counter *counter, void (*release) (struct counter *))
+{
+    pthread_mutex_lock(&counter->counter_lock);
+    counter->in_use--;
+    if (counter->in_use<0) {
+        fprintf(stderr, "counter wrong!\n");
+        exit(1);
+    }
+    if (counter->in_use == 0) {
+        release(counter);
+    }
+    pthread_mutex_unlock(&counter->counter_lock);
+    
+}
 #endif

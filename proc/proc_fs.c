@@ -711,7 +711,6 @@ static char **cut_str(const char *s, int d, size_t len)
     return cut;
 }
 
-
 static int procfs_get_inode(struct ap_inode_indicator *indc)
 {
     DIR *dp;
