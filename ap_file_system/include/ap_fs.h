@@ -9,8 +9,6 @@
 #include <ap_hash.h>
 #include "counter.h"
 #include "list.h"
-#include "ap_hash.h"
-
 #define _OPEN_MAX 1024
 #define FULL_PATH_LEN 300
 struct ap_inode_operations;
@@ -97,7 +95,36 @@ struct ap_inode_operations{
 struct ipc_inode_holder{
     struct ap_inode *inde;
     struct ap_hash *ipc_file_hash; //hash ap_file
+    void *x_object;
 };
+
+struct holder{
+    struct ipc_inode_holder ihl;
+    unsigned hash_n;
+    struct hash_identity ide;
+    struct list_head hash_lis;
+    struct holder_table_union *hl_un;
+    void (*ipc_get)(void *);
+    void (*ipc_put)(void *);
+    void (*destory)(void *);
+};
+
+static inline struct holder *MALLOC_HOLDER()
+{
+    struct holder *hl = Mallocz(sizeof(*hl));
+    INIT_LIST_HEAD(&hl->hash_lis);
+    hl->ide.ide_c = NULL;
+    hl->ipc_get = hl->ipc_put = NULL;
+    return hl;
+}
+
+static inline void HOLDER_FREE(struct holder *hl)
+{
+    if (hl->destory != NULL) {
+        hl->destory(hl->ihl.x_object);
+    }
+    free(hl);
+}
 
 static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
 {
@@ -135,7 +162,6 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     pthread_mutex_init(&inode->data_lock, NULL);
     pthread_mutex_init(&inode->mt_pass_lock, NULL);
     pthread_mutex_init(&inode->mt_ch_lock, NULL);
-    pthread_mutex_init(&inode->mt_ch_lock, NULL);
   
     inode->f_ops = NULL;
     inode->i_ops = NULL;
@@ -151,6 +177,10 @@ static inline void AP_INODE_FREE(struct ap_inode *inode)
         i_d->i_ops->destory(inode);
     }
     pthread_mutex_destroy(&inode->ch_lock);
+    pthread_mutex_destroy(&inode->data_lock);
+    pthread_mutex_destroy(&inode->mt_ch_lock);
+    pthread_mutex_destroy(&inode->mt_pass_lock);
+
     COUNTER_FREE(&inode->inode_counter);
     free(inode);
 }
@@ -191,7 +221,6 @@ static inline void inode_put_link(struct ap_inode *inode)
     pthread_mutex_unlock(&inode->data_lock);
 }
 
-
 static inline struct ap_inode *convert_to_mountp(struct ap_inode *ind)
 {
     return ind->mount_inode->real_inode == ind? ind->mount_inode:ind;
@@ -201,7 +230,6 @@ static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
 {
     return ind->real_inode == ind? ind:ind->real_inode;
 }
-
 
 static inline void ap_inode_get(struct ap_inode *inode)
 {
@@ -223,7 +251,7 @@ static inline void ap_inode_put(struct ap_inode *inode)
 }
 
 extern void iholer_destory(struct ipc_inode_holder *iholder);
-
+BAG_DEFINE_FREE(IHOLDER_FREE);
 static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
 {
     iholer_destory(iholder);
@@ -290,20 +318,25 @@ struct ap_file{
     pthread_mutex_t file_lock;
 	struct ap_file_operations *f_ops;
     off_t off_size;
+    struct bag file_bag;
     
-    char *f_idec;  /*used as key by which ap_file can be hashed into
+    char *f_idec;  /**
+                    *used as key by which ap_file can be hashed into
                     *ipc_file_hash in struct ip_inode_holde
                     */
     
     struct hash_union f_hash_union;
     void *x_object;
 };
-
+BAG_DEFINE_FREE(AP_FILE_FREE);
 static inline void AP_FILE_INIT(struct ap_file *file)
 {
     file->f_ops = NULL;
     file->mod = 0;
     file->off_size = 0;
+    file->file_bag.trash = file;
+    file->file_bag.release = BAG_AP_FILE_FREE;
+    file->file_bag.is_embed = 1;
     INITIALIZE_HASH_UNION(&file->f_hash_union);
     int init = pthread_mutex_init(&file->file_lock, NULL);
     if (init != 0) {
@@ -445,6 +478,8 @@ extern struct ap_file_system_type *find_filesystem(char *fsn);
 extern int initial_indicator(const char *path,
                              struct ap_inode_indicator *ind,
                              struct ap_file_pthread *ap_fpthr);
+extern void ipc_holder_hash_insert(struct holder *hl);
+extern void ipc_holder_hash_delet(struct holder *hl);
 extern void inode_ipc_get(void *ind);
 extern void inode_ipc_put(void *ind);
 extern int decompose_mt(struct ap_inode *mt);

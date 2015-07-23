@@ -39,7 +39,6 @@ int msgid[2];
 struct ipc_holder_hash ipc_hold_table;
 
 struct rddir_re{
-    int is_hold;
     struct hash_identity ide;
     char *dirs[0];
 };
@@ -102,7 +101,6 @@ static char *path_names_cat(char *dest, const char **src, int num, char *d)
     return dest + strl + (num-1);
 }
 
-
 static struct ap_msgbuf *constr_req(const char *buf, size_t buf_len, size_t list[], int lis_len)
 {
     struct ap_msgbuf *msgbuf =
@@ -138,7 +136,7 @@ static inline unsigned long get_channel()
     return ch_n;
 }
 
-static void recode_proc_dis(struct ipc_sock *s)
+static void recode_proc_disc(struct ipc_sock *s)
 {
     time_t time_n;
     int fd;
@@ -164,23 +162,35 @@ static void recode_proc_dis(struct ipc_sock *s)
     write(fd, full_path, AP_IPC_PATH_LEN);
     Un_lock(fd, 0, SEEK_SET, 0);
     return;
-    
+}
+
+static void inode_disc_free(struct ap_inode *inode)
+{
+    struct ap_inode *parent = inode->parent;
+    struct ap_ipc_info *info = parent->x_object;
+    decrease_hash_rsize(info->inde_hash_table);
+    inode_put_link(inode);
+    if (inode->links == 0) {
+        parent->i_ops->unlink(inode);
+    }
 }
 
 static void handle_disc(struct ap_inode *inde, struct ipc_sock *s)
 {
-    recode_proc_dis(s);
+    recode_proc_disc(s);
     if (inde == NULL) {
         return;
     }
     struct ap_inode *parent = inde->parent;
     struct ap_ipc_info *info = parent->x_object;
     if (parent->parent == NULL) {
+        inode_disc_free(inde);
         return;
     }
     inode_del_child(parent->parent, parent);
     parent->parent = NULL;
     info->disc = 1;
+    inode_disc_free(inde);
 }
 
 static int ap_ipc_kick_start(char *sever_name)
@@ -311,7 +321,6 @@ static void client_g(struct ap_msgbuf *buf, char **req_d)
     size_t str_len = strlen(req_d[0]);
     struct ap_msgreply re;
     struct holder *hl;
-    struct ipc_inode_holder *ihl;
     struct ap_inode_indicator *strc_cp;
     size_t len;
     
@@ -339,15 +348,13 @@ static void client_g(struct ap_msgbuf *buf, char **req_d)
     
     if (!get) {
         hl = MALLOC_HOLDER();
-        ihl = MALLOC_IPC_INODE_HOLDER();
         char *ide_c = Mallocx(str_len);
         memcpy(ide_c, path, str_len);
         hl->ide.ide_c = ide_c;
         hl->ide.ide_i = buf->pid;
         hl->ipc_get = inode_ipc_get;
         hl->ipc_put = inode_ipc_put;
-        ihl->inde = indic->cur_inode;
-        hl->x_object = ihl;
+        hl->ihl.inde = indic->cur_inode;
         ipc_holder_hash_insert(hl);
         *((struct ap_inode *)(strc_cp + 1)) = *indic->cur_inode;
     }
@@ -382,8 +389,7 @@ static void client_r(struct ap_msgbuf *buf, char **req_d)
         return;
     }
     
-    ihl = hl->x_object;
-    inde = ihl->inde;
+    inde = hl->ihl.inde;
     
     f_ide.ide_c = f_idec;
     f_ide.ide_i = hl->ide.ide_i;
@@ -436,9 +442,7 @@ static void client_w(struct ap_msgbuf *buf, char **req_d)
         return;
     }
     
-    ihl = hl->x_object;
-    inde = ihl->inde;
-    
+    inde = hl->ihl.inde;
     f_ide.ide_c = f_idec;
     f_ide.ide_i = hl->ide.ide_i;
     
@@ -483,8 +487,7 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
         return;
     }
     
-    ihl = hl->x_object;
-    inde = ihl->inde;
+    inde = hl->ihl.inde;
     
     file = AP_FILE_MALLOC();
     AP_FILE_INIT(file);
@@ -504,6 +507,7 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
     
     if (ihl->ipc_file_hash == NULL) {
         ihl->ipc_file_hash = MALLOC_IPC_HASH(AP_IPC_FILE_HASH_LEN);
+        hl->destory = BAG_IHOLDER_FREE;
     }
     
     char *cp_idec = Mallocz(str_len + 1);
@@ -538,9 +542,7 @@ static void client_c(struct ap_msgbuf *buf, char **req_d)
         return;
     }
     
-    ihl = hl->x_object;
-    inde = ihl->inde;
-    
+    inde = hl->ihl.inde;
     f_ide.ide_c = f_idec;
     f_ide.ide_i = hl->ide.ide_i;
     
@@ -566,8 +568,28 @@ static void client_d(struct ap_msgbuf *buf, char **req_d)
     struct hash_identity ide;
     char *path = req_d[0];
     struct holder *hl;
-    struct ipc_inode_holder *ihl;
     struct holder_table_union *un;
+    ide.ide_c = path;
+    ide.ide_i = buf->pid;
+    hl = ipc_holder_hash_get(ide, 0);
+    if (hl == NULL) {
+        ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
+        return;
+    }
+    un = hl->hl_un;
+    pthread_mutex_lock(&un->table_lock);
+    list_del(&hl->hash_lis);
+    pthread_mutex_unlock(&un->table_lock);
+    
+    HOLDER_FREE(hl);
+}
+
+static void client_rdir(struct ap_msgbuf *buf, char **req_d)
+{
+    struct hash_identity ide;
+    char *path = req_d[0];
+    struct holder *hl;
+    AP_DIR *dir;
     
     ide.ide_c = path;
     ide.ide_i = buf->pid;
@@ -576,15 +598,19 @@ static void client_d(struct ap_msgbuf *buf, char **req_d)
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
+    if (hl->ihl.x_object == NULL) {
+        dir = MALLOC_AP_DIR();
+        hl->ihl.x_object = dir;
+        dir->dir_i = hl->ihl.inde;
+        ap_inode_get(dir->dir_i);
+    }
+    dir = hl->ihl.x_object;
+    memset(dir->d_buff, '\0', (dir->d_buff - dir->d_buff_end));
+    hl->ihl.inde->i_ops->
+    readdir(hl->ihl.inde, dir, dir->d_buff, (dir->d_buff - dir->d_buff_end));
     
-    pthread_mutex_lock(&un->table_lock);
-    list_del(&hl->hash_lis);
-    pthread_mutex_unlock(&un->table_lock);
+        
     
-    ihl = hl->x_object;
-    
-    IHOLDER_FREE(ihl);
-    HOLDER_FREE(hl);
 }
 
 void *ap_proc_sever(void *arg)
@@ -596,11 +622,18 @@ void *ap_proc_sever(void *arg)
     struct ap_msgbuf *msg_buf;
     op_type_t type;
     ap_file_thread_init();
+    struct bag_head trashs = BAG_HEAD_INIT(trashs);
     while (1) {
         recv_s = ap_msgrcv(*msgid, &buf, 0);
+        BAG_RAW_PUSH(buf, free, &trashs);
         msg_buf = (struct ap_msgbuf *)buf;
         type = msg_buf->req.req_t.op_type;
         req_detail = pull_req(&msg_buf->req);
+        
+        for (int i = 0; i<msg_buf->req.index_lenth; i ++) {
+            BAG_RAW_PUSH(req_detail[i], free, &trashs);
+        }
+        
         msg_buf->msgid = msgget(msg_buf->key, 0);
         if (msg_buf->msgid == -1) {
             continue;
@@ -628,6 +661,8 @@ void *ap_proc_sever(void *arg)
                 printf("ap_msg wrong type\n");
                 exit(1);
         }
+        BAG_EXCUTE(&trashs);
+        BAG_REWIND(&trashs);
     }
 }
 
@@ -669,7 +704,8 @@ static int proc_creat_file(const char *sever_name)
     return 0;
 }
 
-static struct ap_inode *proc_get_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
+static struct ap_inode
+*proc_get_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
 {
     pthread_t thr_n;
     struct ap_inode *init_inode;
@@ -717,8 +753,10 @@ static char **cut_str(const char *s, int d, size_t len)
     return cut;
 }
 /*
- *get the dir of certain kind of service under which can have diffrent process porvide same service
- *then we can get the inode of the process with particular pid by invoke procff_get_inode
+ *get the dir of certain kind of service under which can 
+ *have diffrent process porvide same service,
+ *we can get the inode of the process with particular
+ *pid by invoking procff_get_inode
  */
 static int procfs_get_inode(struct ap_inode_indicator *indc)
 {
@@ -937,11 +975,17 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
 
 static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size)
 {
-    struct ap_inode *inde = file->relate_i;
-    struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
+    struct ap_inode *inode = file->relate_i;
+    struct ap_ipc_info *info = inode->parent->x_object;
+    if (info->disc) {
+        inode_disc_free(inode);
+        errno = ENOENT;
+        return -1;
+    }
+    struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    const char *path = inde->ipc_path_hash.ide.ide_c;
+    const char *path = inode->ipc_path_hash.ide.ide_c;
     char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
@@ -950,7 +994,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     msgid = sock->msgid;
     if (msgget(sock->key, 0) == -1) {
         errno = EBADF;
-        handle_disc(inde, sock);
+        handle_disc(inode, sock);
         return -1;
     }
     
@@ -995,11 +1039,17 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
 
 static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t size)
 {
-    struct ap_inode *inde = file->relate_i;
-    struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
+    struct ap_inode *inode = file->relate_i;
+    struct ap_ipc_info *info = inode->parent->x_object;
+    if (info->disc) {
+        inode_disc_free(inode);
+        errno = ENOENT;
+        return -1;
+    }
+    struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
-    const char *path = inde->ipc_path_hash.ide.ide_c;
+    const char *path = inode->ipc_path_hash.ide.ide_c;
     char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
@@ -1008,7 +1058,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     msgid = sock->msgid;
     if (msgget(sock->key, 0) == -1) {
         errno = EBADF;
-        handle_disc(inde,sock);
+        handle_disc(inode,sock);
         return -1;
     }
  
@@ -1050,6 +1100,12 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
 
 static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long flag)
 {
+    struct ap_ipc_info *info = inde->parent->x_object;
+    if (info->disc) {
+        inode_disc_free(inde);
+        errno = ENOENT;
+        return -1;
+    }
     struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
@@ -1122,6 +1178,12 @@ static int proc_unlink(struct ap_inode *inode)
 
 static int proc_release(struct ap_file *file, struct ap_inode *inode)
 {
+    struct ap_ipc_info *info = inode->parent->x_object;
+    if (info->disc) {
+        inode_disc_free(inode);
+        return 0;
+    }
+    
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
@@ -1133,9 +1195,8 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     pid_t pid = getpid();
     msgid = sock->msgid;
     if (msgget(sock->key, 0) == -1) {
-        errno = EBADF;
         handle_disc(inode,sock);
-        return -1;
+        return 0;
     }
     
     size_t str_len = strlen(path);
@@ -1177,6 +1238,13 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
 static ssize_t proc_readdir
 (struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
 {
+    struct ap_ipc_info *info = inode->parent->x_object;
+    if (info->disc) {
+        inode_disc_free(inode);
+        errno = ENOENT;
+        return -1;
+    }
+    
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     struct ap_msgbuf *msgbuf;
     const char *path = inode->ipc_path_hash.ide.ide_c;
@@ -1184,12 +1252,12 @@ static ssize_t proc_readdir
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
-    SHOW_TRASH_BAG;
     if (msgget(sock->key, 0) == -1) {
         errno = EBADF;
         handle_disc(inode,sock);
         return -1;
     }
+    SHOW_TRASH_BAG;
     size_t str_len = strlen(path);
     size_t lis[] = {str_len};
     
@@ -1217,19 +1285,16 @@ static ssize_t proc_readdir
     }
     struct rddir_re *re = (struct rddir_re *)msgre->re_struct;
     memcpy(buff, re->dirs, msgre->rep_t.read_n);
-    if (!re->is_hold) {
-        char *tmp_path;
-        size_t strl = strlen(re->ide.ide_c);
-        tmp_path = Mallocz(strl + 1);
-        strncpy(tmp_path, re->ide.ide_c, strl);
-        dir->cursor_ide.ide_c = tmp_path;
-        dir->cursor_ide.ide_i = re->ide.ide_i;
-    }
-    B_return(0);
+    B_return(msgre->rep_t.read_n);
 }
 
 static int proc_destory(struct ap_inode *inode)
 {
+    struct ap_ipc_info *info = inode->parent->x_object;
+    if (info->disc) {
+        return 0;
+    }
+    
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
@@ -1288,6 +1353,7 @@ static struct ap_inode_operations proc_inode_operations = {
     .unlink = proc_unlink,
     .find_inode = find_proc_inode,
     .destory = proc_destory,
+    .readdir = proc_readdir,
 };
 
 static struct ap_inode_operations proc_file_i_operations = {

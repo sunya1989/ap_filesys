@@ -34,6 +34,7 @@ typedef enum op_type{
     w,
     r,
     rdir,
+    cdir,
     o,
     c,
     d,

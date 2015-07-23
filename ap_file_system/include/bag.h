@@ -52,7 +52,6 @@ void BAG_##func(void *trash)                                                    
     return;                                                                     \
 }
 
-
 struct bag{
     int is_embed;
     struct bag *next;

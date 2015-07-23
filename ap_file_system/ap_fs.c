@@ -50,6 +50,8 @@ struct ap_file_systems f_systems = {
 BAG_IMPOR_FREE(AP_INODE_INICATOR_FREE, struct ap_inode_indicator);
 BAG_IMPOR_FREE(search_mtp_unlock, struct ap_inode);
 BAG_IMPOR_FREE(AP_INODE_FREE, struct ap_inode);
+BAG_IMPOR_FREE(IHOLDER_FREE, struct ipc_inode_holder);
+BAG_IMPOR_FREE(AP_FILE_FREE, struct ap_file);
 
 int walk_path(struct ap_inode_indicator *start)
 {
@@ -224,15 +226,15 @@ int register_fsyst(struct ap_file_system_type *fsyst)
 
 void inode_ipc_get(void *ind)
 {
-    struct ap_inode *inode = (struct ap_inode *)ind;
-    ap_inode_get(inode);
+    struct ipc_inode_holder *ihl = ind;
+    ap_inode_get(ihl->inde);
     return;
 }
 
 void inode_ipc_put(void *ind)
 {
-    struct ap_inode *inode = (struct ap_inode *)ind;
-    ap_inode_put(inode);
+    struct ipc_inode_holder *ihl = ind;
+    ap_inode_put(ihl->inde);
     return;
 }
 

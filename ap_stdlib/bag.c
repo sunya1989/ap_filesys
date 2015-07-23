@@ -78,6 +78,7 @@ void __bag_release(struct bag_head *head)
             free(bg);
         }
     }
+    head->list_tail = &head->list;
 }
 
 void __bag_pour(struct bag_head *head)
@@ -95,6 +96,7 @@ void __bag_pour(struct bag_head *head)
             free(bg);
         }
     }
+    head->list_tail = &head->list;
 }
 
 

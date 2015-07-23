@@ -26,11 +26,11 @@ int ap_open(const char *path, int flags)
         errno = EINVAL;
         return -1;
     }
-    
+    SHOW_TRASH_BAG;
     struct ap_file *file;
     struct ap_inode_indicator *final_inode;
     final_inode = MALLOC_INODE_INDICATOR();
-    
+    TRASH_BAG_PUSH(&final_inode->indic_bag);
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
         fprintf(stderr, "ap_thread didn't find\n");
@@ -40,31 +40,29 @@ int ap_open(const char *path, int flags)
     int set = initial_indicator(path, final_inode, ap_fpthr);
     if (set == -1) {
         errno = EINVAL;
-        AP_INODE_INICATOR_FREE(final_inode);
-        return -1;
+        B_return(-1);
     }
     
     int get = walk_path(final_inode);
     if (get == -1) {
         errno = ENOENT;
-        AP_INODE_INICATOR_FREE(final_inode);
-        return -1;
+        B_return(-1);
     }
     
     if (final_inode->cur_inode->is_dir) {
         errno = EISDIR;
-        AP_INODE_INICATOR_FREE(final_inode);
-        return -1;
+        B_return(-1);
     }
     
     file = AP_FILE_MALLOC();
     AP_FILE_INIT(file);
+    TRASH_BAG_PUSH(&file->file_bag);
     
     if (final_inode->cur_inode->f_ops->open != NULL) {
         int open_s;
         open_s = final_inode->cur_inode->f_ops->open(file, final_inode->cur_inode, flags);
         if (open_s == -1) {
-            return -1;
+            B_return(-1);
         }
     }
     
@@ -76,8 +74,7 @@ int ap_open(const char *path, int flags)
     if (file_info.o_files >= _OPEN_MAX) {
         errno = EMFILE;
         pthread_mutex_unlock(&file_info.files_lock);
-        AP_INODE_INICATOR_FREE(final_inode);
-        return -1;
+        B_return(-1);
     }
     for (int i=0; i<_OPEN_MAX; i++) {
         if (file_info.file_list[i] == NULL) {
@@ -89,7 +86,7 @@ int ap_open(const char *path, int flags)
     file->mod = flags;
     pthread_mutex_unlock(&file_info.files_lock);
     AP_INODE_INICATOR_FREE(final_inode);
-    return ap_fd;
+    B_return(-1);
 }
 
 static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const char *path)

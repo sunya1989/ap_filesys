@@ -6,6 +6,7 @@
 //  Copyright (c) 2015年 sunya. All rights reserved.
 //
 
+#include <ap_fs.h>
 #include <stdio.h>
 #include <ap_hash.h>
 #include <string.h>
@@ -57,7 +58,7 @@ struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou)
         hl = list_entry(pos, struct holder, hash_lis);
         if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 && hl->ide.ide_i == ide.ide_i) {
             if (inc_cou) {
-                hl->ipc_get(hl->x_object);
+                hl->ipc_get(&hl->ihl);
             }
             pthread_mutex_unlock(lock);
             return hl;

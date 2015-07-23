@@ -6,8 +6,8 @@
 //  Copyright (c) 2015年 sunya. All rights reserved.
 //
 
-#ifndef ap_editor_hash_h
-#define ap_editor_hash_h
+#ifndef ap_file_system_ap_hash_h
+#define ap_file_system_ap_hash_h
 #define AP_IPC_HOLDER_HASH_LEN 1024
 #define AP_IPC_FILE_HASH_LEN 256
 #define AP_IPC_INODE_HASH_LEN 1024
@@ -16,6 +16,7 @@
 #include "list.h"
 #include "envelop.h"
 #include "ap_ipc.h"
+
 struct hash_table_union;
 
 struct hash_identity{
@@ -50,23 +51,25 @@ struct ipc_holder_hash{
 };
 
 extern struct ipc_holder_hash ipc_hold_table;
-
-struct holder{
-    void *x_object;
-    unsigned hash_n;
-    struct hash_identity ide;
-    struct list_head hash_lis;
-    struct holder_table_union *hl_un;
-    void (*ipc_get)(void *);
-    void (*ipc_put)(void *);
-    void (*destory)(void *);
-};
-
 static inline struct ipc_sock *MALLOC_IPC_SOCK()
 {
     struct ipc_sock *ipc_s = Mallocx(sizeof(*ipc_s));
     ipc_s->sever_name = NULL;
     return ipc_s;
+}
+
+static inline void increase_hash_rsize(struct ap_hash *table)
+{
+    pthread_mutex_lock(&table->r_size_lock);
+    table->r_size++;
+    pthread_mutex_unlock(&table->r_size_lock);
+}
+
+static inline void decrease_hash_rsize(struct ap_hash *table)
+{
+    pthread_mutex_lock(&table->r_size_lock);
+    table->r_size--;
+    pthread_mutex_unlock(&table->r_size_lock);
 }
 
 static inline void INITIALIZE_HASH_UNION(struct hash_union *ihu)
@@ -87,21 +90,6 @@ static inline struct ap_hash *MALLOC_IPC_HASH(size_t size)
     return hash_t;
 }
 
-static inline struct holder *MALLOC_HOLDER()
-{
-    struct holder *hl = Mallocx(sizeof(*hl));
-    hl->x_object = NULL;
-    INIT_LIST_HEAD(&hl->hash_lis);
-    hl->ide.ide_c = NULL;
-    hl->ipc_get = hl->ipc_put = NULL;
-    return hl;
-}
-
-static inline void HOLDER_FREE(struct holder *hl)
-{
-    free(hl);
-}
-
 static inline unsigned int BKDRHash(char *str)
 {
     unsigned int seed = 131; // 31 131 1313 13131 131313 etc..
@@ -119,8 +107,7 @@ extern char *ultoa(unsigned long value, char *string, int radix);
 extern struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity ide);
 extern void hash_union_insert(struct ap_hash *table, struct hash_union *un);
 extern void hash_union_delet(struct hash_union *un);
-extern void ipc_holder_hash_insert(struct holder *hl);
-extern void ipc_holder_hash_delet(struct holder *hl);
+
 extern struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou);
 
 #endif
