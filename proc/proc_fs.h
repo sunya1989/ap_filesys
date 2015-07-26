@@ -79,6 +79,7 @@ struct ap_msgseg{
 
 struct ap_msgreply{
     struct ap_msgrep_type rep_t;
+    int ipc_fd;
     int struct_l;
     char re_struct[0];
 };

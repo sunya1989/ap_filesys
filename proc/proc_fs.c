@@ -115,6 +115,18 @@ static struct ap_msgbuf *constr_req(const char *buf, size_t buf_len, size_t list
     return msgbuf;
 }
 
+static struct ap_file *get_o_file(thrd_byp_t *byp, int ipc_fd)
+{
+    pthread_mutex_lock(&byp->file_lock);
+    struct ap_file *pos;
+    list_for_each_entry(pos, &byp->file_o, ipc_file){
+        if (pos->ipc_fd == ipc_fd) {
+            return pos;
+        }
+    }
+    return NULL;
+}
+
 static char *collect_items(const char **items, size_t buf_len, size_t list[], int lis_len)
 {
     char *buf = Mallocz(buf_len);
@@ -317,7 +329,8 @@ static int ap_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n,
 static void client_g(struct ap_msgbuf *buf, char **req_d)
 {
     struct ap_inode_indicator *indic;
-    char *path = req_d[0];
+    struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
+    char *path = iide->chrs + iide->off_set_p;
     size_t str_len = strlen(req_d[0]);
     struct ap_msgreply re;
     struct holder *hl;
@@ -351,10 +364,12 @@ static void client_g(struct ap_msgbuf *buf, char **req_d)
         char *ide_c = Mallocx(str_len);
         memcpy(ide_c, path, str_len);
         hl->ide.ide_c = ide_c;
-        hl->ide.ide_i = buf->pid;
+        hl->ide.ide_type.ide_i = buf->pid;
         hl->ipc_get = inode_ipc_get;
         hl->ipc_put = inode_ipc_put;
         hl->ihl.inde = indic->cur_inode;
+        hl->ihl.ipc_file_hash = MALLOC_IPC_HASH(AP_IPC_FILE_HASH_LEN);
+        hl->destory = IHOLDER_FREE;
         ipc_holder_hash_insert(hl);
         *((struct ap_inode *)(strc_cp + 1)) = *indic->cur_inode;
     }
@@ -368,21 +383,21 @@ static void client_g(struct ap_msgbuf *buf, char **req_d)
 static void client_r(struct ap_msgbuf *buf, char **req_d)
 {
     struct hash_identity ide;
-    char *path = req_d[0];
-    char *f_idec = req_d[1];
+    struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
+    char *path = iide->chrs + iide->off_set_p;
     struct holder *hl;
-    struct hash_identity f_ide;
     struct ipc_inode_holder *ihl;
     struct ap_inode *inde;
     struct ap_file *file;
     struct ap_msgreply *re;
     struct hash_union *un;
+    thrd_byp_t *byp;
     ssize_t read_n;
     size_t len;
     char *read_buf = Mallocz(buf->req.req_t.read_len);
     
     ide.ide_c = path;
-    ide.ide_i = buf->pid;
+    ide.ide_type.ide_i = buf->pid;
     hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
@@ -390,18 +405,15 @@ static void client_r(struct ap_msgbuf *buf, char **req_d)
     }
     
     inde = hl->ihl.inde;
-    
-    f_ide.ide_c = f_idec;
-    f_ide.ide_i = hl->ide.ide_i;
-    
-    un = hash_union_get(ihl->ipc_file_hash, f_ide);
+    iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
+    un = hash_union_get(ihl->ipc_file_hash, iide->ide_t);
     if (un == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
-    inde = ihl->inde;
-    file = container_of(un, struct ap_file, f_hash_union);
+    byp = container_of(un, thrd_byp_t, h_un);
+    file = get_o_file(byp, iide->fd);
     read_n = inde->f_ops->read(file, read_buf, buf->req.req_t.off_size, buf->req.req_t.read_len);
     if (read_n <= 0) {
         ap_msg_send_err(errno, (int)read_n, buf->msgid, buf->ch_n);
@@ -423,19 +435,19 @@ static void client_r(struct ap_msgbuf *buf, char **req_d)
 static void client_w(struct ap_msgbuf *buf, char **req_d)
 {
     struct hash_identity ide;
-    char *path = req_d[0];
-    char *f_idec = req_d[1];
+    struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
+    char *path = iide->chrs + iide->off_set_p;
     struct holder *hl;
-    struct hash_identity f_ide;
     struct ipc_inode_holder *ihl;
     struct ap_inode *inde;
     struct ap_file *file;
     struct ap_msgreply re;
     struct hash_union *un;
+    thrd_byp_t *byp;
     ssize_t write_n;
     
     ide.ide_c = path;
-    ide.ide_i = buf->pid;
+    ide.ide_type.ide_i = buf->pid;
     hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
@@ -443,17 +455,15 @@ static void client_w(struct ap_msgbuf *buf, char **req_d)
     }
     
     inde = hl->ihl.inde;
-    f_ide.ide_c = f_idec;
-    f_ide.ide_i = hl->ide.ide_i;
-    
-    un = hash_union_get(ihl->ipc_file_hash, f_ide);
+    iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
+    un = hash_union_get(ihl->ipc_file_hash, iide->ide_t);
     if (un == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
-    inde = ihl->inde;
-    file = container_of(un, struct ap_file, f_hash_union);
+    byp = container_of(un, thrd_byp_t, h_un);
+    file = get_o_file(byp, iide->fd);
     write_n = inde->f_ops->read(file, req_d[1], buf->req.req_t.off_size, buf->req.req_t.wirte_len);
     if (write_n < 0) {
         ap_msg_send_err(errno, -1, buf->msgid, buf->ch_n);
@@ -470,17 +480,18 @@ static void client_w(struct ap_msgbuf *buf, char **req_d)
 static void client_o(struct ap_msgbuf *buf, char **req_d)
 {
     struct hash_identity ide;
-    char *path = req_d[0];
-    char *f_idec = req_d[1];
-    size_t str_len = strlen(req_d[1]);
+    struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
+    char *path = iide->chrs + iide->off_set_p;
+    int open_s;
     struct ap_msgreply re;
     struct holder *hl;
     struct ap_inode *inde;
     struct ap_file *file;
-    struct ipc_inode_holder *ihl;
+    struct hash_union *un;
+    thrd_byp_t *thr_byp;
     
     ide.ide_c = path;
-    ide.ide_i = buf->pid;
+    ide.ide_type.ide_i = buf->pid;
     hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
@@ -493,7 +504,7 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
     AP_FILE_INIT(file);
     
     if (inde->f_ops->open != NULL) {
-       int open_s = inde->f_ops->open(file, inde, buf->req.req_t.flags);
+        open_s = inde->f_ops->open(file, inde, buf->req.req_t.flags);
         if (open_s == -1) {
             ap_msg_send_err(errno, -1, buf->msgid, buf->ch_n);
             AP_FILE_FREE(file);
@@ -503,21 +514,29 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
     
     file->f_ops = inde->f_ops;
     file->relate_i = inde;
+    file->ipc_fd = open_s;
     ap_inode_get(inde);
     
-    if (ihl->ipc_file_hash == NULL) {
-        ihl->ipc_file_hash = MALLOC_IPC_HASH(AP_IPC_FILE_HASH_LEN);
-        hl->destory = BAG_IHOLDER_FREE;
+    iide->ide_t.ide_c  = (iide->chrs + iide->off_set_t);
+    un = hash_union_get(hl->ihl.ipc_file_hash, iide->ide_t);
+    if (un == NULL) {
+        thr_byp = MALLOC_THRD_BYP();
+        size_t str_l = strlen(iide->ide_t.ide_c);
+        thr_byp->h_un.ide.ide_c = Mallocz(str_l + 1);
+        strncpy((char *)thr_byp->h_un.ide.ide_c, iide->ide_t.ide_c, str_l);
+        thr_byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
+        hash_union_insert(hl->ihl.ipc_file_hash, &thr_byp->h_un);
+        un = &thr_byp->h_un;
     }
     
-    char *cp_idec = Mallocz(str_len + 1);
-    memcpy(cp_idec, f_idec, str_len);
+    thr_byp = container_of(un, thrd_byp_t, h_un);
     
-    file->f_hash_union.ide.ide_i = hl->ide.ide_i;
-    file->f_hash_union.ide.ide_c = cp_idec;
-    hash_union_insert(ihl->ipc_file_hash, &file->f_hash_union);
+    pthread_mutex_lock(&thr_byp->file_lock);
+    list_add(&file->ipc_file, &thr_byp->file_o);
+    pthread_mutex_unlock(&thr_byp->file_lock);
     
     re.rep_t.re_type = 0;
+    re.ipc_fd = open_s;
     re.struct_l = 0;
     ap_msgsnd(buf->msgid, &re, sizeof(re), buf->ch_n, 0);
 }
@@ -525,17 +544,17 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
 static void client_c(struct ap_msgbuf *buf, char **req_d)
 {
     struct hash_identity ide;
-    char *path = req_d[0];
-    char *f_idec = req_d[1];
+    struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
+    char *path = iide->chrs + iide->off_set_p;
     struct holder *hl;
-    struct hash_identity f_ide;
     struct ipc_inode_holder *ihl;
     struct ap_inode *inde;
     struct ap_file *file;
     struct hash_union *un;
+    thrd_byp_t *byp;
     
     ide.ide_c = path;
-    ide.ide_i = buf->pid;
+    ide.ide_type.ide_i = buf->pid;
     hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
@@ -543,16 +562,15 @@ static void client_c(struct ap_msgbuf *buf, char **req_d)
     }
     
     inde = hl->ihl.inde;
-    f_ide.ide_c = f_idec;
-    f_ide.ide_i = hl->ide.ide_i;
-    
-    un = hash_union_get(ihl->ipc_file_hash, f_ide);
+    iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
+    un = hash_union_get(ihl->ipc_file_hash, iide->ide_t);
     if (un == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
-    file = container_of(un, struct ap_file, f_hash_union);
+    byp = container_of(un, thrd_byp_t, h_un);
+    file = get_o_file(byp, iide->fd);
     if (file->f_ops->release != NULL) {
        int rs = file->f_ops->release(file, inde);
         if (rs == -1) {
@@ -560,17 +578,21 @@ static void client_c(struct ap_msgbuf *buf, char **req_d)
             return;
         }
     }
+    pthread_mutex_lock(&byp->file_lock);
+    list_del(&file->ipc_file);
     AP_FILE_FREE(file);
+    pthread_mutex_unlock(&byp->file_lock);
 }
 
 static void client_d(struct ap_msgbuf *buf, char **req_d)
 {
     struct hash_identity ide;
-    char *path = req_d[0];
+    struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
+    char *path = iide->chrs + iide->off_set_p;
     struct holder *hl;
     struct holder_table_union *un;
     ide.ide_c = path;
-    ide.ide_i = buf->pid;
+    ide.ide_type.ide_i = buf->pid;
     hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
@@ -592,7 +614,7 @@ static void client_rdir(struct ap_msgbuf *buf, char **req_d)
     AP_DIR *dir;
     
     ide.ide_c = path;
-    ide.ide_i = buf->pid;
+    ide.ide_type.ide_i = buf->pid;
     hl = ipc_holder_hash_get(ide, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
@@ -805,7 +827,6 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
 /*
  *get the inode of the process specified with pid
  */
-
 static int procff_get_inode(struct ap_inode_indicator *indc)
 {
     FILE *fs;
@@ -879,12 +900,23 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     struct ap_ipc_info *info;
     
     pid_t pid = getpid();
+    pthread_t thr_id = pthread_self();
+    
     *indc->cur_slash = '/';
     info = (struct ap_ipc_info *)indc->cur_inode->x_object;
     
     str_len = strlen(indc->the_name);
-    size_t lis[] = {str_len};
-    buf = constr_req(indc->the_name, str_len, lis, 1);
+    struct ipc_inode_ide *iide;
+    size_t buf_l = sizeof(*iide) + str_len;
+    iide = Mallocz(buf_l + 1);
+    strncpy(iide->chrs, indc->the_name, str_len);
+    iide->ide_t.ide_c = iide->ide_p.ide_c = iide->chrs;
+    iide->ide_p.ide_type.pid = pid;
+    iide->ide_t.ide_type.thr_id = thr_id;
+    iide->off_set_p = iide->off_set_t = 0;
+    
+    size_t lis[] = {buf_l};
+    buf = constr_req((const char *)iide, buf_l, lis, 1);
     buf->req.req_t.op_type = g;
     buf->pid = pid;
     buf->ch_n = get_channel();
@@ -932,6 +964,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     ap_inode_get(cur_ind);
     indc->cur_inode = cur_ind;
     
+    free(iide);
     free(msg_reply);
     free(buf);
     return (int)msgre->rep_t.re_type;
@@ -949,7 +982,7 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     *indc->cur_slash = '/';
     info = (struct ap_ipc_info *)indc->cur_inode->x_object;
     ide.ide_c = indc->the_name;
-    ide.ide_i = 0;
+    ide.ide_type.ide_i = 0;
     un = hash_union_get(info->inde_hash_table, ide);
     if (un != NULL) {
         indc->cur_inode = container_of(un, struct ap_inode, ipc_path_hash);
@@ -967,7 +1000,7 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     *(path + strl) = '\0';
     
     indc->cur_inode->ipc_path_hash.ide.ide_c = path;
-    indc->cur_inode->ipc_path_hash.ide.ide_i = 0;
+    indc->cur_inode->ipc_path_hash.ide.ide_type.ide_i = 0;
     indc->cur_inode->links++;
     hash_union_insert(info->inde_hash_table, &indc->cur_inode->ipc_path_hash);
     return get;
@@ -985,12 +1018,13 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
+    struct ipc_inode_ide *iide;
     const char *path = inode->ipc_path_hash.ide.ide_c;
-    char *f_idec = file->f_idec;
     int send_s;
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
+    pthread_t thr_id= pthread_self();
     msgid = sock->msgid;
     if (msgget(sock->key, 0) == -1) {
         errno = EBADF;
@@ -999,13 +1033,18 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     }
     
     size_t str_len = strlen(path);
-    size_t str_len_f = strlen(f_idec);
-    size_t t_str_len = str_len + str_len_f;
-    size_t list[] = {str_len,str_len_f};
-    const char *items[] = {path,f_idec};
-    char *send_buf = collect_items(items, t_str_len, list, 2);
+    size_t buf_l = sizeof(*iide) + str_len + 1;
+    iide = Mallocz(buf_l);
+    strncpy(iide->chrs, path, str_len);
+    iide->ide_p.ide_c = iide->ide_t.ide_c = iide->chrs;
+    iide->off_set_p = iide->off_set_t = 0;
+    iide->fd = file->ipc_fd;
+    iide->ide_p.ide_type.pid = pid;
+    iide->ide_t.ide_type.thr_id = thr_id;
     
-    msgbuf = constr_req(send_buf, t_str_len, list, 2);
+    size_t list[] = {buf_l};
+    
+    msgbuf = constr_req((const char *)iide, buf_l, list, 1);
     msgbuf->req.req_t.op_type = r;
     msgbuf->req.req_t.read_len = size;
     msgbuf->req.req_t.off_size = off;
@@ -1013,7 +1052,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     msgbuf->ch_n = get_channel();
     msgbuf->key = client_key;
     
-    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + buf_l, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1031,7 +1070,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     
     memcpy(buf, msgre->re_struct, msgre->rep_t.read_n);
     ssize_t o = msgre->rep_t.re_type;
-    free(send_buf);
+    free(iide);
     free(msgbuf);
     free(msgre);
     return o;
@@ -1050,11 +1089,12 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     int msgid;
     struct ap_msgbuf *msgbuf;
     const char *path = inode->ipc_path_hash.ide.ide_c;
-    char *f_idec = file->f_idec;
+    struct ipc_inode_ide *iide;
     int send_s;
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
+    pthread_t thr_id = pthread_self();
     msgid = sock->msgid;
     if (msgget(sock->key, 0) == -1) {
         errno = EBADF;
@@ -1063,13 +1103,18 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     }
  
     size_t str_len = strlen(path);
-    size_t str_len_f = strlen(f_idec);
-    size_t t_str_len = str_len + str_len_f;
-    size_t list[] = {str_len,str_len_f};
-    const char *items[] = {path,f_idec};
-    char *send_buf = collect_items(items, t_str_len, list, 2);
+    size_t buf_l = sizeof(*iide) + str_len + 1;
+    iide = Mallocz(buf_l);
+    strncpy(iide->chrs, path, str_len);
+    iide->fd = file->ipc_fd;
+    iide->ide_p.ide_c = iide->ide_t.ide_c = iide->chrs;
+    iide->off_set_p = iide->off_set_t = 0;
+    iide->ide_t.ide_type.thr_id = thr_id;
+    iide->ide_p.ide_type.pid = pid;
     
-    msgbuf = constr_req(send_buf, t_str_len, list, 2);
+    size_t list[] = {buf_l};
+    
+    msgbuf = constr_req((const char *)iide, buf_l, list, 1);
     msgbuf->req.req_t.op_type = w;
     msgbuf->req.req_t.wirte_len = size;
     msgbuf->req.req_t.off_size = off;
@@ -1077,7 +1122,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     msgbuf->ch_n = get_channel();
     msgbuf->key = client_key;
     
-    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + buf_l, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1093,6 +1138,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
         return msgre->rep_t.re_type;
     }
     ssize_t o = msgre->rep_t.re_type;
+    free(iide);
     free(msgbuf);
     free(msgre);
     return o;
@@ -1109,11 +1155,13 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     struct ipc_sock *sock = (struct ipc_sock *)inde->x_object;
     int msgid;
     struct ap_msgbuf *msgbuf;
+    struct ipc_inode_ide *iide;
     const char *path = inde->ipc_path_hash.ide.ide_c;
     int send_s;
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
+    pthread_t thr_id = pthread_self();
     msgid = sock->msgid;
     if (msgget(sock->key, 0) == -1) {
         errno = EBADF;
@@ -1121,23 +1169,24 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
         return -1;
     }
     
-    char *rand_c = ultoa(rand() % _OPEN_MAX, NULL, 10);
     size_t str_len = strlen(path);
-    size_t str_len_r = strlen(rand_c);
-    char *f_idec = Mallocz(str_len + str_len_r);
-    strncat(f_idec, path, str_len);
-    strncat(f_idec, rand_c, str_len_r);
-    size_t list[] = {str_len,str_len + str_len_r};
-    const  char *items[] = {path, f_idec};
-    char *buf = collect_items(items, 2*str_len + str_len_r, list, 2);
+    size_t buf_l = sizeof(*iide) + str_len + 1;
+    size_t list[] = {buf_l};
     
-    msgbuf = constr_req(buf, 2*str_len + str_len_r, list, 2);
+    iide = Mallocz(buf_l);
+    strncpy(iide->chrs, path, str_len);
+    iide->ide_p.ide_c = iide->ide_t.ide_c = iide->chrs;
+    iide->off_set_p = iide->off_set_t = 0;
+    iide->ide_p.ide_type.pid = pid;
+    iide->ide_t.ide_type.thr_id = thr_id;
+    
+    msgbuf = constr_req((const char *)iide, buf_l, list, 1);
     msgbuf->req.req_t.op_type = o;
     msgbuf->pid = pid;
     msgbuf->ch_n = get_channel();
     msgbuf->key = client_key;
     
-    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + 2*str_len + str_len_r, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + buf_l, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1152,11 +1201,9 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
         errno = msgre->rep_t.err;
         return -1;
     }
-    file->f_idec = f_idec;
+    file->ipc_fd = msgre->ipc_fd;
     int o = (int)msgre->rep_t.re_type;
 
-    free(rand_c);
-    free(buf);
     free(msgbuf);
     free(msg_reply);
     return o;
@@ -1188,11 +1235,12 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     int msgid;
     struct ap_msgbuf *msgbuf;
     const char *path = inode->ipc_path_hash.ide.ide_c;
-    char *f_idec = file->f_idec;
     int send_s;
+    struct ipc_inode_ide *iide;
     ssize_t recv_s;
     char *msg_reply;
     pid_t pid = getpid();
+    pthread_t thr_id = pthread_self();
     msgid = sock->msgid;
     if (msgget(sock->key, 0) == -1) {
         handle_disc(inode,sock);
@@ -1200,19 +1248,23 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     }
     
     size_t str_len = strlen(path);
-    size_t str_len_f = strlen(f_idec);
-    size_t t_str_len = str_len_f + str_len;
-    size_t list[] = {str_len,str_len_f};
-    const char *items[] = {path,f_idec};
-    char *send_buf = collect_items(items, t_str_len, list, 2);
+    size_t buf_l = str_len + sizeof(*iide) + 1;
+    size_t list[] = {buf_l};
+    iide = Mallocz(buf_l);
+    strncpy(iide->chrs, path, str_len);
+    iide->fd = file->ipc_fd;
+    iide->ide_p.ide_c = iide->ide_t.ide_c = iide->chrs;
+    iide->off_set_p = iide->off_set_t = 0;
+    iide->ide_p.ide_type.pid = pid;
+    iide->ide_t.ide_type.thr_id = thr_id;
     
-    msgbuf = constr_req(send_buf, t_str_len, list, 2);
+    msgbuf = constr_req((const char *)iide, buf_l, list, 1);
     msgbuf->req.req_t.op_type = c;
     msgbuf->pid = pid;
     msgbuf->ch_n = get_channel();
     msgbuf->key = client_key;
     
-    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + t_str_len, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + buf_l, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1231,7 +1283,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     int o = (int)msgre->rep_t.re_type;
     free(msgbuf);
     free(msgre);
-    free(send_buf);
+    free(iide);
     return o;
 }
 
@@ -1296,6 +1348,7 @@ static int proc_destory(struct ap_inode *inode)
     }
     
     struct ipc_sock *sock = (struct ipc_sock *)inode->x_object;
+    struct ipc_inode_ide *iide;
     int msgid;
     struct ap_msgbuf *msgbuf;
     const char *path = inode->ipc_path_hash.ide.ide_c;
@@ -1306,17 +1359,20 @@ static int proc_destory(struct ap_inode *inode)
     msgid = sock->msgid;
     
     size_t str_len = strlen(path);
-    size_t list[] = {str_len};
-    const char *items[] = {path};
-    char *send_buf = collect_items(items, str_len, list, 1);
+    size_t buf_l = sizeof(*iide) + str_len + 1;
+    size_t list[] = {buf_l};
     
-    msgbuf = constr_req(send_buf, str_len, list, 1);
+    iide = Mallocz(buf_l);
+    strncpy(iide->chrs, path, str_len);
+    iide->ide_p.ide_type.pid = pid;
+    iide->off_set_p = 0;
+    msgbuf = constr_req((const char*)iide, buf_l, list, 1);
     msgbuf->req.req_t.op_type = d;
     msgbuf->key = client_key;
     msgbuf->ch_n = get_channel();
     msgbuf->pid = pid;
     
-    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + str_len, msgbuf->ch_n, 0);
+    send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + buf_l, msgbuf->ch_n, 0);
     if (send_s == -1) {
         return -1;
     }
@@ -1334,6 +1390,7 @@ static int proc_destory(struct ap_inode *inode)
     }
     
     int o = (int)msgre->rep_t.re_type;
+    free(iide);
     free(msgbuf);
     free(msgre);
     free(sock);

@@ -238,19 +238,32 @@ void inode_ipc_put(void *ind)
     return;
 }
 
+static void free_o_file_in_byp(thrd_byp_t *byp)
+{
+    struct list_head *lis_pos1;
+    struct list_head *lis_pos2;
+    struct ap_file *file;
+    list_for_each_use(lis_pos1, lis_pos2, &byp->file_o){
+        list_del(lis_pos1);
+        file = list_entry(lis_pos1, struct ap_file, ipc_file);
+        AP_FILE_FREE(file);
+    }
+    
+}
+
 void iholer_destory(struct ipc_inode_holder *iholder)
 {
     struct ap_hash *hash = iholder->ipc_file_hash;
     struct list_head *lis_pos1;
     struct list_head *lis_pos2;
     struct hash_union *un_pos;
-    struct ap_file *file_pos;
+    thrd_byp_t *byp;
     for (size_t i; i < hash->size; i++) {
         list_for_each_use(lis_pos1, lis_pos2, &hash->hash_table[i].hash_union_entry){
             list_del(lis_pos1);
             un_pos = list_entry(lis_pos1, struct hash_union, union_lis);
-            file_pos = list_entry(un_pos, struct ap_file, f_hash_union);
-            AP_FILE_FREE(file_pos);
+            byp = list_entry(un_pos, thrd_byp_t, h_un);
+            free_o_file_in_byp(byp);
         }
     }
 }

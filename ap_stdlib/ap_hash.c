@@ -17,7 +17,7 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
     char *hasf_str;
     char *join;
     char str_arr[32];
-    char *str = ultoa(ide->ide_i, str_arr, 10);
+    char *str = ultoa(ide->ide_type.ide_i, str_arr, 10);
     if (ide->ide_c == NULL) {
         hasf_str = str;
     }else{
@@ -56,7 +56,8 @@ struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou)
     hl_indx = &ipc_hold_table.hash_table[hash].holder;
     list_for_each(pos, hl_indx){
         hl = list_entry(pos, struct holder, hash_lis);
-        if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 && hl->ide.ide_i == ide.ide_i) {
+        if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 &&
+            hl->ide.ide_type.ide_i == ide.ide_type.ide_i) {
             if (inc_cou) {
                 hl->ipc_get(&hl->ihl);
             }
@@ -105,7 +106,8 @@ struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity id
     un = &table->hash_table[hash_n].hash_union_entry;
     list_for_each(pos, un){
         hun = list_entry(pos, struct hash_union, union_lis);
-        if (strcmp(hun->ide.ide_c, ide.ide_c) == 0 && hun->ide.ide_i == ide.ide_i) {
+        if (strcmp(hun->ide.ide_c, ide.ide_c) == 0 &&
+            hun->ide.ide_type.ide_i == ide.ide_type.ide_i) {
             pthread_mutex_unlock(lock);
             return hun;
         }

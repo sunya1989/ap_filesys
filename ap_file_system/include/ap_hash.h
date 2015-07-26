@@ -21,7 +21,11 @@ struct hash_table_union;
 
 struct hash_identity{
     const char *ide_c;
-    unsigned long ide_i;
+    union{
+        pthread_t thr_id;
+        pid_t pid;
+        unsigned long ide_i;
+    }ide_type;
 };
 
 struct hash_union{
@@ -75,7 +79,7 @@ static inline void decrease_hash_rsize(struct ap_hash *table)
 static inline void INITIALIZE_HASH_UNION(struct hash_union *ihu)
 {
     ihu->ide.ide_c = NULL;
-    ihu->ide.ide_i = 0;
+    ihu->ide.ide_type.ide_i = 0;
     INIT_LIST_HEAD(&ihu->union_lis);
 }
 

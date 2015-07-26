@@ -92,11 +92,38 @@ struct ap_inode_operations{
     ssize_t (*readdir) (struct ap_inode *, AP_DIR *, void *, size_t);
 };
 
+struct ipc_inode_ide{
+    size_t off_set_p;
+    size_t off_set_t;
+    struct hash_identity ide_p; /*for process*/
+    struct hash_identity ide_t; /*for thread*/
+    int fd;
+    char chrs[0];
+};
+
 struct ipc_inode_holder{
     struct ap_inode *inde;
-    struct ap_hash *ipc_file_hash; //hash ap_file
+    struct ap_hash *ipc_file_hash; //hash thrd_byp_t
     void *x_object;
 };
+
+struct ipc_inode_thread_byp{
+    struct hash_union h_un;
+    pthread_mutex_t file_lock;
+    struct list_head file_o; /*the list of opened files*/
+    AP_DIR *dir_o;  /*opend dir*/
+};
+
+typedef struct ipc_inode_thread_byp thrd_byp_t;
+
+static inline thrd_byp_t *MALLOC_THRD_BYP()
+{
+    thrd_byp_t *byp = Mallocz(sizeof(*byp));
+    byp->dir_o = NULL;
+    INIT_LIST_HEAD(&byp->file_o);
+    pthread_mutex_init(&byp->file_lock, NULL);
+    return byp;
+}
 
 struct holder{
     struct ipc_inode_holder ihl;
@@ -106,13 +133,15 @@ struct holder{
     struct holder_table_union *hl_un;
     void (*ipc_get)(void *);
     void (*ipc_put)(void *);
-    void (*destory)(void *);
+    void (*destory)(struct ipc_inode_holder *);
 };
 
 static inline struct holder *MALLOC_HOLDER()
 {
     struct holder *hl = Mallocz(sizeof(*hl));
     INIT_LIST_HEAD(&hl->hash_lis);
+    hl->ihl.inde = NULL;
+    hl->ihl.ipc_file_hash = NULL;
     hl->ide.ide_c = NULL;
     hl->ipc_get = hl->ipc_put = NULL;
     return hl;
@@ -121,7 +150,7 @@ static inline struct holder *MALLOC_HOLDER()
 static inline void HOLDER_FREE(struct holder *hl)
 {
     if (hl->destory != NULL) {
-        hl->destory(hl->ihl.x_object);
+        hl->destory(&hl->ihl);
     }
     free(hl);
 }
@@ -313,19 +342,14 @@ static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
 }
 
 struct ap_file{
+    int ipc_fd;
 	struct ap_inode *relate_i;
     unsigned long mod;
     pthread_mutex_t file_lock;
 	struct ap_file_operations *f_ops;
     off_t off_size;
     struct bag file_bag;
-    
-    char *f_idec;  /**
-                    *used as key by which ap_file can be hashed into
-                    *ipc_file_hash in struct ip_inode_holde
-                    */
-    
-    struct hash_union f_hash_union;
+    struct list_head ipc_file;    
     void *x_object;
 };
 BAG_DEFINE_FREE(AP_FILE_FREE);
@@ -337,7 +361,8 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     file->file_bag.trash = file;
     file->file_bag.release = BAG_AP_FILE_FREE;
     file->file_bag.is_embed = 1;
-    INITIALIZE_HASH_UNION(&file->f_hash_union);
+    file->ipc_fd = -1;
+    INIT_LIST_HEAD(&file->ipc_file);
     int init = pthread_mutex_init(&file->file_lock, NULL);
     if (init != 0) {
         perror("file init fialed\n");
