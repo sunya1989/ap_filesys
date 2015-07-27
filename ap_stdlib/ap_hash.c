@@ -89,6 +89,33 @@ void hash_union_insert(struct ap_hash *table, struct hash_union *un)
     return;
 }
 
+struct hash_union
+*hash_union_insert_recheck(struct ap_hash *table, struct hash_union *un)
+{
+    unsigned hash_n = get_hash_n(&un->ide, table->size);
+    struct list_head *head;
+    struct hash_union *pos;
+    if (hash_n > table->size) {
+        printf("hash table size erro\n");
+        exit(1);
+    }
+    pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
+    pthread_mutex_lock(lock);
+    head = &ipc_hold_table.hash_table[hash_n].holder;
+    list_for_each_entry(pos, head, union_lis){
+        if (strcmp(pos->ide.ide_c, un->ide.ide_c) == 0 &&
+            pos->ide.ide_type.ide_i == un->ide.ide_type.ide_i) {
+            pthread_mutex_unlock(lock);
+            return pos;
+        }
+    }
+    list_add(&un->union_lis, &table->hash_table[hash_n].hash_union_entry);
+    pthread_mutex_unlock(lock);
+    increase_hash_rsize(table);
+    un->table = &table->hash_table[hash_n];
+    return un;
+}
+
 struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity ide)
 {
     unsigned hash_n = get_hash_n(&ide, table->size);

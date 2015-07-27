@@ -50,7 +50,6 @@ struct ap_file_systems f_systems = {
 BAG_IMPOR_FREE(AP_INODE_INICATOR_FREE, struct ap_inode_indicator);
 BAG_IMPOR_FREE(search_mtp_unlock, struct ap_inode);
 BAG_IMPOR_FREE(AP_INODE_FREE, struct ap_inode);
-BAG_IMPOR_FREE(IHOLDER_FREE, struct ipc_inode_holder);
 BAG_IMPOR_FREE(AP_FILE_FREE, struct ap_file);
 
 int walk_path(struct ap_inode_indicator *start)
@@ -248,7 +247,16 @@ static void free_o_file_in_byp(thrd_byp_t *byp)
         file = list_entry(lis_pos1, struct ap_file, ipc_file);
         AP_FILE_FREE(file);
     }
-    
+}
+
+void THRD_BYP_FREE(thrd_byp_t *byp)
+{
+    pthread_mutex_destroy(&byp->file_lock);
+    if (byp->dir_o != NULL) {
+        AP_DIR_FREE(byp->dir_o);
+    }
+    free_o_file_in_byp(byp);
+    free(byp);
 }
 
 void iholer_destory(struct ipc_inode_holder *iholder)
@@ -263,7 +271,7 @@ void iholer_destory(struct ipc_inode_holder *iholder)
             list_del(lis_pos1);
             un_pos = list_entry(lis_pos1, struct hash_union, union_lis);
             byp = list_entry(un_pos, thrd_byp_t, h_un);
-            free_o_file_in_byp(byp);
+            THRD_BYP_FREE(byp);
         }
     }
 }

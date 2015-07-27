@@ -111,6 +111,8 @@ extern char *ultoa(unsigned long value, char *string, int radix);
 extern struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity ide);
 extern void hash_union_insert(struct ap_hash *table, struct hash_union *un);
 extern void hash_union_delet(struct hash_union *un);
+struct hash_union
+*hash_union_insert_recheck(struct ap_hash *table, struct hash_union *un);
 
 extern struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou);
 

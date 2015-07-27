@@ -817,13 +817,10 @@ int ap_closedir(AP_DIR *dir)
         errno = EINVAL;
         return -1;
     }
-    
-    free(dir->d_buff);
-    ap_inode_put(dir->dir_i);
-    if (dir->cursor != NULL) {
-        dir->relese(dir->cursor);
+    if (dir->dir_i->i_ops->closedir != NULL) {
+        dir->dir_i->i_ops->closedir(dir->dir_i);
     }
-    free(dir);
+    AP_DIR_FREE(dir);
     return 0;
 }
 

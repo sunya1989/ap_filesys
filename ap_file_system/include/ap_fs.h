@@ -58,6 +58,74 @@ struct ap_inode{
     struct ap_inode_operations *i_ops;
 };
 
+struct ap_file{
+    int ipc_fd;
+    struct ap_inode *relate_i;
+    unsigned long mod;
+    pthread_mutex_t file_lock;
+    struct ap_file_operations *f_ops;
+    off_t off_size;
+    struct bag file_bag;
+    struct list_head ipc_file;
+    void *x_object;
+};
+
+struct ap_inode_operations{
+    int (*get_inode) (struct ap_inode_indicator *);
+    int (*find_inode) (struct ap_inode_indicator *);
+    int (*creat) (struct ap_inode_indicator *);
+    int (*rmdir) (struct ap_inode_indicator *);
+    int (*mkdir) (struct ap_inode_indicator *);
+    int (*destory) (struct ap_inode *);
+    int (*unlink) (struct ap_inode *);
+    ssize_t (*readdir) (struct ap_inode *, AP_DIR *, void *, size_t);
+    int (*closedir)(struct ap_inode *);
+};
+
+struct ap_file_operations{
+    ssize_t (*read) (struct ap_file *, char *, off_t, size_t);
+    ssize_t (*write) (struct ap_file *, char *, off_t, size_t);
+    off_t (*llseek) (struct ap_file *, off_t, int);
+    int (*release) (struct ap_file *,struct ap_inode *);
+    int (*open) (struct ap_file *, struct ap_inode *, unsigned long);
+    int (*destory) (struct ap_inode *);
+};
+
+BAG_DEFINE_FREE(AP_INODE_FREE);
+static inline void AP_INODE_FREE(struct ap_inode *inode)
+{
+    struct ap_inode *i_d = inode->is_dir? inode:inode->parent;
+    if (i_d->i_ops != NULL && i_d->i_ops->destory != NULL) {
+        i_d->i_ops->destory(inode);
+    }
+    pthread_mutex_destroy(&inode->ch_lock);
+    pthread_mutex_destroy(&inode->data_lock);
+    pthread_mutex_destroy(&inode->mt_ch_lock);
+    pthread_mutex_destroy(&inode->mt_pass_lock);
+    
+    COUNTER_FREE(&inode->inode_counter);
+    free(inode);
+}
+
+static inline void ap_inode_get(struct ap_inode *inode)
+{
+    if (inode->mount_inode != NULL) {
+        counter_get(&inode->mount_inode->mount_p_counter);
+    }
+    counter_get(&inode->inode_counter);
+}
+
+static inline void ap_inode_put(struct ap_inode *inode)
+{
+    counter_put(&inode->inode_counter);
+    if (inode->mount_inode != NULL) {
+        counter_put(&inode->mount_inode->mount_p_counter);
+    }
+    if (inode->links == 0 && inode->inode_counter.in_use == 0) {
+        AP_INODE_FREE(inode);
+    }
+}
+
 struct ap_dir_t{
     char *d_buff;
     char *d_buff_end;
@@ -81,16 +149,16 @@ static inline AP_DIR *MALLOC_AP_DIR()
     return dir;
 }
 
-struct ap_inode_operations{
-    int (*get_inode) (struct ap_inode_indicator *);
-    int (*find_inode) (struct ap_inode_indicator *);
-    int (*creat) (struct ap_inode_indicator *);
-    int (*rmdir) (struct ap_inode_indicator *);
-    int (*mkdir) (struct ap_inode_indicator *);
-    int (*destory) (struct ap_inode *);
-    int (*unlink) (struct ap_inode *);
-    ssize_t (*readdir) (struct ap_inode *, AP_DIR *, void *, size_t);
-};
+static inline void AP_DIR_FREE(AP_DIR *dir)
+{
+    free(dir->d_buff);
+    ap_inode_put(dir->dir_i);
+    if (dir->cursor != NULL) {
+        dir->relese(dir->cursor);
+    }
+    free(dir);
+    return;
+}
 
 struct ipc_inode_ide{
     size_t off_set_p;
@@ -104,7 +172,6 @@ struct ipc_inode_ide{
 struct ipc_inode_holder{
     struct ap_inode *inde;
     struct ap_hash *ipc_file_hash; //hash thrd_byp_t
-    void *x_object;
 };
 
 struct ipc_inode_thread_byp{
@@ -124,6 +191,8 @@ static inline thrd_byp_t *MALLOC_THRD_BYP()
     pthread_mutex_init(&byp->file_lock, NULL);
     return byp;
 }
+
+void THRD_BYP_FREE(thrd_byp_t *byp);
 
 struct holder{
     struct ipc_inode_holder ihl;
@@ -198,22 +267,6 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     return 1;
 }
 
-BAG_DEFINE_FREE(AP_INODE_FREE);
-static inline void AP_INODE_FREE(struct ap_inode *inode)
-{
-    struct ap_inode *i_d = inode->is_dir? inode:inode->parent;
-    if (i_d->i_ops != NULL && i_d->i_ops->destory != NULL) {
-        i_d->i_ops->destory(inode);
-    }
-    pthread_mutex_destroy(&inode->ch_lock);
-    pthread_mutex_destroy(&inode->data_lock);
-    pthread_mutex_destroy(&inode->mt_ch_lock);
-    pthread_mutex_destroy(&inode->mt_pass_lock);
-
-    COUNTER_FREE(&inode->inode_counter);
-    free(inode);
-}
-
 static inline struct ap_inode *MALLOC_AP_INODE()
 {
     struct ap_inode *inode;
@@ -260,27 +313,7 @@ static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
     return ind->real_inode == ind? ind:ind->real_inode;
 }
 
-static inline void ap_inode_get(struct ap_inode *inode)
-{
-    if (inode->mount_inode != NULL) {
-        counter_get(&inode->mount_inode->mount_p_counter);
-    }
-    counter_get(&inode->inode_counter);
-}
-
-static inline void ap_inode_put(struct ap_inode *inode)
-{
-    counter_put(&inode->inode_counter);
-    if (inode->mount_inode != NULL) {
-        counter_put(&inode->mount_inode->mount_p_counter);
-    }
-    if (inode->links == 0 && inode->inode_counter.in_use == 0) {
-        AP_INODE_FREE(inode);
-    }
-}
-
 extern void iholer_destory(struct ipc_inode_holder *iholder);
-BAG_DEFINE_FREE(IHOLDER_FREE);
 static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
 {
     iholer_destory(iholder);
@@ -341,17 +374,7 @@ static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
     return indic;
 }
 
-struct ap_file{
-    int ipc_fd;
-	struct ap_inode *relate_i;
-    unsigned long mod;
-    pthread_mutex_t file_lock;
-	struct ap_file_operations *f_ops;
-    off_t off_size;
-    struct bag file_bag;
-    struct list_head ipc_file;    
-    void *x_object;
-};
+
 BAG_DEFINE_FREE(AP_FILE_FREE);
 static inline void AP_FILE_INIT(struct ap_file *file)
 {
@@ -392,14 +415,6 @@ static inline void AP_FILE_FREE(struct ap_file *apf)
     free(apf);
 }
 
-struct ap_file_operations{
-	ssize_t (*read) (struct ap_file *, char *, off_t, size_t);
-	ssize_t (*write) (struct ap_file *, char *, off_t, size_t);
-    off_t (*llseek) (struct ap_file *, off_t, int);
-    int (*release) (struct ap_file *,struct ap_inode *);
-    int (*open) (struct ap_file *, struct ap_inode *, unsigned long);
-    int (*destory) (struct ap_inode *);
-};
 
 struct ap_file_struct{
     struct ap_file *file_list[_OPEN_MAX];

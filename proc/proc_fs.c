@@ -127,6 +127,22 @@ static struct ap_file *get_o_file(thrd_byp_t *byp, int ipc_fd)
     return NULL;
 }
 
+static thrd_byp_t *get_thr_byp(struct ipc_inode_holder *ihl, struct ipc_inode_ide *iide)
+{
+    struct hash_union *un;
+    un = hash_union_get(ihl->ipc_file_hash, iide->ide_t);
+    if (un == NULL) {
+        return NULL;
+    }
+    return container_of(un, thrd_byp_t, h_un);
+}
+
+static inline void rest_iide(struct ipc_inode_ide *iide)
+{
+    iide->ide_p.ide_c = iide->chrs + iide->off_set_p;
+    iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
+}
+
 static char *collect_items(const char **items, size_t buf_len, size_t list[], int lis_len)
 {
     char *buf = Mallocz(buf_len);
@@ -369,7 +385,7 @@ static void client_g(struct ap_msgbuf *buf, char **req_d)
         hl->ipc_put = inode_ipc_put;
         hl->ihl.inde = indic->cur_inode;
         hl->ihl.ipc_file_hash = MALLOC_IPC_HASH(AP_IPC_FILE_HASH_LEN);
-        hl->destory = IHOLDER_FREE;
+        hl->destory = iholer_destory;
         ipc_holder_hash_insert(hl);
         *((struct ap_inode *)(strc_cp + 1)) = *indic->cur_inode;
     }
@@ -379,40 +395,82 @@ static void client_g(struct ap_msgbuf *buf, char **req_d)
     free(re_m);
     return;
 }
+static void client_rdir(struct ap_msgbuf *buf, char **req_d)
+{
+    struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
+    struct holder *hl;
+    struct ap_msgreply *re;
+    AP_DIR *dir;
+    thrd_byp_t *byp;
+    rest_iide(iide);
+    size_t read_n,len;
+    hl = ipc_holder_hash_get(iide->ide_p, 0);
+    if (hl == NULL) {
+        ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
+        return;
+    }
+    byp = get_thr_byp(&hl->ihl, iide);
+    if (byp == NULL) {
+        byp = MALLOC_THRD_BYP();
+        size_t str_l = strlen(iide->ide_t.ide_c);
+        byp->h_un.ide.ide_c = Mallocz(str_l + 1);
+        strncpy((char *)byp->h_un.ide.ide_c, iide->ide_t.ide_c, str_l);
+        byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
+        if(hash_union_insert_recheck(hl->ihl.ipc_file_hash, &byp->h_un) != &byp->h_un){
+            THRD_BYP_FREE(byp);
+        }
+        
+        if (byp->dir_o == NULL) {
+            dir = MALLOC_AP_DIR();
+            byp->dir_o = dir;
+            dir->dir_i = hl->ihl.inde;
+            ap_inode_get(dir->dir_i);
+        }
+        if (dir->d_buff != NULL) {
+            free(dir->d_buff);
+        }
+        dir->d_buff = Mallocz(DEFALUT_DIR_RD_ONECE_LEN);
+        read_n = hl->ihl.inde->i_ops->
+        readdir(hl->ihl.inde, dir, dir->d_buff, DEFALUT_DIR_RD_ONECE_LEN);
+        
+        len = sizeof(struct ap_msgreply) + read_n;
+        re = Mallocz(len);
+        re->rep_t.re_type = read_n;
+        re->rep_t.read_n = read_n;
+        re->struct_l = 1;
+        memcpy(re->re_struct, dir->d_buff, read_n);
+        ap_msgsnd(buf->msgid, re, len, buf->ch_n, 0);
+        free(re);
+        free(dir->d_buff);
+    }
+}
 
 static void client_r(struct ap_msgbuf *buf, char **req_d)
 {
-    struct hash_identity ide;
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
-    char *path = iide->chrs + iide->off_set_p;
+    rest_iide(iide);
     struct holder *hl;
-    struct ipc_inode_holder *ihl;
     struct ap_inode *inde;
     struct ap_file *file;
     struct ap_msgreply *re;
-    struct hash_union *un;
     thrd_byp_t *byp;
     ssize_t read_n;
     size_t len;
     char *read_buf = Mallocz(buf->req.req_t.read_len);
     
-    ide.ide_c = path;
-    ide.ide_type.ide_i = buf->pid;
-    hl = ipc_holder_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(iide->ide_p, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
     inde = hl->ihl.inde;
-    iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
-    un = hash_union_get(ihl->ipc_file_hash, iide->ide_t);
-    if (un == NULL) {
+    get_thr_byp(&hl->ihl, iide);
+    if (byp == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
-    byp = container_of(un, thrd_byp_t, h_un);
     file = get_o_file(byp, iide->fd);
     read_n = inde->f_ops->read(file, read_buf, buf->req.req_t.off_size, buf->req.req_t.read_len);
     if (read_n <= 0) {
@@ -434,35 +492,27 @@ static void client_r(struct ap_msgbuf *buf, char **req_d)
 
 static void client_w(struct ap_msgbuf *buf, char **req_d)
 {
-    struct hash_identity ide;
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
-    char *path = iide->chrs + iide->off_set_p;
+    rest_iide(iide);
     struct holder *hl;
-    struct ipc_inode_holder *ihl;
     struct ap_inode *inde;
     struct ap_file *file;
     struct ap_msgreply re;
-    struct hash_union *un;
     thrd_byp_t *byp;
     ssize_t write_n;
     
-    ide.ide_c = path;
-    ide.ide_type.ide_i = buf->pid;
-    hl = ipc_holder_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(iide->ide_p, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
-    
     inde = hl->ihl.inde;
-    iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
-    un = hash_union_get(ihl->ipc_file_hash, iide->ide_t);
-    if (un == NULL) {
+    get_thr_byp(&hl->ihl, iide);
+    if (byp == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
-    byp = container_of(un, thrd_byp_t, h_un);
     file = get_o_file(byp, iide->fd);
     write_n = inde->f_ops->read(file, req_d[1], buf->req.req_t.off_size, buf->req.req_t.wirte_len);
     if (write_n < 0) {
@@ -479,9 +529,8 @@ static void client_w(struct ap_msgbuf *buf, char **req_d)
 
 static void client_o(struct ap_msgbuf *buf, char **req_d)
 {
-    struct hash_identity ide;
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
-    char *path = iide->chrs + iide->off_set_p;
+    rest_iide(iide);
     int open_s;
     struct ap_msgreply re;
     struct holder *hl;
@@ -490,16 +539,13 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
     struct hash_union *un;
     thrd_byp_t *thr_byp;
     
-    ide.ide_c = path;
-    ide.ide_type.ide_i = buf->pid;
-    hl = ipc_holder_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(iide->ide_p, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
     inde = hl->ihl.inde;
-    
     file = AP_FILE_MALLOC();
     AP_FILE_INIT(file);
     
@@ -525,8 +571,10 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
         thr_byp->h_un.ide.ide_c = Mallocz(str_l + 1);
         strncpy((char *)thr_byp->h_un.ide.ide_c, iide->ide_t.ide_c, str_l);
         thr_byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
-        hash_union_insert(hl->ihl.ipc_file_hash, &thr_byp->h_un);
-        un = &thr_byp->h_un;
+        if((un = hash_union_insert_recheck(hl->ihl.ipc_file_hash, &thr_byp->h_un)) !=
+           &thr_byp->h_un){
+            THRD_BYP_FREE(thr_byp);
+        }
     }
     
     thr_byp = container_of(un, thrd_byp_t, h_un);
@@ -543,33 +591,26 @@ static void client_o(struct ap_msgbuf *buf, char **req_d)
 
 static void client_c(struct ap_msgbuf *buf, char **req_d)
 {
-    struct hash_identity ide;
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
-    char *path = iide->chrs + iide->off_set_p;
+    rest_iide(iide);
     struct holder *hl;
-    struct ipc_inode_holder *ihl;
     struct ap_inode *inde;
     struct ap_file *file;
-    struct hash_union *un;
     thrd_byp_t *byp;
     
-    ide.ide_c = path;
-    ide.ide_type.ide_i = buf->pid;
-    hl = ipc_holder_hash_get(ide, 0);
+    hl = ipc_holder_hash_get(iide->ide_p, 0);
     if (hl == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
     inde = hl->ihl.inde;
-    iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
-    un = hash_union_get(ihl->ipc_file_hash, iide->ide_t);
-    if (un == NULL) {
+    get_thr_byp(&hl->ihl, iide);
+    if (byp == NULL) {
         ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
         return;
     }
     
-    byp = container_of(un, thrd_byp_t, h_un);
     file = get_o_file(byp, iide->fd);
     if (file->f_ops->release != NULL) {
        int rs = file->f_ops->release(file, inde);
@@ -606,36 +647,8 @@ static void client_d(struct ap_msgbuf *buf, char **req_d)
     HOLDER_FREE(hl);
 }
 
-static void client_rdir(struct ap_msgbuf *buf, char **req_d)
-{
-    struct hash_identity ide;
-    char *path = req_d[0];
-    struct holder *hl;
-    AP_DIR *dir;
-    
-    ide.ide_c = path;
-    ide.ide_type.ide_i = buf->pid;
-    hl = ipc_holder_hash_get(ide, 0);
-    if (hl == NULL) {
-        ap_msg_send_err(EINVAL, -1, buf->msgid, buf->ch_n);
-        return;
-    }
-    if (hl->ihl.x_object == NULL) {
-        dir = MALLOC_AP_DIR();
-        hl->ihl.x_object = dir;
-        dir->dir_i = hl->ihl.inde;
-        ap_inode_get(dir->dir_i);
-    }
-    dir = hl->ihl.x_object;
-    memset(dir->d_buff, '\0', (dir->d_buff - dir->d_buff_end));
-    hl->ihl.inde->i_ops->
-    readdir(hl->ihl.inde, dir, dir->d_buff, (dir->d_buff - dir->d_buff_end));
-    
-        
-    
-}
 
-void *ap_proc_sever(void *arg)
+static void *ap_proc_sever(void *arg)
 {
     ssize_t recv_s;
     int *msgid = arg;
@@ -774,7 +787,7 @@ static char **cut_str(const char *s, int d, size_t len)
     free(tm_path);
     return cut;
 }
-/*
+/**
  *get the dir of certain kind of service under which can 
  *have diffrent process porvide same service,
  *we can get the inode of the process with particular
@@ -824,7 +837,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     return -1;
 }
 
-/*
+/**
  *get the inode of the process specified with pid
  */
 static int procff_get_inode(struct ap_inode_indicator *indc)
@@ -1336,7 +1349,9 @@ static ssize_t proc_readdir
         B_return(-1);
     }
     struct rddir_re *re = (struct rddir_re *)msgre->re_struct;
-    memcpy(buff, re->dirs, msgre->rep_t.read_n);
+    if (msgre->rep_t.read_n > 0) {
+        memcpy(buff, re->dirs, msgre->rep_t.read_n);
+    }
     B_return(msgre->rep_t.read_n);
 }
 
