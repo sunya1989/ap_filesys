@@ -138,6 +138,7 @@ struct ap_dir_t{
 
 #define DEFALUT_DIR_RD_ONECE_NUM (4096 / sizeof(struct ap_dirent))
 #define DEFALUT_DIR_RD_ONECE_LEN (DEFALUT_DIR_RD_ONECE_NUM * sizeof(struct ap_dirent))
+#define DIR_RD_ONECE_NUM(l) (l / sizeof(struct ap_dirent))
 
 static inline AP_DIR *MALLOC_AP_DIR()
 {
