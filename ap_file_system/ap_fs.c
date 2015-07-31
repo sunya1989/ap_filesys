@@ -170,7 +170,9 @@ AGAIN:
         list_add(&start->cur_inode->child, &cursor_inode->children);
         add_inode_to_mt(start->cur_inode, curr_mount_p);
         start->cur_inode->parent = cursor_inode;
-        start->cur_inode->links++;
+        if (start->cur_inode->links == 0) {
+            start->cur_inode->links++;
+        }
 
         path = start->cur_slash;
         if (start->slash_remain == 0) {
@@ -418,7 +420,7 @@ const char *regular_path(const char *path, int *slash_no)
     const char *reg_path;
     
     size_t path_len = strlen(path);
-    if (path_len == 0 || slash_no == NULL) {
+    if (path_len == 0 || slash_no == NULL || path_len > FULL_PATH_LEN) {
         return NULL;
     }
     *slash_no = 0;

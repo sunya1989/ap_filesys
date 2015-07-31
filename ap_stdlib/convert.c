@@ -7,6 +7,7 @@
 //
 
 #include "convert.h"
+#include "envelop.h"
 #include <stdlib.h>
 #include <errno.h>
 char *ultoa(unsigned long value, char *string, int radix)
@@ -71,6 +72,17 @@ char *itoa(int num, char*str, int radix)
         str[i-1+k-j] = temp;
     }
     return str;
+}
+
+char *collect_items(const char **items, size_t buf_len, size_t list[], int lis_len)
+{
+    char *buf = Mallocz(buf_len);
+    char *cp = buf;
+    for (int i = 0; i<lis_len; i++) {
+        memcpy(cp, items[i], list[i]);
+        cp += list[i];
+    }
+    return buf;
 }
 
 

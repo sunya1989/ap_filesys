@@ -138,17 +138,6 @@ static inline void rest_iide(struct ipc_inode_ide *iide)
     iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
 }
 
-static char *collect_items(const char **items, size_t buf_len, size_t list[], int lis_len)
-{
-    char *buf = Mallocz(buf_len);
-    char *cp = buf;
-    for (int i = 0; i<lis_len; i++) {
-        memcpy(cp, items[i], list[i]);
-        cp += list[i];
-    }
-    return buf;
-}
-
 static inline unsigned long get_channel()
 {
     unsigned long ch_n;
@@ -228,8 +217,8 @@ static int ap_ipc_kick_start(char *sever_name)
     memset(msgid_key, '\0', AP_IPC_RECODE_LEN);
 
     char *p_p = path;
-    size_t strl0 = sizeof(AP_PROC_FILE);
-    size_t strl1 = sizeof(sever_name);
+    size_t strl0 = strlen(AP_PROC_FILE);
+    size_t strl1 = strlen(sever_name);
     size_t w_n;
     
     memset(p_p, '\0', AP_IPC_PATH_LEN);
@@ -239,7 +228,7 @@ static int ap_ipc_kick_start(char *sever_name)
     *p_p = '/';
     p_p++;
     
-    snprintf(p_p, AP_IPC_PATH_LEN, "%s_%ld",sever_name,(long)pid);
+    snprintf(p_p, AP_IPC_PATH_LEN, "%s@%ld",sever_name,(long)pid);
     fs = fopen(path, "w+b");
     if (fs == NULL) {
         return -1;
@@ -747,12 +736,12 @@ static int proc_creat_file(const char *sever_name)
     path_p++;
     
     errno = 0;
-    int mkd = mkdir(path_p, 0755);
+    int mkd = mkdir(ipc_path, 0755);
     if (mkd == -1 && errno != EEXIST) {
         return -1;
     }
     
-    for (int i = 0; i <= 2; i++) {
+    for (int i = 0; i < 2; i++) {
         snprintf(path_p, AP_IPC_PATH_LEN, "%ld_%d",(long)pid, i);
         key[i] = ap_ftok(pid,ipc_path);
         if (key[i] == -1) {
@@ -773,7 +762,10 @@ static struct ap_inode
 {
     pthread_t thr_n;
     struct ap_inode *init_inode;
-    
+    if (mkdir(AP_PROC_FILE, 1777) == -1 &&
+        errno != EEXIST) {
+        return NULL;
+    }
     proc_creat_file(x_object);
     client_msid = msgid[1];
     client_key = key[1];
@@ -787,6 +779,7 @@ static struct ap_inode
     //initialize inode
     init_inode = MALLOC_AP_INODE();
     init_inode->is_dir = 1;
+    init_inode->links++;
     init_inode->i_ops = &procfs_inode_operations;
     return init_inode;
 }
@@ -830,14 +823,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     const char *sever_name = indc->the_name;
     size_t strl = strlen(sever_name);
     struct ap_inode *inode;
-    
-    char ap_ipc_path[AP_IPC_PATH_LEN];
-    memset(ap_ipc_path, '\0', AP_IPC_PATH_LEN);
-    char msgid_key[AP_IPC_RECODE_LEN];
-    memset(msgid_key, '\0', AP_IPC_RECODE_LEN);
-    
-    strncpy(ap_ipc_path, AP_PROC_FILE, sizeof(AP_PROC_FILE));
-    dp = opendir(ap_ipc_path);
+    dp = opendir(AP_PROC_FILE);
     if (dp == NULL) {
         return -1;
     }
@@ -1328,6 +1314,75 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     free(iide);
     return o;
 }
+void proc_dir_release(void *cusor)
+{
+    DIR *dp = cusor;
+    closedir(dp);
+}
+
+static ssize_t procfs_readdir
+(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
+{
+    DIR *dp;
+    struct dirent *dirp;
+    struct ap_dirent *dir_tp = buff;
+    size_t i = 0;
+    if ((dp = dir->cursor) == NULL) {
+        dp = opendir(AP_PROC_FILE);
+        if (dp == NULL) {
+            return -1;
+        }
+        dir->cursor = dp;
+        dir->release = proc_dir_release;
+    }
+    for (i = 0; i < num; i++) {
+        dirp = readdir(dp);
+        if (dir == NULL) {
+            break;
+        }
+        strncpy(dir_tp->name, dirp->d_name, dirp->d_namlen);
+        dir_tp->name_l = dirp->d_namlen;
+        dir_tp++;
+    }
+    
+    return (i * sizeof(*dir_tp));
+}
+
+static ssize_t procff_readdir
+(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
+{
+    DIR *dp;
+    struct dirent *dirp;
+    struct ap_dirent *dir_tp = buff;
+    size_t i = 0;
+    char *sever_n = inode->name;
+    char full_p[AP_IPC_PATH_LEN];
+    const char *names[] = {
+      AP_PROC_FILE,
+        sever_n,
+    };
+    if ((dp = dir->cursor) == NULL) {
+        memset(full_p, '\0', AP_IPC_PATH_LEN);
+        path_names_cat(full_p, names, 2, "/");
+        dp = opendir(full_p);
+        if (dp == NULL) {
+            return -1;
+        }
+        dir->cursor = dp;
+        dir->release = proc_dir_release;
+    }
+    
+    while ((dirp = readdir(dp)) != NULL && i < num) {
+        if (strchr(dirp->d_name, AT) == NULL) {
+            continue;
+        }
+        strncpy(dir_tp->name, dirp->d_name, dirp->d_namlen);
+        dir_tp->name_l = dirp->d_namlen;
+        dir_tp++;
+        i++;
+    }
+    return (i * sizeof(*dir_tp));
+}
 
 static ssize_t proc_readdir
 (struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
@@ -1504,12 +1559,15 @@ static int proc_destory(struct ap_inode *inode)
     return o;
 }
 
+
 static struct ap_inode_operations procfs_inode_operations = {
     .get_inode = procfs_get_inode,
+    .readdir = procfs_readdir,
 };
 
 static struct ap_inode_operations procff_inode_operations = {
     .get_inode = procff_get_inode,
+    .readdir = procff_readdir,
 };
 
 static struct ap_inode_operations proc_inode_operations = {

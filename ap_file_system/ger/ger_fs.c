@@ -253,7 +253,7 @@ ger_readdir(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
         num_c++;
     }
     if (dir->cursor == NULL) {
-        dir->relese = ger_dir_cursor_release;
+        dir->release = ger_dir_cursor_release;
     }
     if (num_c != 0 && pos != node) {
         if (dir->cursor != NULL) {

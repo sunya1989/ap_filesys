@@ -133,7 +133,7 @@ struct ap_dir_t{
     struct ap_inode *dir_i;
     void *cursor;
     struct hash_identity cursor_ide; //track the dir within diffrent process
-    void (*relese)(void *);
+    void (*release)(void *);
 };
 
 #define DEFALUT_DIR_RD_ONECE_NUM (4096 / sizeof(struct ap_dirent))
@@ -154,8 +154,8 @@ static inline void AP_DIR_FREE(AP_DIR *dir)
 {
     free(dir->d_buff);
     ap_inode_put(dir->dir_i);
-    if (dir->cursor != NULL) {
-        dir->relese(dir->cursor);
+    if (dir->cursor != NULL && dir->release != NULL) {
+        dir->release(dir->cursor);
     }
     free(dir);
     return;

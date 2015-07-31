@@ -15,6 +15,7 @@
 #define AP_MSGSEG_LEN 2048
 #define AP_PNOEXIST 0
 #define PROC_FILE_FS "proc"
+#define AT '@'
 
 struct ap_ipc_info{
     struct ipc_sock sock;

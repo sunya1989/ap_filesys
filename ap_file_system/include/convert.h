@@ -12,5 +12,6 @@
 #include <stdio.h>
 extern char *itoa(int num, char*str, int radix);
 extern char *ultoa(unsigned long value, char *string, int radix);
+char *collect_items(const char **items, size_t buf_len, size_t list[], int lis_len);
 
 #endif /* defined(__ap_editor__convert__) */
