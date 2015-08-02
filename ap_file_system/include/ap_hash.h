@@ -89,6 +89,7 @@ static inline struct ap_hash *MALLOC_IPC_HASH(size_t size)
     hash_t->size = size;
     hash_t->r_size = 0;
     for (size_t i = 0; i<size; i++) {
+        INIT_LIST_HEAD(&hash_t->hash_table[i].hash_union_entry);
         pthread_mutex_init(&hash_t->hash_table[i].t_lock, NULL);
     }
     return hash_t;

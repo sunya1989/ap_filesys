@@ -88,7 +88,8 @@ FINDED:
     return 0;
 }
 
-static ssize_t ger_read(struct ap_file *file, char *buf, off_t off_set, size_t len)
+static ssize_t
+ger_read(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object; //类型检查？
     if (stem->sf_ops->stem_read == NULL) {
@@ -98,7 +99,8 @@ static ssize_t ger_read(struct ap_file *file, char *buf, off_t off_set, size_t l
     return stem->sf_ops->stem_read(stem, buf, off_set, len);
 }
 
-static ssize_t ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
+static ssize_t
+ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object;
     if (stem->sf_ops->stem_read == NULL) {
@@ -120,7 +122,8 @@ static int ger_release(struct ap_file *file,struct ap_inode *ind)
     return 0;
 }
 
-static int ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long flags)
+static int
+ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long flags)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)ind->x_object; //类型检查？
     
@@ -164,7 +167,8 @@ static int ger_unlink(struct ap_inode *ind)
     }
     list_del(&stem->child);
     pthread_mutex_unlock(&stem->parent->ch_lock);
-    if (stem->parent->si_ops != NULL && stem->parent->si_ops->stem_unlink != NULL) {
+    if (stem->parent->si_ops != NULL &&
+        stem->parent->si_ops->stem_unlink != NULL) {
         o = stem->parent->si_ops->stem_unlink(stem);
     }
     return o;
@@ -304,7 +308,8 @@ static struct ap_inode_operations ger_inode_operations = {
     .unlink = ger_unlink,
 };
 
-static struct ap_inode *gget_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
+static struct ap_inode
+*gget_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
 {
     struct ger_stem_node *root_stem = (struct ger_stem_node *)x_object; //类型检查？
     struct ap_inode *ind = MALLOC_AP_INODE();
@@ -355,7 +360,8 @@ struct ger_stem_node *find_stem_p(const char *p)
     return s_inode->x_object;
 }
 
-struct ger_stem_node *find_stem_r(struct ger_stem_node *root_stem, char **names, int counts)
+struct ger_stem_node
+*find_stem_r(struct ger_stem_node *root_stem, char **names, int counts)
 {
     int i = 0;
     char *name_cusor;

@@ -219,6 +219,10 @@ void inode_del_child(struct ap_inode *parent, struct ap_inode *child)
 
 int register_fsyst(struct ap_file_system_type *fsyst)
 {
+    if (fsyst->get_initial_inode == NULL ||
+        fsyst->name == NULL) {
+        return -1;
+    }
     pthread_mutex_lock(&f_systems.f_system_lock);
     list_add(&fsyst->systems, &f_systems.i_file_system);
     pthread_mutex_unlock(&f_systems.f_system_lock);

@@ -58,7 +58,6 @@ void Lock_reg(int, int, int, off_t, int, off_t);
 #define AP_IPC_KEY 2
 #define AP_IPC_RECODE_NUM 3
 
-
 struct ipc_sock{
     char *sever_name;
     pid_t pid;

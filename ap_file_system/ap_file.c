@@ -102,6 +102,9 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     mount_point->is_mount_point = 1;
 
     mount_inode = fsyst->get_initial_inode(fsyst,m_info);
+    if (mount_inode == NULL) {
+        return -1;
+    }
     if (mount_inode->links == 0) {
         mount_inode->links++;
     }

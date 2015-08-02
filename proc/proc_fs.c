@@ -79,7 +79,9 @@ static char **pull_req(struct ap_msgreq *req)
 
 static char *path_name_cat(char *dest, const char *src, size_t len, char *d)
 {
-    strncat(dest, d, 1);
+    if (strlen(dest)!=0) {
+        strncat(dest, d, 1);
+    }
     strncat(dest, src, len);
     return dest;
 }
@@ -122,7 +124,8 @@ static struct ap_file *get_o_file(thrd_byp_t *byp, int ipc_fd)
     return NULL;
 }
 
-static thrd_byp_t *get_thr_byp(struct ipc_inode_holder *ihl, struct ipc_inode_ide *iide)
+static thrd_byp_t
+*get_thr_byp(struct ipc_inode_holder *ihl, struct ipc_inode_ide *iide)
 {
     struct hash_union *un;
     un = hash_union_get(ihl->ipc_file_hash, iide->ide_t);
@@ -210,7 +213,8 @@ static int ap_ipc_kick_start(char *sever_name)
     channel_n = random();
     pid_t pid = getpid();
     FILE *fs;
-   
+    int fd;
+    
     char path[AP_IPC_PATH_LEN];
     memset(path, '\0', AP_IPC_PATH_LEN);
     char msgid_key[AP_IPC_RECODE_LEN];
@@ -229,6 +233,10 @@ static int ap_ipc_kick_start(char *sever_name)
     p_p++;
     
     snprintf(p_p, AP_IPC_PATH_LEN, "%s@%ld",sever_name,(long)pid);
+    fd = creat(path, 0755);
+    if (fd == -1) {
+        return -1;
+    }
     fs = fopen(path, "w+b");
     if (fs == NULL) {
         return -1;
@@ -241,6 +249,7 @@ static int ap_ipc_kick_start(char *sever_name)
         return -1;
     }
     fclose(fs);
+    close(fd);
     return 0;
 }
 
@@ -298,7 +307,8 @@ FINISH:
     return rv;
 }
 
-static int ap_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg)
+static int
+ap_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg)
 {
     const char *c_p = buf;
     size_t dl = len;
@@ -740,6 +750,10 @@ static int proc_creat_file(const char *sever_name)
     if (mkd == -1 && errno != EEXIST) {
         return -1;
     }
+    int mod[2] = {
+        0722,
+        0700,
+    };
     
     for (int i = 0; i < 2; i++) {
         snprintf(path_p, AP_IPC_PATH_LEN, "%ld_%d",(long)pid, i);
@@ -748,7 +762,7 @@ static int proc_creat_file(const char *sever_name)
             errno = EBADF;
             return -1;
         }
-        msgid[i] = msgget(key[i], IPC_CREAT | IPC_W | IPC_R);
+        msgid[i] = msgget(key[i], IPC_CREAT | mod[i]);
         if (msgid[i] == -1) {
             errno = EBADF;
             return -1;
@@ -762,11 +776,16 @@ static struct ap_inode
 {
     pthread_t thr_n;
     struct ap_inode *init_inode;
+    int k_s;
+    int c_s;
     if (mkdir(AP_PROC_FILE, 1777) == -1 &&
         errno != EEXIST) {
         return NULL;
     }
-    proc_creat_file(x_object);
+    c_s = proc_creat_file(x_object);
+    if (c_s == -1)
+        return NULL;
+    
     client_msid = msgid[1];
     client_key = key[1];
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, &msgid[0]);
@@ -775,7 +794,10 @@ static struct ap_inode
         key[0] = key[1] = 0;
         return NULL;
     }
-    ap_ipc_kick_start(x_object);
+    k_s = ap_ipc_kick_start(x_object);
+    if (k_s == -1)
+        return NULL;
+    
     //initialize inode
     init_inode = MALLOC_AP_INODE();
     init_inode->is_dir = 1;
@@ -784,9 +806,9 @@ static struct ap_inode
     return init_inode;
 }
 
-static char **cut_str(const char *s, int d, size_t len)
+static char **cut_str(const char *s, char d, size_t len)
 {
-    const char *s_p,*head;
+    char *s_p,*head;
     size_t p_l = strlen(s);
     char *tm_path = Mallocz(p_l+1);
     strncpy(tm_path, s, p_l);
@@ -794,16 +816,18 @@ static char **cut_str(const char *s, int d, size_t len)
     char **cut = Mallocz(sizeof(char*)*len);
     int i = 0;
     
-    while ((s_p = strchr(head, d) )!= NULL) {
+    while (i < AP_IPC_RECODE_NUM) {
         s_p = strchr(head, d);
         size_t str_len;
-        s_p = '\0';
+        if (s_p != NULL) {
+            *s_p = '\0';
+        }
         str_len = strlen(head);
         char *item = Mallocz(str_len+1);
         strncpy(item, head, str_len);
         *(item + str_len) = '\0';
         cut[i] = item;
-        head = s_p++;
+        head = ++s_p;
         i++;
     }
     free(tm_path);
@@ -823,8 +847,10 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     const char *sever_name = indc->the_name;
     size_t strl = strlen(sever_name);
     struct ap_inode *inode;
+    errno=0;
     dp = opendir(AP_PROC_FILE);
     if (dp == NULL) {
+        perror("ap_proc");
         return -1;
     }
     
@@ -868,7 +894,7 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     char sever_file[AP_IPC_RECODE_LEN];
     memset(full_p, '\0', AP_IPC_PATH_LEN);
     memset(sever_file, '\0', AP_IPC_RECODE_LEN);
-    strncpy(sever_file, indc->the_name, strl0);
+    strncpy(sever_file, indc->the_name, strl1);
     
     const char *paths[] = {
         AP_PROC_FILE,
@@ -877,11 +903,15 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     };
     path_names_cat(full_p, paths, 3,"/");
     fs = fopen(full_p, "r+b");
-    if (fs == NULL) {
-        return -1;
-    }
     memset(sever_file, '\0', AP_IPC_RECODE_LEN);
-    fgets(sever_file, AP_IPC_RECODE_LEN, fs);
+    
+    if (fs == NULL)
+        return -1;
+    if(fgets(sever_file, AP_IPC_RECODE_LEN, fs) == NULL)
+        return -1;
+    
+    *(sever_file + (strlen(sever_file) - 1)) = '\0';
+    
     cut = cut_str(sever_file, ':', AP_IPC_RECODE_NUM);
     
     if (msgget(atoi(cut[AP_IPC_KEY]), 0) == -1) {
@@ -910,9 +940,12 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     inode->mount_inode = indc->cur_inode->mount_inode;
     inode->i_ops = &proc_inode_operations;
     inode->x_object = info;
+    inode->links++;
+    inode->is_dir = 1;
     ap_inode_put(indc->cur_inode);
     ap_inode_get(inode);
     indc->cur_inode = inode;
+    fclose(fs);
     return 0;
 }
 
@@ -982,11 +1015,11 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     *sock = info->sock;
     cur_ind->x_object = sock;
     
-    if (f_ind->is_dir == 1) {
+    if (f_ind->is_dir == 1)
         cur_ind->i_ops = &proc_file_i_operations;
-    }else{
+    else
         cur_ind->f_ops = &proc_file_operations;
-    }
+    
     ap_inode_put(indc->cur_inode);
     ap_inode_get(cur_ind);
     indc->cur_inode = cur_ind;
@@ -1017,9 +1050,8 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     }
     
     get = get_proc_inode(indc);
-    if (get) {
+    if (get)
         return get;
-    }
     
     strl = strlen(ide.ide_c);
     path = Mallocx(strl);
@@ -1081,14 +1113,12 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     msgbuf->key = client_key;
     
     send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + buf_l, msgbuf->ch_n, 0);
-    if (send_s == -1) {
+    if (send_s == -1)
         return -1;
-    }
     
     recv_s = ap_msgrcv(client_msid, &msg_reply, msgbuf->ch_n);
-    if (recv_s == -1) {
+    if (recv_s == -1)
         return -1;
-    }
     
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
     if (msgre->rep_t.re_type <= 0) {
@@ -1151,14 +1181,12 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     msgbuf->key = client_key;
     
     send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + buf_l, msgbuf->ch_n, 0);
-    if (send_s == -1) {
+    if (send_s == -1)
         return -1;
-    }
     
     recv_s = ap_msgrcv(client_msid, &msg_reply, msgbuf->ch_n);
-    if (recv_s == -1) {
+    if (recv_s == -1)
         return -1;
-    }
     
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
     if (msgre->rep_t.re_type <= 0) {
@@ -1215,14 +1243,12 @@ static int proc_open(struct ap_file *file, struct ap_inode *inde, unsigned long 
     msgbuf->key = client_key;
     
     send_s = ap_msgsnd(sock->msgid, msgbuf, sizeof(struct ap_msgbuf) + buf_l, msgbuf->ch_n, 0);
-    if (send_s == -1) {
+    if (send_s == -1)
         return -1;
-    }
     
     recv_s = ap_msgrcv(client_msid, &msg_reply, msgbuf->ch_n);
-    if (recv_s == -1) {
+    if (recv_s == -1)
         return -1;
-    }
     
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
     if (msgre->rep_t.re_type == -1) {
@@ -1329,17 +1355,15 @@ static ssize_t procfs_readdir
     size_t i = 0;
     if ((dp = dir->cursor) == NULL) {
         dp = opendir(AP_PROC_FILE);
-        if (dp == NULL) {
+        if (dp == NULL)
             return -1;
-        }
         dir->cursor = dp;
         dir->release = proc_dir_release;
     }
     for (i = 0; i < num; i++) {
         dirp = readdir(dp);
-        if (dir == NULL) {
+        if (dir == NULL)
             break;
-        }
         strncpy(dir_tp->name, dirp->d_name, dirp->d_namlen);
         dir_tp->name_l = dirp->d_namlen;
         dir_tp++;
@@ -1365,9 +1389,8 @@ static ssize_t procff_readdir
         memset(full_p, '\0', AP_IPC_PATH_LEN);
         path_names_cat(full_p, names, 2, "/");
         dp = opendir(full_p);
-        if (dp == NULL) {
+        if (dp == NULL)
             return -1;
-        }
         dir->cursor = dp;
         dir->release = proc_dir_release;
     }
@@ -1576,6 +1599,7 @@ static struct ap_inode_operations proc_inode_operations = {
     .find_inode = find_proc_inode,
     .destory = proc_destory,
     .readdir = proc_readdir,
+    .closedir = proc_closedir,
 };
 
 static struct ap_inode_operations proc_file_i_operations = {
