@@ -48,5 +48,14 @@ struct ap_msgreq{
     char req_detail[0];
 };
 
+struct ap_msgbuf{
+    struct ap_ipc_hint r_hint;
+    key_t key;
+    pid_t pid;
+    int msgid;
+    unsigned long ch_n;
+    struct ap_msgreq req;
+};
+
 extern struct ap_ipc_operations ap_ipc_pro_ops[TYP_NUM];
 #endif

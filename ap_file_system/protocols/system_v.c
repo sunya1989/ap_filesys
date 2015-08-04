@@ -6,19 +6,32 @@
 //  Copyright (c) 2015年 sunya. All rights reserved.
 //
 #include <ap_string.h>
+#include <sys/ipc.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/msg.h>
 #include "system_v.h"
 
 struct msg_recv_hint{
     unsigned long ch_n;
 };
 
-struct msg_connect_info{
-    pthread_mutex_t channel_lock;
-    unsigned long channel_n;
-    const char *sever_name;
+struct v_head{
     pid_t pid;
     int msgid;
     key_t key;
+};
+
+struct msg_connect_info{
+    union{
+        struct{
+            struct v_head head;
+            pthread_mutex_t channel_lock;
+            unsigned long channel_n;
+        }channel;
+        struct v_head *client_head;
+    };
 };
 
 static void msgmemcpy(size_t seq, char *base, const char *data, size_t len)
@@ -88,13 +101,54 @@ FINISH:
     return rv;
 }
 
+static key_t ap_ftok(pid_t pid, const char *ipc_path)
+{
+    int cr_s;
+    key_t key;
+    
+    open(ipc_path, O_CREAT | O_TRUNC | O_RDWR);
+    if (cr_s == -1) {
+        return -1;
+    }
+    chmod(ipc_path, 0777);
+    close(cr_s);
+    key = ftok(ipc_path, (int)pid);
+    return key;
+}
+
+static struct v_head *v_creat_file(const char *ipc_path, mode_t mode)
+{
+    pid_t pid = getpid();
+    errno = 0;
+    key_t key;
+    int msgid;
+    int mkd = mkdir(ipc_path, 0755);
+    if (mkd == -1 && errno != EEXIST) {
+        return NULL;
+    }
+    struct v_head *head = Mallocz(sizeof(*head));
+    key = ap_ftok(pid,ipc_path);
+    if (key == -1) {
+        errno = EBADF;
+        return NULL;
+    }
+    msgid = msgget(key, IPC_CREAT | mode);
+    if (msgid == -1) {
+        errno = EBADF;
+        return NULL;
+    }
+    head->key = key;
+    head->msgid = msgid;
+    return head;
+}
+
 static inline unsigned long get_channel(struct msg_connect_info *info)
 {
     unsigned long ch_n;
-    pthread_mutex_lock(&info->channel_lock);
-    ch_n = info->channel_n;
-    info->channel_n++;
-    pthread_mutex_unlock(&info->channel_lock);
+    pthread_mutex_lock(&info->channel.channel_lock);
+    ch_n = info->channel.channel_n;
+    info->channel.channel_n++;
+    pthread_mutex_unlock(&info->channel.channel_lock);
     return ch_n;
 }
 
@@ -134,21 +188,48 @@ static char **cut_str(const char *s, char d, size_t len)
 
 int ipc_connect(struct ap_ipc_info *info)
 {
+    pid_t pid = getpid();
     char **cut;
+    struct v_head *head;
+    int msgid;
     const char *txt = info->cs_hint.hint_txt;
     const char *c_name = info->cs_hint.client_hint.s_name;
+    struct msg_connect_info *c_info = Mallocz(sizeof(*c_info));
+    info->cs_hint.client_hint.hint_bob = c_info;
+    struct msg_connect_info *s_info = Mallocz(sizeof(*s_info));
+    info->cs_hint.sever_hint.hint_bob = s_info;
     char path[AP_IPC_PATH_LEN];
+    if (info->info_h->c_t[SYSTEM_V] == 0) {
+        pthread_mutex_lock(&info->info_h->typ_lock);
+        const char *paths[] = {
+            AP_PROC_FILE,
+            c_name,
+        };
+        path_names_cat(path, paths, 2, "/");
+        snprintf(path, AP_IPC_PATH_LEN, "%ld_%d",(long)pid,1);
+        head = v_creat_file(path, 0700);
+        if (head == NULL) {
+            pthread_mutex_unlock(&info->info_h->typ_lock);
+            free(c_info);
+            free(s_info);
+            free(head);
+            return -1;
+        }
+        info->info_h->ipc_heads[SYSTEM_V] = head;
+        info->info_h->c_t[SYSTEM_V] = 1;
+        pthread_mutex_unlock(&info->info_h->typ_lock);
+    }
+    
+    c_info->client_head = info->info_h->ipc_heads[SYSTEM_V];
     cut = cut_str(txt, ':', AP_IPC_RECODE_NUM);
-    if (msgget(atoi(cut[AP_IPC_KEY]), 0) == -1) {
+    if ((msgid = msgget(atoi(cut[AP_IPC_KEY]), 0)) == -1) {
         return -1;
     }
-    const char *paths[] = {
-        AP_PROC_FILE,
-        c_name,
-    };
-    path_names_cat(path, paths, 2, "/");
     
-    
+    s_info->channel.head.msgid = msgid;
+    s_info->channel.head.key = atoi(cut[AP_IPC_KEY]);
+    s_info->channel.head.pid = atoi(cut[AP_IPC_PID]);
+    return 0;
 }
 
 static ssize_t v_ipc_send
@@ -162,7 +243,7 @@ static ssize_t v_ipc_send
         hint->p_hint = r_h;
         hint->p_release = v_package_hint_release;
     }
-    send_s = v_msgsnd(s_info->msgid, buf, len, r_h->ch_n, 0);
+    send_s = v_msgsnd(s_info->channel.head.msgid, buf, len, r_h->ch_n, 0);
     return send_s;
 }
 
@@ -175,28 +256,6 @@ static ssize_t v_ipc_recv
         struct msg_recv_hint *r_h = hint->p_hint;
         wait_ch = r_h->ch_n;
     }
-    ssize_t recv_s = v_msgrcv(c_info->msgid, buf, wait_ch);
+    ssize_t recv_s = v_msgrcv(c_info->client_head->msgid, buf, wait_ch);
     return recv_s;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

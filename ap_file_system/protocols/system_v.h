@@ -17,13 +17,6 @@
 #define AP_PNOEXIST 0
 #define MSG_LEN (sizeof(struct ap_msgseg) - sizeof(long))
 extern struct ap_ipc_operations sys_tem_v_ops;
-struct ap_msgbuf{
-    key_t key;
-    pid_t pid;
-    int msgid;
-    unsigned long ch_n;
-    struct ap_msgreq req;
-};
 
 struct ap_msgseg{
     long mtype;

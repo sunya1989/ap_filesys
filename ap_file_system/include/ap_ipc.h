@@ -91,17 +91,26 @@ struct ap_ipc_hint{
     void *hint_bob;
 };
 
+struct ap_ipc_info_head;
+
 struct ap_ipc_info{
+    struct ap_ipc_info_head *info_h;
     struct{
         const char *hint_txt;
         struct ap_ipc_hint client_hint;
         struct ap_ipc_hint sever_hint;
-    }cs_hint;
+    }cs_hint;                               /*connect hint between sever and client*/
     struct ipc_sock sock;
     int disc;
-    enum connet_typ c_t;
+    enum connet_typ s_t;                /*connect type of the severend*/
     struct ap_hash *inde_hash_table;
     struct ipc_operations *ipc_ops;
+};
+
+struct ap_ipc_info_head{
+    void *ipc_heads[TYP_NUM];
+    pthread_mutex_t typ_lock;
+    enum connet_typ c_t[TYP_NUM];       /*connect types that clientend possess*/
 };
 
 static inline struct ap_ipc_info *MALLOC_IPC_INFO()

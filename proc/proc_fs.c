@@ -846,7 +846,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     const char *sever_name = indc->the_name;
     size_t strl = strlen(sever_name);
     struct ap_inode *inode;
-    errno=0;
+    errno = 0;
     dp = opendir(AP_PROC_FILE);
     if (dp == NULL) {
         perror("ap_proc");
