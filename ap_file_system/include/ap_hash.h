@@ -15,7 +15,6 @@
 #include <pthread.h>
 #include "list.h"
 #include "envelop.h"
-#include "ap_ipc.h"
 
 struct hash_table_union;
 
@@ -55,12 +54,7 @@ struct ipc_holder_hash{
 };
 
 extern struct ipc_holder_hash ipc_hold_table;
-static inline struct ipc_sock *MALLOC_IPC_SOCK()
-{
-    struct ipc_sock *ipc_s = Mallocx(sizeof(*ipc_s));
-    ipc_s->sever_name = NULL;
-    return ipc_s;
-}
+
 
 static inline void increase_hash_rsize(struct ap_hash *table)
 {

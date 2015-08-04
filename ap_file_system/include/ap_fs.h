@@ -7,6 +7,7 @@
 #include <bag.h>
 #include <ap_file.h>
 #include <ap_hash.h>
+#include <ap_ipc.h>
 #include "counter.h"
 #include "list.h"
 #define _OPEN_MAX 1024
@@ -162,6 +163,7 @@ static inline void AP_DIR_FREE(AP_DIR *dir)
 }
 
 struct ipc_inode_ide{
+    struct ap_ipc_hint r_hint;
     size_t off_set_p;
     size_t off_set_t;
     struct hash_identity ide_p; /*for process*/

@@ -6,8 +6,8 @@
 //  Copyright (c) 2015年 sunya. All rights reserved.
 //
 
-#ifndef __ap_editor__convert__
-#define __ap_editor__convert__
+#ifndef ap_file_system_convert_h
+#define ap_file_system_convert_h
 
 #include <stdio.h>
 extern char *itoa(int num, char*str, int radix);

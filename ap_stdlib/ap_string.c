@@ -1,0 +1,59 @@
+//
+//  ap_string.c
+//  ap_editor
+//
+//  Created by sunya on 15/8/3.
+//  Copyright (c) 2015年 sunya. All rights reserved.
+//
+
+#include <stdio.h>
+#include <envelop.h>
+#include <ap_string.h>
+char **cut_str(const char *s, char d, size_t len)
+{
+    char *s_p,*head;
+    size_t p_l = strlen(s);
+    char *tm_path = Mallocz(p_l+1);
+    strncpy(tm_path, s, p_l);
+    head = tm_path;
+    char **cut = Mallocz(sizeof(char*)*len);
+    int i = 0;
+    
+    while (i < len) {
+        s_p = strchr(head, d);
+        size_t str_len;
+        if (s_p != NULL) {
+            *s_p = '\0';
+        }
+        str_len = strlen(head);
+        char *item = Mallocz(str_len+1);
+        strncpy(item, head, str_len);
+        *(item + str_len) = '\0';
+        cut[i] = item;
+        head = ++s_p;
+        i++;
+    }
+    free(tm_path);
+    return cut;
+}
+
+char *path_name_cat(char *dest, const char *src, size_t len, char *d)
+{
+    if (strlen(dest)!=0) {
+        strncat(dest, d, 1);
+    }
+    strncat(dest, src, len);
+    return dest;
+}
+
+char *path_names_cat(char *dest, const char **src, int num, char *d)
+{
+    size_t strl = 0;
+    size_t strl1 = 0;
+    for (int i = 0; i < num; i++) {
+        strl1 = strlen(src[i]);
+        strl += strl1;
+        path_name_cat(dest, src[i], strl, d);
+    }
+    return dest + strl + (num-1);
+}

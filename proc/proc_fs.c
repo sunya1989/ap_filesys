@@ -5,7 +5,6 @@
 //  Created by sunya on 15/4/21.
 //  Copyright (c) 2015年 sunya. All rights reserved.
 //
-
 #include <stdio.h>
 #include <ap_fs.h>
 #include <fcntl.h>
@@ -25,11 +24,11 @@
 #include <convert.h>
 #include <dirent.h>
 #include <time.h>
+#include <ipc_protocol_headers.h>
 #include "proc_fs.h"
 #define IPC_PATH 0
 #define PROC_NAME 1
 #define IPC_KEY 2
-#define MSG_LEN (sizeof(struct ap_msgseg) - sizeof(long))
 static int client_msid;
 static key_t client_key;
 
