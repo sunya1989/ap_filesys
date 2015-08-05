@@ -56,10 +56,11 @@ Lock_test(fd, F_WRLCK, offset, whence, len)
 int lock_reg(int, int, int, off_t, int, off_t);
 void Lock_reg(int, int, int, off_t, int, off_t);
 
-#define AP_IPC_PID 0
-#define AP_IPC_MSGID 1
-#define AP_IPC_KEY 2
-#define AP_IPC_RECODE_NUM 3
+#define AP_CONNECT_T 0
+#define AP_IPC_PID 1
+#define AP_IPC_MSGID 2
+#define AP_IPC_KEY 3
+#define AP_IPC_RECODE_NUM 4
 struct ipc_operations;
 enum connet_typ{
     SYSTEM_V = 0,
@@ -92,14 +93,15 @@ struct ap_ipc_hint{
 };
 
 struct ap_ipc_info_head;
+struct ap_ipc_port{
+    const char *port_dis;
+    void *x_object;
+};
+
 
 struct ap_ipc_info{
     struct ap_ipc_info_head *info_h;
-    struct{
-        const char *hint_txt;
-        struct ap_ipc_hint client_hint;
-        struct ap_ipc_hint sever_hint;
-    }cs_hint;                               /*connect hint between sever and client*/
+    struct ap_ipc_port s_port;
     struct ipc_sock sock;
     int disc;
     enum connet_typ s_t;                /*connect type of the severend*/
@@ -107,8 +109,10 @@ struct ap_ipc_info{
     struct ipc_operations *ipc_ops;
 };
 
+
 struct ap_ipc_info_head{
     void *ipc_heads[TYP_NUM];
+    struct ap_ipc_port cs_port;
     pthread_mutex_t typ_lock;
     enum connet_typ c_t[TYP_NUM];       /*connect types that clientend possess*/
 };
@@ -121,11 +125,12 @@ static inline struct ap_ipc_info *MALLOC_IPC_INFO()
 }
 
 struct ap_ipc_operations{
-    int (*ipc_connect)(struct ap_ipc_info *);
+    int (*ipc_get_port)(const char *);
+    int (*ipc_connect)(struct ap_ipc_port *);
     ssize_t (*ipc_send)
-    (struct ap_ipc_info *, void *, size_t, struct package_hint *);
+    (struct ap_ipc_port *, void *, size_t, struct package_hint *);
     ssize_t (*ipc_recv)
-    (struct ap_ipc_info *, void **, size_t, struct package_hint *);
+    (struct ap_ipc_port *, void **, size_t, struct package_hint *);
     int (*ipc_close)(struct ap_ipc_info *);
 };
 

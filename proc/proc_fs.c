@@ -775,6 +775,7 @@ static struct ap_inode
 {
     pthread_t thr_n;
     struct ap_inode *init_inode;
+    struct proc_mount_info *info = x_object;
     int k_s;
     int c_s;
     if (mkdir(AP_PROC_FILE, 1777) == -1 &&

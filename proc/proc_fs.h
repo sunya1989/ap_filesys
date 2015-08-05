@@ -13,6 +13,10 @@
 #define PROC_FILE_FS "proc"
 #define AT '@'
 
+struct proc_mount_info{
+    enum connet_typ typ;
+    const char *sever_name;
+};
 extern int init_proc_fs();
 
 #endif
