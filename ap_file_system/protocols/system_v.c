@@ -13,6 +13,8 @@
 #include <sys/msg.h>
 #include "system_v.h"
 
+#define V_PATH_CAT "@SYSTEM_V"
+
 struct msg_recv_hint{
     unsigned long ch_n;
 };
@@ -22,17 +24,23 @@ struct v_head{
     int msgid;
     key_t key;
 };
-
 struct v_port{
-    union{
-        struct v_head c_head;
-        struct{
-            struct v_head head;
-            pthread_mutex_t channel_lock;
-            unsigned long channel_n;
-        }channel;
-    };
+    struct v_head head;
+    unsigned long channel;
+    pthread_mutex_t ch_lock;
 };
+
+struct v_msgbuf{
+    struct v_port port;
+    char buf[0];
+};
+
+static inline struct v_port *MALLOC_V_PORT()
+{
+    struct v_port *v_port = Mallocz(sizeof(*v_port));
+    pthread_mutex_init(&v_port->ch_lock, NULL);
+    return v_port;
+}
 
 static void msgmemcpy(size_t seq, char *base, const char *data, size_t len)
 {
@@ -62,7 +70,6 @@ v_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg)
         dl -= AP_MSGSEG_LEN;
         if (dl>0) 
             c_p += AP_MSGSEG_LEN;
-        
         seq++;
     }
     return 0;
@@ -141,13 +148,13 @@ static struct v_head *v_creat_file(const char *ipc_path, mode_t mode)
     return head;
 }
 
-static inline unsigned long get_channel(struct v_port *info)
+static inline unsigned long get_channel(struct v_port *port)
 {
     unsigned long ch_n;
-    pthread_mutex_lock(&info->channel.channel_lock);
-    ch_n = info->channel.channel_n;
-    info->channel.channel_n++;
-    pthread_mutex_unlock(&info->channel.channel_lock);
+    pthread_mutex_lock(&port->ch_lock);
+    ch_n = port->channel;
+    port->channel++;
+    pthread_mutex_unlock(&port->ch_lock);
     return ch_n;
 }
 
@@ -202,47 +209,104 @@ static int v_ipc_connect(struct ap_ipc_port *port)
     if (msgget(key, 0) == -1)
         return -1;
     
-    v_port = Mallocz(sizeof(*v_port));
-    v_port->channel.head.key = key;
-    v_port->channel.head.msgid = msgid;
-    v_port->channel.head.pid = pid;
+    v_port = MALLOC_V_PORT();
+    v_port->head.key = key;
+    v_port->head.msgid = msgid;
+    v_port->head.pid = pid;
+    v_port->channel = random();
     port->x_object = v_port;
     
     return 0;
 }
 
-static int ipc_get_port(const char *pathname)
+static struct ap_ipc_port *v_ipc_get_port(const char *pathname)
 {
-    if (<#condition#>) {
-        <#statements#>
-    }
+    pid_t pid = getpid();
+    key_t key;
+    int msgid;
+    struct ap_ipc_port *port;
+    struct v_port *v_port;
+    char p[AP_IPC_PATH_LEN];
+    char dis[AP_IPC_RECODE_LEN];
+    memset(dis, '\0', AP_IPC_RECODE_LEN);
+    memset(p, '\0', AP_IPC_PATH_LEN);
+    strncpy(p, pathname, strlen(pathname));
+    strcat(p, V_PATH_CAT);
     
+    key = ap_ftok(pid, p);
+    if (key == -1)
+        return NULL;
+    msgid = msgget(key, 0);
+    if (msgid == -1)
+        return NULL;
+    v_port = Mallocz(sizeof(*v_port));
+    v_port->head.key = key;
+    v_port->head.msgid = msgid;
+    v_port->head.pid = pid;
+    /*connect type:pid:key:msgid*/
+    sprintf(dis, "%d:%ld:%d:%d",SYSTEM_V,(long)pid,key,msgid);
+    size_t len = strlen(dis);
+    char *p_dis = Mallocz(len + 1);
+    strncpy(p_dis, dis, len);
+    
+    port = Mallocz(sizeof(*port));
+    port->port_dis = p_dis;
+    return port;
 }
 
 static ssize_t v_ipc_send
 (struct ap_ipc_port *port, void *buf, size_t len, struct package_hint *hint)
 {
-    struct v_port *s_port = port->x_object;
+    struct v_port *v_port = port->x_object;
     struct msg_recv_hint *r_h = Mallocz(sizeof(*r_h));
+    size_t s_l = sizeof(struct v_msgbuf) + len;
+    struct v_msgbuf *v_buf = Mallocz(s_l);
+    memcpy(v_buf->buf, buf, len);
     ssize_t send_s;
+    unsigned long ch_n = get_channel(v_port);
     if (hint != NULL) {
-        r_h->ch_n = get_channel(s_port);
+        r_h->ch_n = ch_n;
         hint->p_hint = r_h;
         hint->p_release = v_package_hint_release;
     }
-    send_s = v_msgsnd(s_port->channel.head.msgid, buf, len, r_h->ch_n, 0);
+    v_buf->port.channel = ch_n;
+    v_buf->port.head = v_port->head;
+    send_s = v_msgsnd(v_port->head.msgid, v_buf, s_l, ch_n, 0);
     return send_s;
 }
 
 static ssize_t v_ipc_recv
-(struct ap_ipc_port *port, void **buf, size_t len, struct package_hint *hint)
+(struct ap_ipc_port *port, void **buf, size_t len, struct package_hint *hint, struct ap_ipc_port *p_port)
 {
     struct v_port *c_port = port->x_object;
     unsigned long wait_ch = 0;
+    struct v_port *v_port;
     if (hint->p_hint != NULL) {
         struct msg_recv_hint *r_h = hint->p_hint;
         wait_ch = r_h->ch_n;
     }
-    ssize_t recv_s = v_msgrcv(c_port->c_head->msgid, buf, wait_ch);
-    return recv_s;
+    ssize_t recv_s = v_msgrcv(c_port->head.msgid, buf, wait_ch);
+    if (recv_s == -1) {
+        return -1;
+    }
+    struct v_msgbuf *v_buf = *buf;
+    if (p_port != NULL) {
+        v_port = p_port->x_object = MALLOC_V_PORT();
+        v_port->head = v_buf->port.head;
+        v_port->channel = v_buf->port.channel;
+        p_port->ipc_ops = &system_v_ops;
+    }
+    size_t t_rv = recv_s - sizeof(*v_port);
+    char *d_buf = Mallocz(t_rv);
+    memcpy(d_buf, v_buf->buf, t_rv);
+    free(*buf);
+    *buf = d_buf;
+    return t_rv;
 }
+
+struct ap_ipc_operations system_v_ops = {
+    .ipc_get_port = v_ipc_get_port,
+    .ipc_connect = v_ipc_connect,
+    .ipc_send = v_ipc_send,
+    .ipc_recv = v_ipc_recv,
+};

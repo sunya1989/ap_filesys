@@ -207,43 +207,19 @@ static void handle_disc(struct ap_inode *inde, struct ipc_sock *s)
     inode_disc_free(inde);
 }
 
-static int ap_ipc_kick_start(char *sever_name)
+static int ap_ipc_kick_start(struct ap_ipc_port *port, const char *path)
 {
-    channel_n = random();
-    pid_t pid = getpid();
-    FILE *fs;
-    int fd;
-    
-    char path[AP_IPC_PATH_LEN];
-    memset(path, '\0', AP_IPC_PATH_LEN);
-    char msgid_key[AP_IPC_RECODE_LEN];
-    memset(msgid_key, '\0', AP_IPC_RECODE_LEN);
-
-    char *p_p = path;
-    size_t strl0 = strlen(AP_PROC_FILE);
-    size_t strl1 = strlen(sever_name);
-    size_t w_n;
-    
-    memset(p_p, '\0', AP_IPC_PATH_LEN);
-    strncpy(p_p, AP_PROC_FILE, strl0);
-    path_name_cat(p_p, sever_name, strl1,"/");
-    p_p += strl1 + strl0 + 1;
-    *p_p = '/';
-    p_p++;
-    
-    snprintf(p_p, AP_IPC_PATH_LEN, "%s@%ld",sever_name,(long)pid);
-    fd = creat(path, 0755);
+    int fd = creat(path, 0755);
     if (fd == -1) {
         return -1;
     }
-    fs = fopen(path, "w+b");
+    FILE *fs = fopen(path, "w+b");
     if (fs == NULL) {
         return -1;
     }
-    //pid:msgid:key
-    snprintf(msgid_key, AP_IPC_RECODE_LEN, "%ld:%d:%d\n", (long)pid, msgid[0], key[0]);
-    w_n = fputs(msgid_key, fs);
-    if (w_n < strlen(msgid_key)) {
+    
+    size_t w_n = fputs(port->port_dis, fs);
+    if (w_n < strlen(port->port_dis)) {
         unlink(path);
         return -1;
     }
@@ -728,73 +704,45 @@ static void *ap_proc_sever(void *arg)
     }
 }
 
-static int proc_creat_file(const char *sever_name)
-{
-    pid_t  pid = getpid();
-    size_t strl0 = strlen(AP_PROC_FILE);
-    size_t strl1 = strlen(sever_name);
-    char ipc_path[AP_IPC_PATH_LEN];
-    char *path_p = ipc_path;
-    memset(ipc_path, '\0', AP_IPC_PATH_LEN);
-    
-    strncpy(path_p, AP_PROC_FILE, strl0);
-    strncat(path_p, "/", 1);
-    strncat(path_p, sever_name, strl1);
-    path_p += (strl0 + strl1 + 1);
-    *path_p = '/';
-    path_p++;
-    
-    errno = 0;
-    int mkd = mkdir(ipc_path, 0755);
-    if (mkd == -1 && errno != EEXIST) {
-        return -1;
-    }
-    int mod[2] = {
-        0722,
-        0700,
-    };
-    
-    for (int i = 0; i < 2; i++) {
-        snprintf(path_p, AP_IPC_PATH_LEN, "%ld_%d",(long)pid, i);
-        key[i] = ap_ftok(pid,ipc_path);
-        if (key[i] == -1) {
-            errno = EBADF;
-            return -1;
-        }
-        msgid[i] = msgget(key[i], IPC_CREAT | mod[i]);
-        if (msgid[i] == -1) {
-            errno = EBADF;
-            return -1;
-        }
-    }
-    return 0;
-}
-
 static struct ap_inode
 *proc_get_initial_inode(struct ap_file_system_type *fsyst, void *x_object)
 {
-    pthread_t thr_n;
+    pid_t pid = getpid();
     struct ap_inode *init_inode;
-    struct proc_mount_info *info = x_object;
+    struct proc_mount_info *m_info = x_object;
     int k_s;
-    int c_s;
+    struct ap_ipc_operations *ops;
+    size_t strl0 = strlen(AP_PROC_FILE);
+    size_t strl1 = strlen(m_info->sever_name);
+    size_t strl3 = strl0+strl1;
+    struct ap_ipc_info_head *h_info;
     if (mkdir(AP_PROC_FILE, 1777) == -1 &&
         errno != EEXIST) {
         return NULL;
     }
-    c_s = proc_creat_file(x_object);
-    if (c_s == -1)
-        return NULL;
+    char p_file[AP_IPC_PATH_LEN];
     
-    client_msid = msgid[1];
-    client_key = key[1];
-    int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, &msgid[0]);
-    if (thr_cr_s != 0) {
-        msgid[0] = msgid[1] = 0;
-        key[0] = key[1] = 0;
+    const char *path[] = {
+        AP_PROC_FILE,
+        m_info->sever_name,
+    };
+    
+    path_names_cat(p_file, path, 2, "/");
+    int mkd = mkdir(p_file, 0755);
+    if (mkd == -1 && errno != EEXIST) {
         return NULL;
     }
-    k_s = ap_ipc_kick_start(x_object);
+    snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN, "/%ld_sever",(long)pid);
+    
+    h_info = MALLOC_IPC_INFO_HEAD();
+    ops = ap_ipc_pro_ops[m_info->typ];
+    if ((h_info->cs_port = ops->ipc_get_port(p_file)) == NULL){
+        IPC_INFO_HEAD_FREE(h_info);
+        return NULL;
+    }
+    h_info->cs_port->ipc_ops = ops;
+    snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "%s@%ld",m_info->sever_name,(long)pid);
+    k_s = ap_ipc_kick_start(h_info->cs_port, p_file);
     if (k_s == -1)
         return NULL;
     
@@ -802,6 +750,7 @@ static struct ap_inode
     init_inode = MALLOC_AP_INODE();
     init_inode->is_dir = 1;
     init_inode->links++;
+    init_inode->x_object = h_info;
     init_inode->i_ops = &procfs_inode_operations;
     return init_inode;
 }

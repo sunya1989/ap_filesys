@@ -11,12 +11,12 @@
 
 #include <stdio.h>
 #include <ap_hash.h>
-#include <ipc_protcols.h>
+#include <ipc_protocols.h>
 #define MY_DATA_LEN 2048
 #define AP_MSGSEG_LEN 2048
 #define AP_PNOEXIST 0
 #define MSG_LEN (sizeof(struct ap_msgseg) - sizeof(long))
-extern struct ap_ipc_operations sys_tem_v_ops;
+extern struct ap_ipc_operations system_v_ops;
 
 struct ap_msgseg{
     long mtype;

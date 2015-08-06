@@ -6,8 +6,8 @@
 //  Copyright (c) 2015年 sunya. All rights reserved.
 //
 
-#ifndef ap_file_system_ipc_protcols_h
-#define ap_file_system_ipc_protcols_h
+#ifndef ap_file_system_ipc_protocols_h
+#define ap_file_system_ipc_protocols_h
 #include <ap_ipc.h>
 typedef enum op_type{
     g = 0,
@@ -49,7 +49,6 @@ struct ap_msgreq{
 };
 
 struct ap_msgbuf{
-    struct ap_ipc_hint r_hint;
     key_t key;
     pid_t pid;
     int msgid;
@@ -57,5 +56,5 @@ struct ap_msgbuf{
     struct ap_msgreq req;
 };
 
-extern struct ap_ipc_operations ap_ipc_pro_ops[TYP_NUM];
+extern struct ap_ipc_operations *ap_ipc_pro_ops[TYP_NUM];
 #endif
