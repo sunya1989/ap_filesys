@@ -74,7 +74,7 @@ char *itoa(int num, char*str, int radix)
     return str;
 }
 
-char *collect_items(const char **items, size_t buf_len, size_t list[], int lis_len)
+void *collect_items(void **items, size_t buf_len, size_t list[], int lis_len)
 {
     char *buf = Mallocz(buf_len);
     char *cp = buf;

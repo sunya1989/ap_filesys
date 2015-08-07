@@ -8,8 +8,6 @@
 
 #ifndef ap_file_system_proc_fs_h
 #define ap_file_system_proc_fs_h
-
-
 #define PROC_FILE_FS "proc"
 #define AT '@'
 

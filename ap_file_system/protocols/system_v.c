@@ -239,7 +239,7 @@ static struct ap_ipc_port *v_ipc_get_port(const char *pathname)
     msgid = msgget(key, 0);
     if (msgid == -1)
         return NULL;
-    v_port = Mallocz(sizeof(*v_port));
+    v_port = MALLOC_V_PORT();
     v_port->head.key = key;
     v_port->head.msgid = msgid;
     v_port->head.pid = pid;
@@ -257,21 +257,27 @@ static struct ap_ipc_port *v_ipc_get_port(const char *pathname)
 static ssize_t v_ipc_send
 (struct ap_ipc_port *port, void *buf, size_t len, struct package_hint *hint)
 {
+    struct ap_ipc_port *recv_port = ipc_c_ports[SYSTEM_V];
+    if (recv_port == NULL) {
+        return -1;
+    }
+    struct v_port *recv_v_port = recv_port->x_object;
     struct v_port *v_port = port->x_object;
     struct msg_recv_hint *r_h = Mallocz(sizeof(*r_h));
     size_t s_l = sizeof(struct v_msgbuf) + len;
     struct v_msgbuf *v_buf = Mallocz(s_l);
     memcpy(v_buf->buf, buf, len);
     ssize_t send_s;
-    unsigned long ch_n = get_channel(v_port);
+    unsigned long ch_n = get_channel(recv_v_port);
     if (hint != NULL) {
         r_h->ch_n = ch_n;
         hint->p_hint = r_h;
         hint->p_release = v_package_hint_release;
     }
+    
     v_buf->port.channel = ch_n;
-    v_buf->port.head = v_port->head;
-    send_s = v_msgsnd(v_port->head.msgid, v_buf, s_l, ch_n, 0);
+    v_buf->port.head = recv_v_port->head;
+    send_s = v_msgsnd(v_port->head.msgid, v_buf, s_l, v_port->channel, 0);
     return send_s;
 }
 

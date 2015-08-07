@@ -20,7 +20,6 @@
 #define AP_IPC_PATH_LEN 512
 #define AP_IPC_RECODE_LEN 100
 
-
 /* our record locking macros */
 #define	read_lock(fd, offset, whence, len) \
 lock_reg(fd, F_SETLK, F_RDLCK, offset, whence, len)
@@ -56,16 +55,20 @@ Lock_test(fd, F_WRLCK, offset, whence, len)
 int lock_reg(int, int, int, off_t, int, off_t);
 void Lock_reg(int, int, int, off_t, int, off_t);
 
-#define AP_CONNECT_T 0
+
+#define AP_C_T 0
 #define AP_IPC_PID 1
 #define AP_IPC_KEY 2
 #define AP_IPC_MSGID 3
 #define AP_IPC_RECODE_NUM 4
+#define AP_IPC_ONE_MSG_UNION -1
 struct ap_ipc_operations;
 enum connet_typ{
     SYSTEM_V = 0,
     TYP_NUM,
 };
+
+extern  struct ap_ipc_port *ipc_c_ports[TYP_NUM];
 
 struct ipc_sock{
     char *sever_name;
@@ -93,20 +96,25 @@ struct ap_ipc_port{
     void *x_object;
 };
 
+static inline struct ap_ipc_port *MALLOC_IPC_PORT()
+{
+    struct ap_ipc_port *port = Mallocz(sizeof(*port));
+    return port;
+}
+
 struct ap_ipc_info{
     struct ap_ipc_info_head *info_h;
     struct ap_ipc_port *s_port;
+    struct ap_ipc_port *c_port;
     struct ipc_sock sock;
     int disc;
-    enum connet_typ s_t;                /*connect type of the severend*/
+    enum connet_typ c_t;                /*connect type of the severend*/
     struct ap_hash *inde_hash_table;
 };
 
 struct ap_ipc_info_head{
-    void *ipc_heads[TYP_NUM];
     struct ap_ipc_port *cs_port;
     pthread_mutex_t typ_lock;
-    enum connet_typ c_t[TYP_NUM];       /*connect types that clientend possess*/
 };
 
 static inline struct ap_ipc_info_head *MALLOC_IPC_INFO_HEAD()
@@ -138,7 +146,9 @@ struct ap_ipc_operations{
     ssize_t (*ipc_recv)
     (struct ap_ipc_port *, void **, size_t, struct package_hint *, struct ap_ipc_port *);
     int (*ipc_close)(struct ap_ipc_port *);
+    int (*ipc_probe)(struct ap_ipc_port *);
 };
 
+extern struct ap_ipc_port *get_ipc_c_port(enum connet_typ typ, char *path);
 
 #endif
