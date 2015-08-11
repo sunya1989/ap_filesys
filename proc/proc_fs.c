@@ -76,27 +76,6 @@ static char **pull_req(struct ap_msgreq *req)
     return msg_req;
 }
 
-static char *path_name_cat(char *dest, const char *src, size_t len, char *d)
-{
-    if (strlen(dest)!=0) {
-        strncat(dest, d, 1);
-    }
-    strncat(dest, src, len);
-    return dest;
-}
-
-static char *path_names_cat(char *dest, const char **src, int num, char *d)
-{
-    size_t strl = 0;
-    size_t strl1 = 0;
-    for (int i = 0; i < num; i++) {
-        strl1 = strlen(src[i]);
-        strl += strl1;
-        path_name_cat(dest, src[i], strl, d);
-    }
-    return dest + strl + (num-1);
-}
-
 static struct ap_msgbuf *constr_req(void *buf, size_t buf_len, size_t list[], int lis_len)
 {
     struct ap_msgbuf *msgbuf =
@@ -138,16 +117,6 @@ static inline void rest_iide(struct ipc_inode_ide *iide)
 {
     iide->ide_p.ide_c = iide->chrs + iide->off_set_p;
     iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
-}
-
-static inline unsigned long get_channel()
-{
-    unsigned long ch_n;
-    pthread_mutex_lock(&channel_lock);
-    ch_n = channel_n;
-    channel_n++;
-    pthread_mutex_unlock(&channel_lock);
-    return ch_n;
 }
 
 static void recode_proc_disc(struct ipc_sock *s)
@@ -241,73 +210,6 @@ static key_t ap_ftok(pid_t pid, char *ipc_path)
     close(cr_s);
     key = ftok(ipc_path, (int)pid);
     return key;
-}
-
-static void msgmemcpy(size_t seq, char *base, const char *data, size_t len)
-{
-    char *cp = base + (seq*AP_MSGSEG_LEN);
-    memcpy(cp, data, len);
-}
-
-static ssize_t ap_msgrcv(int msgid, char **d_buf, unsigned long wait_seq)
-{
-    struct ap_msgseg buf;
-    char *cc_p = NULL;
-    char *c_p = NULL;
-    ssize_t rv = 0;
-    ssize_t recv_s;
-    int dl = -1;
-    int data_l = 0;
-    
-    do {
-        recv_s = msgrcv(msgid, (void *)&buf, MSG_LEN, wait_seq, 0);
-        if (recv_s == -1) {
-            perror("rcv failed");
-            return -1;
-        }
-        if (dl == -1) {
-            rv = dl = (int)buf.len_t;
-            if (dl == 0) {
-                goto FINISH;
-            }
-            *d_buf = Mallocx(dl);
-            cc_p = c_p = *d_buf;
-        }
-        data_l = buf.data_len;
-        msgmemcpy(buf.seq, cc_p, buf.segc, data_l);
-        dl -= data_l;
-    } while (dl>0);
-    
-FINISH:
-    return rv;
-}
-
-static int
-ap_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg)
-{
-    const char *c_p = buf;
-    size_t dl = len;
-    int msgsnd_s;
-    int seq = 0;
-    struct ap_msgseg seg;
-    seg.mtype = ch_n;
-    seg.len_t = len;
-    while (dl > 0) {
-        seg.seq = seq;
-        memcpy(seg.segc, c_p, AP_MSGSEG_LEN);
-        seg.data_len = dl< AP_MSGSEG_LEN ? (int)dl : AP_MSGSEG_LEN;
-        msgsnd_s = msgsnd(msgid, &seg, sizeof(struct ap_msgseg), msgflg);
-        if (msgsnd_s == -1) {
-            errno = EBADF;
-            return -1;
-        }
-        dl -= AP_MSGSEG_LEN;
-        if (dl>0) {
-            c_p += AP_MSGSEG_LEN;
-        }
-        seq++;
-    }
-    return 0;
 }
 
 static void client_g(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *req)
@@ -691,7 +593,7 @@ static void *ap_proc_sever(void *arg)
                 client_cdir(p_port, req_detail, &msg_buf->req);
                 break;
             default:
-                printf("ap_msg wrong type\n");
+                fprintf(stderr,"ap_msg wrong type\n");
                 exit(1);
         }
         BAG_EXCUTE(&trashs);
@@ -918,7 +820,6 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     char *msg_reply;
     struct ap_inode *cur_ind, *f_ind;
     struct ap_inode_indicator *f_indc = NULL;
-    struct ipc_sock *sock;
     struct ap_ipc_info *info;
     
     pid_t pid = getpid();
@@ -972,10 +873,6 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     cur_ind = MALLOC_AP_INODE();
     cur_ind->is_dir = f_ind->is_dir;
     cur_ind->parent = indc->cur_inode;
-    
-    sock = Mallocx(sizeof(*sock));
-    *sock = info->sock;
-    cur_ind->x_object = sock;
     
     if (f_ind->is_dir == 1)
         cur_ind->i_ops = &proc_file_i_operations;
@@ -1068,9 +965,6 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     msgbuf->req.req_t.op_type = r;
     msgbuf->req.req_t.read_len = size;
     msgbuf->req.req_t.off_size = off;
-    msgbuf->pid = pid;
-    msgbuf->ch_n = get_channel();
-    msgbuf->key = client_key;
     
     struct package_hint hint;
     
@@ -1146,9 +1040,6 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     msgbuf->req.req_t.op_type = w;
     msgbuf->req.req_t.wirte_len = size;
     msgbuf->req.req_t.off_size = off;
-    msgbuf->pid = pid;
-    msgbuf->ch_n = get_channel();
-    msgbuf->key = client_key;
     
     struct package_hint hint;
     
@@ -1210,9 +1101,6 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
     
     msgbuf = constr_req(iide, buf_l, list, 1);
     msgbuf->req.req_t.op_type = o;
-    msgbuf->pid = pid;
-    msgbuf->ch_n = get_channel();
-    msgbuf->key = client_key;
     
     struct package_hint hint;
     
@@ -1288,9 +1176,6 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     
     msgbuf = constr_req(iide, buf_l, list, 1);
     msgbuf->req.req_t.op_type = c;
-    msgbuf->pid = pid;
-    msgbuf->ch_n = get_channel();
-    msgbuf->key = client_key;
     
     struct package_hint hint;
     
@@ -1425,12 +1310,8 @@ static ssize_t proc_readdir
     
     msgbuf = constr_req(iide, buf_l, lis, 1);
     TRASH_BAG_RAW_PUSH(msgbuf, free);
-    msgbuf->key = client_key;
-    msgbuf->pid = pid;
     msgbuf->req.req_t.op_type = rdir;
     msgbuf->req.req_t.read_len = num;
-    msgbuf->ch_n = get_channel();
-    
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
@@ -1491,9 +1372,6 @@ static int proc_closedir(struct ap_inode *inode)
     
     msgbuf = constr_req(iide, buf_l, lis, 1);
     TRASH_BAG_RAW_PUSH(msgbuf, free);
-    msgbuf->key = client_key;
-    msgbuf->ch_n = get_channel();
-    msgbuf->pid = iide->ide_p.ide_type.pid;
     msgbuf->req.req_t.op_type = cdir;
     
     struct package_hint hint;
@@ -1549,9 +1427,6 @@ static int proc_destory(struct ap_inode *inode)
     iide->off_set_p = 0;
     msgbuf = constr_req(iide, buf_l, list, 1);
     msgbuf->req.req_t.op_type = d;
-    msgbuf->key = client_key;
-    msgbuf->ch_n = get_channel();
-    msgbuf->pid = pid;
     
     struct package_hint hint;
     

@@ -33,7 +33,6 @@ struct ap_inode{
     struct counter mount_p_counter;
     
     unsigned long mode; //权限检查暂时还没有
-    
 	void *x_object;
 	
     union{
@@ -284,7 +283,7 @@ static inline struct ap_inode *MALLOC_AP_INODE()
 static inline void inode_get_link(struct ap_inode *inode)
 {
     if (inode->links < 0) {
-        printf("links wrong");
+        fprintf(stderr,"links wrong");
         exit(1);
     }
     
@@ -296,7 +295,7 @@ static inline void inode_get_link(struct ap_inode *inode)
 static inline void inode_put_link(struct ap_inode *inode)
 {
     if (inode->links <= 0) {
-        printf("links wrong");
+        fprintf(stderr,"links wrong");
         exit(1);
     }
     
