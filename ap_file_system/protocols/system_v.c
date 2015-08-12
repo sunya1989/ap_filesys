@@ -42,6 +42,12 @@ static inline struct v_port *MALLOC_V_PORT()
     return v_port;
 }
 
+static inline void V_PORT_FREE(struct v_port *v_port)
+{
+    pthread_mutex_destroy(&v_port->ch_lock);
+    free(v_port);
+}
+
 static void msgmemcpy(size_t seq, char *base, const char *data, size_t len)
 {
     char *cp = base + (seq*AP_MSGSEG_LEN);
@@ -192,22 +198,31 @@ static char **cut_str(const char *s, char d, size_t len)
     return cut;
 }
 
-static int v_ipc_connect(struct ap_ipc_port *port)
+static ppair_t *v_ipc_connect(struct ap_ipc_port *port, const char *local_addr)
 {
     pid_t pid;
     key_t key;
     int msgid;
     char **cut;
     struct v_port *v_port;
+    struct ap_ipc_port *c_port;
     const char *txt = port->port_dis;
     cut = cut_str(txt, ':', AP_IPC_RECODE_NUM);
+    ppair_t *pair = Mallocz(sizeof(*pair));
     
     pid = atoi(cut[AP_IPC_PID]);
     key = atoi(cut[AP_IPC_KEY]);
     msgid = atoi(cut[AP_IPC_MSGID]);
     
     if (msgget(key, 0) == -1)
-        return -1;
+        return NULL;
+    
+    if (ipc_c_ports[SYSTEM_V] == NULL) {
+        c_port = get_ipc_c_port(SYSTEM_V, local_addr);
+        if (c_port == NULL) {
+            return NULL;
+        }
+    }
     
     v_port = MALLOC_V_PORT();
     v_port->head.key = key;
@@ -216,7 +231,10 @@ static int v_ipc_connect(struct ap_ipc_port *port)
     v_port->channel = random();
     port->x_object = v_port;
     
-    return 0;
+    pair->far_port = port;
+    pair->local_port = c_port;
+    
+    return pair;
 }
 
 static struct ap_ipc_port *v_ipc_get_port(const char *pathname)
@@ -310,9 +328,21 @@ static ssize_t v_ipc_recv
     return t_rv;
 }
 
+static int v_ipc_close(struct ap_ipc_port *port)
+{
+    if (port == ipc_c_ports[SYSTEM_V]) {
+        return 0;
+    }
+    
+    struct v_port *v_port = port->x_object;
+    V_PORT_FREE(v_port);
+    return 0;
+}
+
 struct ap_ipc_operations system_v_ops = {
     .ipc_get_port = v_ipc_get_port,
     .ipc_connect = v_ipc_connect,
     .ipc_send = v_ipc_send,
     .ipc_recv = v_ipc_recv,
+    .ipc_close = v_ipc_close,
 };

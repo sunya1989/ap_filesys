@@ -119,11 +119,10 @@ static inline void rest_iide(struct ipc_inode_ide *iide)
     iide->ide_t.ide_c = iide->chrs + iide->off_set_t;
 }
 
-static void recode_proc_disc(struct ipc_sock *s)
+static void recode_proc_disc(struct ap_ipc_port *p, const char *sever_name)
 {
     time_t time_n;
     int fd;
-    const char *sever_name = s->sever_name;
     char *p_p;
     
     fd = open(AP_PROC_DISC_F, O_CREAT | O_TRUNC | O_RDWR, 0777);
@@ -139,7 +138,7 @@ static void recode_proc_disc(struct ipc_sock *s)
     memset(full_path, '\0', AP_IPC_PATH_LEN);
     p_p = path_names_cat(full_path, path, 2, "/");
     time_n = time(NULL);
-    snprintf(p_p, AP_IPC_PATH_LEN, ":%d:%d:%ld\n",s->pid, s->msgid, time_n);
+    snprintf(p_p, AP_IPC_PATH_LEN, ":%s:%ld\n",p->port_dis, time_n);
     Write_lock(fd, 0, SEEK_SET, 0);
     lseek(fd, 0, SEEK_END);
     write(fd, full_path, AP_IPC_PATH_LEN);
@@ -158,9 +157,9 @@ static void inode_disc_free(struct ap_inode *inode)
     }
 }
 
-static void handle_disc(struct ap_inode *inde, struct ap_ipc_port *p)
+static void handle_disc(struct ap_inode *inde, struct ap_ipc_port *p, const char *sever_name)
 {
-    recode_proc_disc(s);
+    recode_proc_disc(p, sever_name);
     if (inde == NULL) {
         return;
     }
@@ -558,6 +557,9 @@ static void *ap_proc_sever(void *arg)
     op_type_t type;
     ap_file_thread_init();
     struct bag_head trashs = BAG_HEAD_INIT(trashs);
+    
+    if (lisen_port->ipc_ops->ipc_lisen != NULL)
+        lisen_port->ipc_ops->ipc_lisen(lisen_port);
     while (1) {
         recv_s = lisen_port->ipc_ops->ipc_recv(lisen_port,&buf,AP_IPC_ONE_MSG_UNION,NULL,p_port);
         BAG_RAW_PUSH(buf, free, &trashs);
@@ -614,6 +616,7 @@ static struct ap_inode
     size_t strl0 = strlen(AP_PROC_FILE);
     size_t strl1 = strlen(m_info->sever_name);
     size_t strl3 = strl0+strl1;
+    
     struct ap_ipc_info_head *h_info;
     if (mkdir(AP_PROC_FILE, 1777) == -1 &&
         errno != EEXIST) {
@@ -634,6 +637,7 @@ static struct ap_inode
     h_info = MALLOC_IPC_INFO_HEAD();
     ops = ap_ipc_pro_ops[m_info->typ];
     if ((h_info->cs_port = ops->ipc_get_port(p_file)) == NULL){
+        IPC_PORT_FREE(h_info->cs_port);
         IPC_INFO_HEAD_FREE(h_info);
         return NULL;
     }
@@ -643,13 +647,19 @@ static struct ap_inode
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->cs_port);
     if (thr_cr_s == -1) {
         h_info->cs_port->ipc_ops->ipc_close(h_info->cs_port);
+        IPC_PORT_FREE(h_info->cs_port);
         IPC_INFO_HEAD_FREE(h_info);
         return NULL;
     }
     
+    char *sever_name = Mallocz(strl1 + 1);
+    strncpy(sever_name, m_info->sever_name, strl1);
+    h_info->sever_name = sever_name;
+    
     k_s = ap_ipc_kick_start(h_info->cs_port, p_file);
     if (k_s == -1){
         h_info->cs_port->ipc_ops->ipc_close(h_info->cs_port);
+        IPC_PORT_FREE(h_info->cs_port);
         IPC_INFO_HEAD_FREE(h_info);
         return NULL;
     }
@@ -743,10 +753,13 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     FILE *fs;
     char **cut;
     struct ap_ipc_info *info;
-    struct ap_ipc_port *s_port, *c_port;
     struct ap_inode *inode;
+    struct ap_ipc_port *s_port;
+    ppair_t *port_pair;
     enum connet_typ c_typ;
-    const char *sever_name = indc->cur_inode->name;
+    struct ap_ipc_info_head *h_info;
+    h_info = indc->cur_inode->parent->x_object;
+    const char *sever_name = h_info->sever_name;
     size_t strl0 = strlen(indc->cur_inode->name);
     size_t strl1 = strlen(indc->the_name);
     char full_p[AP_IPC_PATH_LEN];
@@ -775,28 +788,21 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     cut = cut_str(sever_file, ':', AP_IPC_RECODE_NUM);
     c_typ = atoi(cut[AP_C_T]);
     
-    if (ipc_c_ports[c_typ] == NULL) {
-        snprintf(full_p+strl0+strl1+1, AP_IPC_PATH_LEN, "/%ld_client",(long)getpid());
-        c_port = get_ipc_c_port(c_typ, full_p);
-        if (c_port == NULL) {
-            return -1;
-        }
-    }
-    
     s_port = MALLOC_IPC_PORT();
     s_port->port_dis = port_dis;
     s_port->ipc_ops = ap_ipc_pro_ops[c_typ];
     
-    if (s_port->ipc_ops->ipc_connect(s_port) == -1) {
-        handle_disc(NULL, s_port);
+    snprintf(full_p+strl0+strl1+1, AP_IPC_PATH_LEN, "/%ld_client",(long)getpid());
+    if ((port_pair = s_port->ipc_ops->ipc_connect(s_port, full_p)) == NULL) {
+        handle_disc(NULL, s_port, sever_name);
         return -1;
     }
     
     info = MALLOC_IPC_INFO();
     inode = MALLOC_AP_INODE();
-    info->c_port = c_port;
-    info->s_port = s_port;
+    info->port_pair = port_pair;
     info->c_t = c_typ;
+    info->info_h = h_info;
     
     inode->name = Mallocz(strl1 + 1);
     strncpy(inode->name, indc->the_name, strl1);
@@ -827,8 +833,8 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     
     *indc->cur_slash = '/';
     info = (struct ap_ipc_info *)indc->cur_inode->x_object;
-    struct ap_ipc_port *s_port = info->s_port;
-    struct ap_ipc_port *c_port = info->c_port;
+    struct ap_ipc_port *s_port = info->port_pair->far_port;
+    struct ap_ipc_port *c_port = info->port_pair->local_port;
     
     str_len = strlen(indc->the_name);
     struct ipc_inode_ide *iide;
@@ -928,8 +934,8 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
 {
     struct ap_inode *inode = file->relate_i;
     struct ap_ipc_info *info = inode->parent->x_object;
-    struct ap_ipc_port *s_port = info->s_port;
-    struct ap_ipc_port *c_port = info->c_port;
+    struct ap_ipc_port *s_port = info->port_pair->far_port;
+    struct ap_ipc_port *c_port = info->port_pair->local_port;
     if (info->disc) {
         inode_disc_free(inode);
         errno = ENOENT;
@@ -938,7 +944,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     
     if (s_port->ipc_ops->ipc_probe(s_port) == -1) {
         errno = EBADF;
-        handle_disc(inode, s_port);
+        handle_disc(inode, s_port, info->info_h->sever_name);
         return -1;
     }
 
@@ -998,8 +1004,8 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     struct ap_ipc_info *info = inode->parent->x_object;
     struct ap_ipc_port *s_port, *c_port;
     void *msg_buf;
-    s_port = info->s_port;
-    c_port = info->c_port;
+    s_port = info->port_pair->far_port;
+    c_port = info->port_pair->local_port;
     if (info->disc) {
         inode_disc_free(inode);
         errno = ENOENT;
@@ -1007,7 +1013,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     }
     if (s_port->ipc_ops->ipc_probe(s_port) == -1) {
         errno = EBADF;
-        handle_disc(inode, s_port);
+        handle_disc(inode, s_port, info->info_h->sever_name);
         return -1;
     }
     
@@ -1069,8 +1075,8 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
 {
     struct ap_ipc_port *s_port, *c_port;
     struct ap_ipc_info *info = inode->parent->x_object;
-    s_port = info->s_port;
-    c_port = info->c_port;
+    s_port = info->port_pair->far_port;
+    c_port = info->port_pair->local_port;
     if (info->disc) {
         inode_disc_free(inode);
         errno = ENOENT;
@@ -1078,7 +1084,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
     }
     if (s_port->ipc_ops->ipc_probe(s_port) == -1) {
         errno = EBADF;
-        handle_disc(inode, s_port);
+        handle_disc(inode, s_port, info->info_h->sever_name);
         return -1;
     }
     struct ap_msgbuf *msgbuf;
@@ -1144,15 +1150,15 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
 {
     struct ap_ipc_info *info = inode->parent->x_object;
     struct ap_ipc_port *s_port, *c_port;
-    s_port = info->s_port;
-    c_port = info->c_port;
+    s_port = info->port_pair->far_port;
+    c_port = info->port_pair->local_port;
     if (info->disc) {
         inode_disc_free(inode);
         return 0;
     }
     if (s_port->ipc_ops->ipc_probe(s_port) == -1) {
         errno = EBADF;
-        handle_disc(inode, s_port);
+        handle_disc(inode, s_port, info->info_h->sever_name);
         return -1;
     }
     
@@ -1275,8 +1281,8 @@ static ssize_t proc_readdir
 {
     struct ap_ipc_info *info = inode->parent->x_object;
     struct ap_ipc_port *s_port, *c_port;
-    s_port = info->s_port;
-    c_port = info->c_port;
+    s_port = info->port_pair->far_port;
+    c_port = info->port_pair->local_port;
     if (info->disc) {
         inode_disc_free(inode);
         errno = ENOENT;
@@ -1285,7 +1291,7 @@ static ssize_t proc_readdir
     
     if (s_port->ipc_ops->ipc_probe(s_port) == -1) {
         errno = EBADF;
-        handle_disc(inode, s_port);
+        handle_disc(inode, s_port, info->info_h->sever_name);
         return -1;
     }
     
@@ -1340,8 +1346,8 @@ static int proc_closedir(struct ap_inode *inode)
 {
     struct ap_ipc_info *info = inode->parent->x_object;
     struct ap_ipc_port *s_port, *c_port;
-    s_port = info->s_port;
-    c_port = info->c_port;
+    s_port = info->port_pair->far_port;
+    c_port = info->port_pair->local_port;
     if (info->disc) {
         inode_disc_free(inode);
         errno = ENOENT;
@@ -1350,7 +1356,7 @@ static int proc_closedir(struct ap_inode *inode)
     
     if (s_port->ipc_ops->ipc_probe(s_port) == -1) {
         errno = EBADF;
-        handle_disc(inode, s_port);
+        handle_disc(inode, s_port, info->info_h->sever_name);
         return -1;
     }
     
@@ -1396,8 +1402,8 @@ static int proc_destory(struct ap_inode *inode)
 {
     struct ap_ipc_info *info = inode->parent->x_object;
     struct ap_ipc_port *s_port, *c_port;
-    s_port = info->s_port;
-    c_port = info->c_port;
+    s_port = info->port_pair->far_port;
+    c_port = info->port_pair->local_port;
     if (info->disc) {
         inode_disc_free(inode);
         errno = ENOENT;
@@ -1406,7 +1412,7 @@ static int proc_destory(struct ap_inode *inode)
     
     if (s_port->ipc_ops->ipc_probe(s_port) == -1) {
         errno = EBADF;
-        handle_disc(inode, s_port);
+        handle_disc(inode, s_port, info->info_h->sever_name);
         return -1;
     }
     

@@ -16,7 +16,7 @@ struct ap_ipc_operations *ap_ipc_pro_ops[TYP_NUM] = {
 pthread_mutex_t c_port_lock = PTHREAD_MUTEX_INITIALIZER;
 struct ap_ipc_port *ipc_c_ports[TYP_NUM];
 
-struct ap_ipc_port *get_ipc_c_port(enum connet_typ typ, char *path)
+struct ap_ipc_port *get_ipc_c_port(enum connet_typ typ, const char *path)
 {
     pthread_mutex_lock(&c_port_lock);
     if (ipc_c_ports[typ] != NULL) {

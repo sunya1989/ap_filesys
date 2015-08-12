@@ -77,19 +77,18 @@ struct ipc_sock{
     key_t key;
 };
 
-static inline struct ipc_sock *MALLOC_IPC_SOCK()
-{
-    struct ipc_sock *ipc_s = Mallocx(sizeof(*ipc_s));
-    ipc_s->sever_name = NULL;
-    return ipc_s;
-}
-
 struct package_hint{
     void *p_hint;
     void (*p_release)(struct package_hint *);
 };
 
 struct ap_ipc_info_head;
+
+typedef struct ap_ipc_port_pair{
+    struct ap_ipc_port *local_port;
+    struct ap_ipc_port *far_port;
+}ppair_t;
+
 struct ap_ipc_port{
     struct ap_ipc_operations *ipc_ops;
     const char *port_dis;
@@ -102,11 +101,15 @@ static inline struct ap_ipc_port *MALLOC_IPC_PORT()
     return port;
 }
 
+static inline void IPC_PORT_FREE(struct ap_ipc_port *port)
+{
+    free((void *)port->port_dis);
+    free(port);
+}
+
 struct ap_ipc_info{
     struct ap_ipc_info_head *info_h;
-    struct ap_ipc_port *s_port;
-    struct ap_ipc_port *c_port;
-    struct ipc_sock sock;
+    ppair_t *port_pair;
     int disc;
     enum connet_typ c_t;                /*connect type of the severend*/
     struct ap_hash *inde_hash_table;
@@ -114,6 +117,7 @@ struct ap_ipc_info{
 
 struct ap_ipc_info_head{
     struct ap_ipc_port *cs_port;
+    const char *sever_name; 
     pthread_mutex_t typ_lock;
 };
 
@@ -140,15 +144,16 @@ static inline struct ap_ipc_info *MALLOC_IPC_INFO()
 
 struct ap_ipc_operations{
     struct ap_ipc_port *(*ipc_get_port)(const char *);
-    int (*ipc_connect)(struct ap_ipc_port *);
+    ppair_t *(*ipc_connect)(struct ap_ipc_port *, const char *);
     ssize_t (*ipc_send)
     (struct ap_ipc_port *, void *, size_t, struct package_hint *);
     ssize_t (*ipc_recv)
     (struct ap_ipc_port *, void **, size_t, struct package_hint *, struct ap_ipc_port *);
+    int (*ipc_lisen)(struct ap_ipc_port *);
     int (*ipc_close)(struct ap_ipc_port *);
     int (*ipc_probe)(struct ap_ipc_port *);
 };
 
-extern struct ap_ipc_port *get_ipc_c_port(enum connet_typ typ, char *path);
+extern struct ap_ipc_port *get_ipc_c_port(enum connet_typ typ, const char *path);
 
 #endif
