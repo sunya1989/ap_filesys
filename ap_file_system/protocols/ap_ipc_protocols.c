@@ -23,7 +23,7 @@ struct ap_ipc_port *get_ipc_c_port(enum connet_typ typ, const char *path)
         pthread_mutex_unlock(&c_port_lock);
         return ipc_c_ports[typ];
     }
-    struct ap_ipc_port *port = ap_ipc_pro_ops[typ]->ipc_get_port(path);
+    struct ap_ipc_port *port = ap_ipc_pro_ops[typ]->ipc_get_port(path, 0772);
     if (port == NULL) {
         pthread_mutex_unlock(&c_port_lock);
         return NULL;

@@ -8,11 +8,9 @@
 #include <stdio.h>
 #include <ap_fs.h>
 #include <fcntl.h>
-#include <sys/ipc.h>
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
-#include <sys/msg.h>
 #include <envelop.h>
 #include <ap_file.h>
 #include <ap_pthread.h>
@@ -24,24 +22,14 @@
 #include <convert.h>
 #include <dirent.h>
 #include <time.h>
+#include <ap_string.h>
 #include <ipc_protocol_headers.h>
 #include "proc_fs.h"
 #define IPC_PATH 0
 #define PROC_NAME 1
 #define IPC_KEY 2
-static int client_msid;
-static key_t client_key;
-
-key_t key[2];
-int msgid[2];
 
 struct ipc_holder_hash ipc_hold_table;
-
-pthread_mutex_t channel_lock = PTHREAD_MUTEX_INITIALIZER;
-unsigned long channel_n;
-static int ap_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg);
-static char *path_name_cat(char *dest, const char *src, size_t len, char *d);
-static char *path_names_cat(char *dest, const char **src, int num, char *d);
 static struct ap_inode_operations procfs_inode_operations;
 static struct ap_inode_operations procff_inode_operations;
 static struct ap_inode_operations proc_inode_operations;
@@ -194,21 +182,6 @@ static int ap_ipc_kick_start(struct ap_ipc_port *port, const char *path)
     fclose(fs);
     close(fd);
     return 0;
-}
-
-static key_t ap_ftok(pid_t pid, char *ipc_path)
-{
-    int cr_s;
-    key_t key;
-    
-    open(ipc_path, O_CREAT | O_TRUNC | O_RDWR);
-    if (cr_s == -1) {
-        return -1;
-    }
-    chmod(ipc_path, 0777);
-    close(cr_s);
-    key = ftok(ipc_path, (int)pid);
-    return key;
 }
 
 static void client_g(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *req)
@@ -636,13 +609,13 @@ static struct ap_inode
     snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN, "/%ld_sever",(long)pid);
     h_info = MALLOC_IPC_INFO_HEAD();
     ops = ap_ipc_pro_ops[m_info->typ];
-    if ((h_info->cs_port = ops->ipc_get_port(p_file)) == NULL){
+    if ((h_info->cs_port = ops->ipc_get_port(p_file, 0777)) == NULL){
         IPC_PORT_FREE(h_info->cs_port);
         IPC_INFO_HEAD_FREE(h_info);
         return NULL;
     }
     h_info->cs_port->ipc_ops = ops;
-    snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "%s@%ld",m_info->sever_name,(long)pid);
+    snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/%s@%ld",m_info->sever_name,(long)pid);
     
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->cs_port);
     if (thr_cr_s == -1) {
@@ -673,33 +646,6 @@ static struct ap_inode
     return init_inode;
 }
 
-static char **cut_str(const char *s, char d, size_t len)
-{
-    char *s_p,*head;
-    size_t p_l = strlen(s);
-    char *tm_path = Mallocz(p_l+1);
-    strncpy(tm_path, s, p_l);
-    head = tm_path;
-    char **cut = Mallocz(sizeof(char*)*len);
-    int i = 0;
-    
-    while (i < AP_IPC_RECODE_NUM) {
-        s_p = strchr(head, d);
-        size_t str_len;
-        if (s_p != NULL) {
-            *s_p = '\0';
-        }
-        str_len = strlen(head);
-        char *item = Mallocz(str_len+1);
-        strncpy(item, head, str_len);
-        *(item + str_len) = '\0';
-        cut[i] = item;
-        head = ++s_p;
-        i++;
-    }
-    free(tm_path);
-    return cut;
-}
 /**
  *get the dir of certain kind of service under which can
  *have diffrent process porvide same service,

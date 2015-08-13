@@ -132,7 +132,6 @@ struct ap_dir_t{
     char *d_buff_p;
     struct ap_inode *dir_i;
     void *cursor;
-    struct hash_identity cursor_ide; //track the dir within diffrent process
     void (*release)(void *);
 };
 

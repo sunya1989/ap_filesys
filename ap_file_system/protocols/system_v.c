@@ -12,13 +12,11 @@
 #include <sys/stat.h>
 #include <sys/msg.h>
 #include "system_v.h"
-
 #define V_PATH_CAT "@SYSTEM_V"
 
 struct msg_recv_hint{
     unsigned long ch_n;
 };
-
 struct v_head{
     pid_t pid;
     int msgid;
@@ -128,32 +126,6 @@ static key_t ap_ftok(pid_t pid, const char *ipc_path)
     return key;
 }
 
-static struct v_head *v_creat_file(const char *ipc_path, mode_t mode)
-{
-    pid_t pid = getpid();
-    errno = 0;
-    key_t key;
-    int msgid;
-    int mkd = mkdir(ipc_path, 0755);
-    if (mkd == -1 && errno != EEXIST) {
-        return NULL;
-    }
-    struct v_head *head = Mallocz(sizeof(*head));
-    key = ap_ftok(pid,ipc_path);
-    if (key == -1) {
-        errno = EBADF;
-        return NULL;
-    }
-    msgid = msgget(key, IPC_CREAT | mode);
-    if (msgid == -1) {
-        errno = EBADF;
-        return NULL;
-    }
-    head->key = key;
-    head->msgid = msgid;
-    return head;
-}
-
 static inline unsigned long get_channel(struct v_port *port)
 {
     unsigned long ch_n;
@@ -168,34 +140,6 @@ static void v_package_hint_release(struct package_hint *hint)
 {
     free(hint->p_hint);
     return;
-}
-
-static char **cut_str(const char *s, char d, size_t len)
-{
-    char *s_p,*head;
-    size_t p_l = strlen(s);
-    char *tm_path = Mallocz(p_l+1);
-    strncpy(tm_path, s, p_l);
-    head = tm_path;
-    char **cut = Mallocz(sizeof(char*)*len);
-    int i = 0;
-    
-    while (i < AP_IPC_RECODE_NUM) {
-        s_p = strchr(head, d);
-        size_t str_len;
-        if (s_p != NULL) {
-            *s_p = '\0';
-        }
-        str_len = strlen(head);
-        char *item = Mallocz(str_len+1);
-        strncpy(item, head, str_len);
-        *(item + str_len) = '\0';
-        cut[i] = item;
-        head = ++s_p;
-        i++;
-    }
-    free(tm_path);
-    return cut;
 }
 
 static ppair_t *v_ipc_connect(struct ap_ipc_port *port, const char *local_addr)
@@ -237,7 +181,7 @@ static ppair_t *v_ipc_connect(struct ap_ipc_port *port, const char *local_addr)
     return pair;
 }
 
-static struct ap_ipc_port *v_ipc_get_port(const char *pathname)
+static struct ap_ipc_port *v_ipc_get_port(const char *pathname, mode_t mode)
 {
     pid_t pid = getpid();
     key_t key;
@@ -254,7 +198,8 @@ static struct ap_ipc_port *v_ipc_get_port(const char *pathname)
     key = ap_ftok(pid, p);
     if (key == -1)
         return NULL;
-    msgid = msgget(key, 0);
+    errno = 0;
+    msgid = msgget(key, IPC_CREAT | mode);
     if (msgid == -1)
         return NULL;
     v_port = MALLOC_V_PORT();
@@ -269,6 +214,8 @@ static struct ap_ipc_port *v_ipc_get_port(const char *pathname)
     
     port = Mallocz(sizeof(*port));
     port->port_dis = p_dis;
+    port->x_object = v_port;
+    port->ipc_ops = ap_ipc_pro_ops[SYSTEM_V];
     return port;
 }
 
@@ -305,7 +252,7 @@ static ssize_t v_ipc_recv
     struct v_port *c_port = port->x_object;
     unsigned long wait_ch = 0;
     struct v_port *v_port;
-    if (hint->p_hint != NULL) {
+    if (hint != NULL) {
         struct msg_recv_hint *r_h = hint->p_hint;
         wait_ch = r_h->ch_n;
     }

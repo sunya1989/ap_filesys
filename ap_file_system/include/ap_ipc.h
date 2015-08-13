@@ -69,14 +69,6 @@ enum connet_typ{
 };
 
 extern  struct ap_ipc_port *ipc_c_ports[TYP_NUM];
-
-struct ipc_sock{
-    char *sever_name;
-    pid_t pid;
-    int msgid;
-    key_t key;
-};
-
 struct package_hint{
     void *p_hint;
     void (*p_release)(struct package_hint *);
@@ -143,7 +135,7 @@ static inline struct ap_ipc_info *MALLOC_IPC_INFO()
 }
 
 struct ap_ipc_operations{
-    struct ap_ipc_port *(*ipc_get_port)(const char *);
+    struct ap_ipc_port *(*ipc_get_port)(const char *, mode_t);
     ppair_t *(*ipc_connect)(struct ap_ipc_port *, const char *);
     ssize_t (*ipc_send)
     (struct ap_ipc_port *, void *, size_t, struct package_hint *);
