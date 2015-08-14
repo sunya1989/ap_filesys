@@ -166,7 +166,7 @@ struct ipc_inode_ide{
     struct hash_identity ide_p; /*for process*/
     struct hash_identity ide_t; /*for thread*/
     int fd;
-    char chrs[0];
+    char chrs[100];
 };
 
 struct ipc_inode_holder{

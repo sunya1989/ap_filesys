@@ -56,17 +56,18 @@ static int
 v_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg)
 {
     const char *c_p = buf;
-    size_t dl = len;
+    ssize_t dl = len;
     int msgsnd_s;
     int seq = 0;
     struct ap_msgseg seg;
+    memset(seg.segc, '\0', AP_MSGSEG_LEN);
     seg.mtype = ch_n;
     seg.len_t = len;
     while (dl > 0) {
         seg.seq = seq;
         memcpy(seg.segc, c_p, AP_MSGSEG_LEN);
         seg.data_len = dl< AP_MSGSEG_LEN ? (int)dl : AP_MSGSEG_LEN;
-        msgsnd_s = msgsnd(msgid, &seg, sizeof(struct ap_msgseg), msgflg);
+        msgsnd_s = msgsnd(msgid, (const void *)&seg, MSG_LEN, msgflg);
         if (msgsnd_s == -1) {
             errno = EBADF;
             return -1;
@@ -100,7 +101,7 @@ static ssize_t v_msgrcv(int msgid, void **d_buf, unsigned long wait_seq)
             if (dl == 0)
                 goto FINISH;
             
-            *d_buf = Mallocx(dl);
+            *d_buf = Mallocz(dl);
             cc_p = c_p = *d_buf;
         }
         data_l = buf.data_len;
@@ -130,6 +131,9 @@ static inline unsigned long get_channel(struct v_port *port)
 {
     unsigned long ch_n;
     pthread_mutex_lock(&port->ch_lock);
+    if (port->channel <= 1) {
+        port->channel = 2;
+    }
     ch_n = port->channel;
     port->channel++;
     pthread_mutex_unlock(&port->ch_lock);
@@ -163,16 +167,15 @@ static ppair_t *v_ipc_connect(struct ap_ipc_port *port, const char *local_addr)
     
     if (ipc_c_ports[SYSTEM_V] == NULL) {
         c_port = get_ipc_c_port(SYSTEM_V, local_addr);
-        if (c_port == NULL) {
+        if (c_port == NULL)
             return NULL;
-        }
     }
     
     v_port = MALLOC_V_PORT();
     v_port->head.key = key;
     v_port->head.msgid = msgid;
     v_port->head.pid = pid;
-    v_port->channel = random();
+    v_port->channel = 1;
     port->x_object = v_port;
     
     pair->far_port = port;
@@ -198,7 +201,6 @@ static struct ap_ipc_port *v_ipc_get_port(const char *pathname, mode_t mode)
     key = ap_ftok(pid, p);
     if (key == -1)
         return NULL;
-    errno = 0;
     msgid = msgget(key, IPC_CREAT | mode);
     if (msgid == -1)
         return NULL;
@@ -206,6 +208,7 @@ static struct ap_ipc_port *v_ipc_get_port(const char *pathname, mode_t mode)
     v_port->head.key = key;
     v_port->head.msgid = msgid;
     v_port->head.pid = pid;
+    v_port->channel = random();
     /*connect type:pid:key:msgid*/
     sprintf(dis, "%d:%ld:%d:%d",SYSTEM_V,(long)pid,key,msgid);
     size_t len = strlen(dis);
@@ -223,14 +226,15 @@ static ssize_t v_ipc_send
 (struct ap_ipc_port *port, void *buf, size_t len, struct package_hint *hint)
 {
     struct ap_ipc_port *recv_port = ipc_c_ports[SYSTEM_V];
-    if (recv_port == NULL) {
+    if (recv_port == NULL)
         return -1;
-    }
+    
     struct v_port *recv_v_port = recv_port->x_object;
     struct v_port *v_port = port->x_object;
+    struct v_msgbuf *v_buf;
     struct msg_recv_hint *r_h = Mallocz(sizeof(*r_h));
-    size_t s_l = sizeof(struct v_msgbuf) + len;
-    struct v_msgbuf *v_buf = Mallocz(s_l);
+    size_t s_l = sizeof(*v_buf) + len;
+    v_buf = Mallocz(s_l);
     memcpy(v_buf->buf, buf, len);
     ssize_t send_s;
     unsigned long ch_n = get_channel(recv_v_port);
@@ -257,9 +261,9 @@ static ssize_t v_ipc_recv
         wait_ch = r_h->ch_n;
     }
     ssize_t recv_s = v_msgrcv(c_port->head.msgid, buf, wait_ch);
-    if (recv_s == -1) {
+    if (recv_s == -1)
         return -1;
-    }
+    
     struct v_msgbuf *v_buf = *buf;
     if (p_port != NULL) {
         v_port = p_port->x_object = MALLOC_V_PORT();
@@ -277,9 +281,9 @@ static ssize_t v_ipc_recv
 
 static int v_ipc_close(struct ap_ipc_port *port)
 {
-    if (port == ipc_c_ports[SYSTEM_V]) {
+    if (port == ipc_c_ports[SYSTEM_V])
         return 0;
-    }
+    
     
     struct v_port *v_port = port->x_object;
     V_PORT_FREE(v_port);

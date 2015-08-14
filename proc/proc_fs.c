@@ -50,7 +50,7 @@ static char **pull_req(struct ap_msgreq *req)
     size_t data_len;
     char *p;
     char *cp;
-    char **msg_req = Mallocx(sizeof(char *) *req->index_lenth);
+    char **msg_req = Mallocz(sizeof(char *) *req->index_lenth);
     size_t *list = (size_t *)req->req_detail;
     char *detail = (char *)(list + req->index_lenth);
     p = detail;
@@ -64,10 +64,10 @@ static char **pull_req(struct ap_msgreq *req)
     return msg_req;
 }
 
-static struct ap_msgbuf *constr_req(void *buf, size_t buf_len, size_t list[], int lis_len)
+static struct ap_msgbuf *constr_req(void *buf, size_t buf_len, size_t list[], int lis_len, size_t *ttlen)
 {
-    struct ap_msgbuf *msgbuf =
-    (struct ap_msgbuf *)Mallocz(sizeof(struct ap_msgbuf) + buf_len + sizeof(size_t)*lis_len);
+    *ttlen = sizeof(struct ap_msgbuf) + buf_len + sizeof(size_t)*lis_len;
+    struct ap_msgbuf *msgbuf = (struct ap_msgbuf *)Mallocz(*ttlen);
     msgbuf->req.index_lenth = lis_len;
     size_t *si = (size_t *)msgbuf->req.req_detail;
     char *cp = (char *)(si + lis_len);
@@ -75,6 +75,7 @@ static struct ap_msgbuf *constr_req(void *buf, size_t buf_len, size_t list[], in
         si[i] = list[i];
     }
     memcpy(cp, buf, buf_len);
+    
     return msgbuf;
 }
 
@@ -618,6 +619,7 @@ static struct ap_inode
     snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/%s@%ld",m_info->sever_name,(long)pid);
     
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->cs_port);
+    pthread_detach(thr_n);
     if (thr_cr_s == -1) {
         h_info->cs_port->ipc_ops->ipc_close(h_info->cs_port);
         IPC_PORT_FREE(h_info->cs_port);
@@ -663,8 +665,8 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     errno = 0;
     dp = opendir(AP_PROC_FILE);
     if (dp == NULL) {
-        perror("ap_proc");
-        return -1;
+        perror("ap_proc can't open the dir");
+        goto FAILED;
     }
     
     while ((dirp = readdir(dp)) != NULL) {
@@ -684,9 +686,13 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
             ap_inode_put(indc->cur_inode);
             ap_inode_get(inode);
             indc->cur_inode = inode;
-            return 0;
+            goto FIND;
         }
     }
+FIND:
+    closedir(dp);
+    return 0;
+FAILED:
     closedir(dp);
     return -1;
 }
@@ -697,7 +703,6 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
 static int procff_get_inode(struct ap_inode_indicator *indc)
 {
     FILE *fs;
-    char **cut;
     struct ap_ipc_info *info;
     struct ap_inode *inode;
     struct ap_ipc_port *s_port;
@@ -705,21 +710,26 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     enum connet_typ c_typ;
     struct ap_ipc_info_head *h_info;
     h_info = indc->cur_inode->parent->x_object;
-    const char *sever_name = h_info->sever_name;
-    size_t strl0 = strlen(indc->cur_inode->name);
     size_t strl1 = strlen(indc->the_name);
     char full_p[AP_IPC_PATH_LEN];
+    char sever_name[AP_IPC_RECODE_LEN];
     char sever_file[AP_IPC_RECODE_LEN];
     memset(full_p, '\0', AP_IPC_PATH_LEN);
     memset(sever_file, '\0', AP_IPC_RECODE_LEN);
+    
+    char *at = strchr(indc->the_name, AT);
+    size_t strl0 = at - indc->the_name;
+    
+    strncpy(sever_name, indc->the_name, strl0);
     strncpy(sever_file, indc->the_name, strl1);
     
-    const char *paths[] = {
+    const char *s_paths[] = {
         AP_PROC_FILE,
         sever_name,
         sever_file,
     };
-    path_names_cat(full_p, paths, 3,"/");
+    
+    path_names_cat(full_p, s_paths, 3,"/");
     fs = fopen(full_p, "r+b");
     if (fs == NULL)
         return -1;
@@ -730,17 +740,26 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
         return -1;
     }
     fclose(fs);
-    *(sever_file + (strlen(sever_file) - 1)) = '\0';
-    cut = cut_str(sever_file, ':', AP_IPC_RECODE_NUM);
-    c_typ = atoi(cut[AP_C_T]);
+    
+    char *d = strchr(port_dis, ':');
+    if (d == NULL) {
+        free(port_dis);
+        return -1;
+    }
+    
+    *d = '\0';
+    c_typ = atoi(port_dis);
+    *d = ':';
     
     s_port = MALLOC_IPC_PORT();
     s_port->port_dis = port_dis;
     s_port->ipc_ops = ap_ipc_pro_ops[c_typ];
     
-    snprintf(full_p+strl0+strl1+1, AP_IPC_PATH_LEN, "/%ld_client",(long)getpid());
+    size_t strl3 = strlen(AP_PROC_FILE);
+    snprintf(full_p+strl3, AP_IPC_PATH_LEN, "/%s/%ld_client",h_info->sever_name,(long)getpid());
     if ((port_pair = s_port->ipc_ops->ipc_connect(s_port, full_p)) == NULL) {
         handle_disc(NULL, s_port, sever_name);
+        free(port_dis);
         return -1;
     }
     
@@ -761,7 +780,7 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     ap_inode_put(indc->cur_inode);
     ap_inode_get(inode);
     indc->cur_inode = inode;
-    fclose(fs);
+    free(port_dis);
     return 0;
 }
 
@@ -786,18 +805,25 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     struct ipc_inode_ide *iide;
     size_t buf_l = sizeof(*iide) + str_len;
     iide = Mallocz(buf_l + 1);
-    strncpy(iide->chrs, indc->the_name, str_len);
+    char *cp = iide->chrs;
+    if (*indc->the_name != '/') {
+        *iide->chrs = '/';
+        str_len++;
+        cp++;
+    }
+    strncpy(cp, indc->the_name, str_len);
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
     iide->off_set_p = iide->off_set_t = 0;
     
     size_t lis[] = {buf_l};
-    buf = constr_req(iide, buf_l, lis, 1);
+    size_t ttlen;
+    buf = constr_req(iide, buf_l, lis, 1, &ttlen);
     buf->req.req_t.op_type = g;
     struct package_hint hint;
-
+    
     ssize_t sent_s = s_port->ipc_ops->
-    ipc_send(s_port, buf, sizeof(struct ap_msgbuf) + str_len, &hint);
+    ipc_send(s_port, buf, ttlen, &hint);
     if (sent_s == -1) {
         errno = ENOENT;
         return -1;
@@ -864,8 +890,12 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     if (get)
         return get;
     
-    strl = strlen(ide.ide_c);
+    strl = strlen(ide.ide_c + 2);
     path = Mallocx(strl);
+    if (*ide.ide_c != '/') {
+        *path = '/';
+        path++;
+    }
     memcpy(path, ide.ide_c, strl);
     *(path + strl) = '\0';
     
@@ -912,8 +942,9 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     iide->ide_t.ide_type.thr_id = thr_id;
     
     size_t list[] = {buf_l};
+    size_t ttlen;
     
-    msgbuf = constr_req(iide, buf_l, list, 1);
+    msgbuf = constr_req(iide, buf_l, list, 1, &ttlen);
     msgbuf->req.req_t.op_type = r;
     msgbuf->req.req_t.read_len = size;
     msgbuf->req.req_t.off_size = off;
@@ -921,7 +952,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
-    ipc_send(s_port, msgbuf, sizeof(struct ap_msgbuf) + buf_l, &hint);
+    ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1)
         return -1;
     
@@ -986,9 +1017,10 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     };
     
     size_t list[] = {buf_l, size};
-    msg_buf = collect_items(items, buf_l + size, list, 2);
+    size_t ttlen;
     
-    msgbuf = constr_req(msg_buf, buf_l, list, 1);
+    msg_buf = collect_items(items, buf_l + size, list, 2);
+    msgbuf = constr_req(msg_buf, buf_l + size, list, 2, &ttlen);
     msgbuf->req.req_t.op_type = w;
     msgbuf->req.req_t.wirte_len = size;
     msgbuf->req.req_t.off_size = off;
@@ -996,7 +1028,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
-    ipc_send(s_port, msgbuf, sizeof(struct ap_msgbuf) + buf_l, &hint);
+    ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1)
         return -1;
     
@@ -1051,13 +1083,15 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
     
-    msgbuf = constr_req(iide, buf_l, list, 1);
+    size_t ttlen;
+    
+    msgbuf = constr_req(iide, buf_l, list, 1, &ttlen);
     msgbuf->req.req_t.op_type = o;
     
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
-    ipc_send(s_port, msgbuf, sizeof(struct ap_msgbuf) + buf_l, &hint);
+    ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1)
         return -1;
     
@@ -1126,13 +1160,15 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
     
-    msgbuf = constr_req(iide, buf_l, list, 1);
+    size_t ttlen;
+    
+    msgbuf = constr_req(iide, buf_l, list, 1, &ttlen);
     msgbuf->req.req_t.op_type = c;
     
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
-    ipc_send(s_port, msgbuf, sizeof(struct ap_msgbuf) + buf_l, &hint);
+    ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1) {
         return -1;
     }
@@ -1260,14 +1296,15 @@ static ssize_t proc_readdir
     iide->ide_t.ide_type.thr_id = thr_id;
     TRASH_BAG_RAW_PUSH(iide, free);
     
-    msgbuf = constr_req(iide, buf_l, lis, 1);
+    size_t ttlen;
+    msgbuf = constr_req(iide, buf_l, lis, 1, &ttlen);
     TRASH_BAG_RAW_PUSH(msgbuf, free);
     msgbuf->req.req_t.op_type = rdir;
     msgbuf->req.req_t.read_len = num;
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
-    ipc_send(s_port, msgbuf, sizeof(*msgbuf) + buf_l, &hint);
+    ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1) {
         B_return(-1);
     }
@@ -1322,14 +1359,15 @@ static int proc_closedir(struct ap_inode *inode)
     iide->ide_t.ide_type.thr_id = pthread_self();
     TRASH_BAG_RAW_PUSH(iide, free);
     
-    msgbuf = constr_req(iide, buf_l, lis, 1);
+    size_t ttlen;
+    msgbuf = constr_req(iide, buf_l, lis, 1, &ttlen);
     TRASH_BAG_RAW_PUSH(msgbuf, free);
     msgbuf->req.req_t.op_type = cdir;
     
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
-    ipc_send(s_port, msgbuf, sizeof(*msgbuf) + buf_l, &hint);
+    ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1) {
         B_return(-1);
     }
@@ -1377,13 +1415,14 @@ static int proc_destory(struct ap_inode *inode)
     strncpy(iide->chrs, path, str_len);
     iide->ide_p.ide_type.pid = pid;
     iide->off_set_p = 0;
-    msgbuf = constr_req(iide, buf_l, list, 1);
+    size_t ttlen;
+    msgbuf = constr_req(iide, buf_l, list, 1, &ttlen);
     msgbuf->req.req_t.op_type = d;
     
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
-    ipc_send(s_port, msgbuf, sizeof(struct ap_msgbuf) + buf_l, &hint);
+    ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1)
         return -1;
     

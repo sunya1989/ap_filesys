@@ -40,6 +40,5 @@ int ap_file_thread_init()
         perror("ap_thread set failes\n");
         exit(1);
     }
-    
     return 0;
 }
