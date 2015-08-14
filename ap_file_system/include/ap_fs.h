@@ -166,12 +166,12 @@ struct ipc_inode_ide{
     struct hash_identity ide_p; /*for process*/
     struct hash_identity ide_t; /*for thread*/
     int fd;
-    char chrs[100];
+    char chrs[0];
 };
 
 struct ipc_inode_holder{
     struct ap_inode *inde;
-    struct ap_hash *ipc_file_hash; //hash thrd_byp_t
+    struct ap_hash *ipc_byp_hash; //hash thrd_byp_t
 };
 
 struct ipc_inode_thread_byp{
@@ -210,7 +210,7 @@ static inline struct holder *MALLOC_HOLDER()
     struct holder *hl = Mallocz(sizeof(*hl));
     INIT_LIST_HEAD(&hl->hash_lis);
     hl->ihl.inde = NULL;
-    hl->ihl.ipc_file_hash = NULL;
+    hl->ihl.ipc_byp_hash = NULL;
     hl->ide.ide_c = NULL;
     hl->ipc_get = hl->ipc_put = NULL;
     return hl;
@@ -228,7 +228,7 @@ static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
 {
     struct ipc_inode_holder *hl = Mallocx(sizeof(*hl));
     hl->inde = NULL;
-    hl->ipc_file_hash = NULL;
+    hl->ipc_byp_hash = NULL;
     return hl;
 }
 

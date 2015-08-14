@@ -165,7 +165,9 @@ static ppair_t *v_ipc_connect(struct ap_ipc_port *port, const char *local_addr)
     if (msgget(key, 0) == -1)
         return NULL;
     
-    if (ipc_c_ports[SYSTEM_V] == NULL) {
+    c_port = ipc_c_ports[SYSTEM_V];
+    
+    if (c_port == NULL) {
         c_port = get_ipc_c_port(SYSTEM_V, local_addr);
         if (c_port == NULL)
             return NULL;
@@ -176,8 +178,8 @@ static ppair_t *v_ipc_connect(struct ap_ipc_port *port, const char *local_addr)
     v_port->head.msgid = msgid;
     v_port->head.pid = pid;
     v_port->channel = 1;
-    port->x_object = v_port;
     
+    port->x_object = v_port;
     pair->far_port = port;
     pair->local_port = c_port;
     
@@ -283,8 +285,6 @@ static int v_ipc_close(struct ap_ipc_port *port)
 {
     if (port == ipc_c_ports[SYSTEM_V])
         return 0;
-    
-    
     struct v_port *v_port = port->x_object;
     V_PORT_FREE(v_port);
     return 0;

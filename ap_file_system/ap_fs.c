@@ -52,6 +52,14 @@ BAG_IMPOR_FREE(search_mtp_unlock, struct ap_inode);
 BAG_IMPOR_FREE(AP_INODE_FREE, struct ap_inode);
 BAG_IMPOR_FREE(AP_FILE_FREE, struct ap_file);
 
+static inline void fix_inode(struct ap_inode *inode, struct ap_inode *parent, char *name)
+{
+    if (inode->links == 0) {
+        inode->links++;
+    }
+    inode->parent = parent;
+}
+
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;
@@ -267,7 +275,7 @@ void THRD_BYP_FREE(thrd_byp_t *byp)
 
 void iholer_destory(struct ipc_inode_holder *iholder)
 {
-    struct ap_hash *hash = iholder->ipc_file_hash;
+    struct ap_hash *hash = iholder->ipc_byp_hash;
     struct list_head *lis_pos1;
     struct list_head *lis_pos2;
     struct hash_union *un_pos;
