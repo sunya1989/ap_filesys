@@ -61,7 +61,6 @@ int ap_open(const char *path, int flags)
         int open_s;
         open_s = final_indc->cur_inode->f_ops->open(file, final_indc->cur_inode, flags);
         if (open_s == -1) {
-            AP_FILE_FREE(file);
             B_return(-1);
         }
     }
@@ -74,21 +73,21 @@ int ap_open(const char *path, int flags)
     if (file_info.o_files >= _OPEN_MAX) {
         errno = EMFILE;
         pthread_mutex_unlock(&file_info.files_lock);
-        AP_FILE_FREE(file);
         B_return(-1);
     }
+    BAG_LOOSE(&file->file_bag);
     for (int i=0; i<_OPEN_MAX; i++) {
         if (file_info.file_list[i] == NULL) {
             file_info.file_list[i] = file;
-            ap_fd = i;
             file_info.o_files++;
+            ap_fd = i;
             break;
         }
     }
     file->mod = flags;
     pthread_mutex_unlock(&file_info.files_lock);
     AP_INODE_INICATOR_FREE(final_indc);
-    B_return(0);
+    B_return(ap_fd);
 }
 
 static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const char *path)

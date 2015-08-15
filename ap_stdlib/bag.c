@@ -25,6 +25,7 @@ struct bag *MALLOC_BAG()
     bg->release = NULL;
     bg->trash = NULL;
     bg->is_embed = 0;
+    bg->count = 0;
     return bg;
 }
 
@@ -42,6 +43,9 @@ void *__bag_pop(struct bag_head *head)
     void *t;
     struct bag *bg = head->list;
     head->list = bg->next;
+    if (bg->count) {
+        bg->count--;
+    }
     t = bg->trash;
     if (!bg->is_embed) {
         free(bg);
@@ -71,9 +75,13 @@ void __bag_release(struct bag_head *head)
     while (head->list != NULL) {
         bg = head->list;
         next = bg->next;
+        head->list = next;
+        if (bg->count) {
+            bg->count--;
+            continue;
+        }
         embed = bg->is_embed;
         bg->release(bg->trash);
-        head->list = next;
         if (!embed) {
             free(bg);
         }
@@ -92,16 +100,12 @@ void __bag_pour(struct bag_head *head)
         next = bg->next;
         embed = bg->is_embed;
         head->list = next;
+        if (bg->count) {
+            bg->count--;
+        }
         if (!embed) {
             free(bg);
         }
     }
     head->list_tail = &head->list;
 }
-
-
-
-
-
-
-

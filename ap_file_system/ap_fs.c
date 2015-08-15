@@ -52,14 +52,6 @@ BAG_IMPOR_FREE(search_mtp_unlock, struct ap_inode);
 BAG_IMPOR_FREE(AP_INODE_FREE, struct ap_inode);
 BAG_IMPOR_FREE(AP_FILE_FREE, struct ap_file);
 
-static inline void fix_inode(struct ap_inode *inode, struct ap_inode *parent, char *name)
-{
-    if (inode->links == 0) {
-        inode->links++;
-    }
-    inode->parent = parent;
-}
-
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;

@@ -21,6 +21,7 @@
                                 __bag_push(____bag, ____bag_l);\
                             }while(0)
 
+#define BAG_LOOSE(b) do{(b)->count++;}while(0)
 #define B__return   do{__bag_release(____bag_l); return;}while(0)
 #define B_return(r) do{__bag_release(____bag_l); return r;}while(0)
 
@@ -54,6 +55,7 @@ void BAG_##func(void *trash)                                                    
 
 struct bag{
     int is_embed;
+    int count;
     struct bag *next;
     void *trash;
     void (*release)(void*);

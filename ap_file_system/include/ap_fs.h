@@ -346,6 +346,7 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
     indc->indic_bag.trash = indc;
     indc->indic_bag.release = BAG_AP_INODE_INICATOR_FREE;
     indc->indic_bag.is_embed = 1;
+    indc->indic_bag.count = 0;
 }
 
 static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
@@ -384,6 +385,7 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     file->file_bag.trash = file;
     file->file_bag.release = BAG_AP_FILE_FREE;
     file->file_bag.is_embed = 1;
+    file->file_bag.count = 0;
     file->ipc_fd = -1;
     INIT_LIST_HEAD(&file->ipc_file);
     int init = pthread_mutex_init(&file->file_lock, NULL);

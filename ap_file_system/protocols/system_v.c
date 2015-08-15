@@ -67,11 +67,14 @@ v_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg)
         seg.seq = seq;
         memcpy(seg.segc, c_p, AP_MSGSEG_LEN);
         seg.data_len = dl< AP_MSGSEG_LEN ? (int)dl : AP_MSGSEG_LEN;
-        msgsnd_s = msgsnd(msgid, (const void *)&seg, MSG_LEN, msgflg);
-        if (msgsnd_s == -1) {
-            errno = EBADF;
-            return -1;
-        }
+        do {
+            msgsnd_s = msgsnd(msgid, (const void *)&seg, MSG_LEN, msgflg);
+            if (msgsnd_s == -1) {
+                errno = EBADF;
+                return -1;
+            }
+        } while (msgsnd_s == -1 && errno == EINTR);
+   
         dl -= AP_MSGSEG_LEN;
         if (dl>0) 
             c_p += AP_MSGSEG_LEN;
@@ -89,13 +92,15 @@ static ssize_t v_msgrcv(int msgid, void **d_buf, unsigned long wait_seq)
     ssize_t recv_s;
     int dl = -1;
     int data_l = 0;
-    
     do {
-        recv_s = msgrcv(msgid, (void *)&buf, MSG_LEN, wait_seq, 0);
-        if (recv_s == -1) {
-            perror("rcv failed");
-            return -1;
-        }
+        do{
+            recv_s = msgrcv(msgid, (void *)&buf, MSG_LEN, wait_seq, 0);
+            if (recv_s == -1) {
+                perror("rcv failed");
+                return -1;
+            }
+        }while (recv_s == -1 && errno == EINTR);
+    
         if (dl == -1) {
             rv = dl = (int)buf.len_t;
             if (dl == 0)
