@@ -2,8 +2,8 @@
 //  proc_fs.h
 //  ap_editor
 //
-//  Created by sunya on 15/3/27.
-//  Copyright (c) 2015年 sunya. All rights reserved.
+//  Created by HU XUKAI on 15/3/27.
+//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
 
 #ifndef ap_file_system_proc_fs_h

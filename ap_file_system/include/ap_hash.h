@@ -2,8 +2,8 @@
 //  hash.h
 //  ap_editor
 //
-//  Created by sunya on 15/4/30.
-//  Copyright (c) 2015年 sunya. All rights reserved.
+//  Created by HU XUKAI on 15/4/30.
+//  Copyright (c) 2015年 HU XUKAI <goingonhxk@gmail.com>
 //
 
 #ifndef ap_file_system_ap_hash_h

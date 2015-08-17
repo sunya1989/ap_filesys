@@ -2,8 +2,8 @@
 //  ap_string.c
 //  ap_editor
 //
-//  Created by sunya on 15/8/3.
-//  Copyright (c) 2015年 sunya. All rights reserved.
+//  Created by HU XUKAI on 15/8/3.
+//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
 
 #include <stdio.h>
@@ -56,4 +56,15 @@ char *path_names_cat(char *dest, const char **src, int num, char *d)
         path_name_cat(dest, src[i], strl, d);
     }
     return dest + strl + (num-1);
+}
+
+char *path_cpy_add_root(char *dest, const char *src, size_t len)
+{
+    char *cp = dest;
+    if (*src != '/') {
+        *cp = '/';
+        cp++;
+    }
+    strncpy(cp, src, len);
+    return dest;
 }

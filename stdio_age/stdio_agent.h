@@ -2,8 +2,8 @@
 //  stdio_agent.h
 //  ap_file_system
 //
-//  Created by sunya on 14/12/26.
-//  Copyright (c) 2014年 sunya. All rights reserved.
+//  Created by HU XUKAI on 14/12/26.
+//  Copyright (c) 2014年 HU XUKAI.
 //
 
 #ifndef __ap_file_system__stdio_agent__

@@ -2,8 +2,8 @@
 //  ap_file.c
 //  ap_file_system
 //
-//  Created by sunya on 14/11/12.
-//  Copyright (c) 2014年 sunya. All rights reserved.
+//  Created by HU XUKAI on 14/11/12.
+//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
 //
 
 #include <stdio.h>
@@ -86,7 +86,6 @@ int ap_open(const char *path, int flags)
     }
     file->mod = flags;
     pthread_mutex_unlock(&file_info.files_lock);
-    AP_INODE_INICATOR_FREE(final_indc);
     B_return(ap_fd);
 }
 
@@ -307,7 +306,7 @@ ssize_t ap_read(int fd, void *buf, size_t len)
     }
     
     struct ap_file *file;
-    ssize_t h_read;
+    ssize_t read_n;
     
     pthread_mutex_lock(&file_info.files_lock);
     if (file_info.file_list[fd] == NULL) {
@@ -323,9 +322,9 @@ ssize_t ap_read(int fd, void *buf, size_t len)
         errno = EINVAL;
         return -1;
     }
-    h_read = file->f_ops->read(file, buf, file->off_size, len);
+    read_n = file->f_ops->read(file, buf, file->off_size, len);
     pthread_mutex_unlock(&file->file_lock);
-    return h_read;
+    return read_n;
 }
 
 ssize_t ap_write(int fd, void *buf, size_t len)

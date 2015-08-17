@@ -2,8 +2,8 @@
 //  ap_hash.c
 //  ap_editor
 //
-//  Created by sunya on 15/5/8.
-//  Copyright (c) 2015年 sunya. All rights reserved.
+//  Created by HU XUKAI on 15/5/8.
+//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
 
 #include <ap_fs.h>
@@ -40,7 +40,7 @@ void ipc_holder_hash_insert(struct holder *hl)
     pthread_mutex_t *lock = &ipc_hold_table.hash_table[hash].table_lock;
     hl->hl_un = &ipc_hold_table.hash_table[hash];
     pthread_mutex_lock(lock);
-    list_add(&hl->hash_lis, &ipc_hold_table.hash_table->holder);
+    list_add(&hl->hash_lis, &ipc_hold_table.hash_table[hash].holder);
     pthread_mutex_unlock(lock);
     return;
 }

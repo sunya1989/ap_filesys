@@ -2,8 +2,8 @@
 //  thread_age.h
 //  ap_editor
 //
-//  Created by x on 15/3/14.
-//  Copyright (c) 2015年 sunya. All rights reserved.
+//  Created by HU XUKAI on 15/3/14.
+//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
 
 #ifndef ap_file_system_thread_age_h

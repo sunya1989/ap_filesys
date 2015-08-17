@@ -1,3 +1,10 @@
+//
+//  ap_fs.c
+//  ap_file_system
+//
+//  Created by HU XUKAI on 14/11/12.
+//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
+//
 #include <string.h>
 #include <errno.h>
 #include <ap_fs.h>

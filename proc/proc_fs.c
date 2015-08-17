@@ -2,8 +2,8 @@
 //  proc_fs.c
 //  ap_editor
 //
-//  Created by sunya on 15/4/21.
-//  Copyright (c) 2015年 sunya. All rights reserved.
+//  Created by HU XUKAI on 15/4/21.
+//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
 #include <stdio.h>
 #include <ap_fs.h>
@@ -815,15 +815,9 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     
     str_len = strlen(indc->the_name);
     struct ipc_inode_ide *iide;
-    size_t buf_l = sizeof(*iide) + str_len;
+    size_t buf_l = sizeof(*iide) + str_len + 2;
     iide = Mallocz(buf_l + 1);
-    char *cp = iide->chrs;
-    if (*indc->the_name != '/') {
-        *iide->chrs = '/';
-        str_len++;
-        cp++;
-    }
-    strncpy(cp, indc->the_name, str_len);
+    path_cpy_add_root(iide->chrs, indc->the_name, str_len);
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
     iide->off_set_p = iide->off_set_t = 0;
@@ -909,15 +903,9 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     get = get_proc_inode(indc);
     if (get)
         return get;
-    strl = strlen(ide.ide_c + 2);
-    path = Mallocx(strl);
-    char *cp = path;
-    if (*ide.ide_c != '/') {
-        *cp = '/';
-        cp++;
-    }
-    memcpy(path, ide.ide_c, strl);
-    *(path + strl) = '\0';
+    strl = strlen(ide.ide_c) + 2;
+    path = Mallocz(strl);
+    path_cpy_add_root(path, ide.ide_c, strlen(ide.ide_c));
     
     indc->cur_inode->ipc_path_hash.ide.ide_c = path;
     indc->cur_inode->ipc_path_hash.ide.ide_type.ide_i = 0;
@@ -954,9 +942,9 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     pthread_t thr_id= pthread_self();
     
     size_t str_len = strlen(path);
-    size_t buf_l = sizeof(*iide) + str_len + 1;
+    size_t buf_l = sizeof(*iide) + str_len + 2;
     iide = Mallocz(buf_l);
-    strncpy(iide->chrs, path, str_len);
+    path_cpy_add_root(iide->chrs, path, str_len);
     iide->off_set_p = iide->off_set_t = 0;
     iide->fd = file->ipc_fd;
     iide->ide_p.ide_type.pid = pid;
@@ -1025,9 +1013,9 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     pthread_t thr_id = pthread_self();
  
     size_t str_len = strlen(path);
-    size_t buf_l = sizeof(*iide) + str_len + 1;
+    size_t buf_l = sizeof(*iide) + str_len + 2;
     iide = Mallocz(buf_l);
-    strncpy(iide->chrs, path, str_len);
+    path_cpy_add_root(iide->chrs, path, str_len);
     iide->fd = file->ipc_fd;
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_t.ide_type.thr_id = thr_id;
@@ -1097,11 +1085,11 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
     pthread_t thr_id = pthread_self();
     
     size_t str_len = strlen(path);
-    size_t buf_l = sizeof(*iide) + str_len + 1;
+    size_t buf_l = sizeof(*iide) + str_len + 2;
     size_t list[] = {buf_l};
     
     iide = Mallocz(buf_l);
-    strncpy(iide->chrs, path, str_len);
+    path_cpy_add_root(iide->chrs, path, str_len);
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
@@ -1175,10 +1163,10 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     pthread_t thr_id = pthread_self();
     
     size_t str_len = strlen(path);
-    size_t buf_l = str_len + sizeof(*iide) + 1;
+    size_t buf_l = str_len + sizeof(*iide) + 2;
     size_t list[] = {buf_l};
     iide = Mallocz(buf_l);
-    strncpy(iide->chrs, path, str_len);
+    path_cpy_add_root(iide->chrs, path, str_len);
     iide->fd = file->ipc_fd;
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_p.ide_type.pid = pid;
@@ -1312,10 +1300,10 @@ static ssize_t proc_readdir
     
     SHOW_TRASH_BAG;
     size_t str_len = strlen(path);
-    size_t buf_l = sizeof(*iide) + str_len + 1;
+    size_t buf_l = sizeof(*iide) + str_len + 2;
     size_t lis[] = {buf_l};
     iide = Mallocz(buf_l);
-    strncpy(iide->chrs, path, str_len);
+    path_cpy_add_root(iide->chrs, path, str_len);
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
@@ -1376,10 +1364,10 @@ static int proc_closedir(struct ap_inode *inode)
     char *msg_reply;
     const char *path = inode->ipc_path_hash.ide.ide_c;
     size_t str_len = strlen(path);
-    size_t buf_l = sizeof(*iide) + str_len + 1;
+    size_t buf_l = sizeof(*iide) + str_len + 2;
     size_t lis[] = {buf_l};
     iide = Mallocz(buf_l);
-    strncpy(iide->chrs, path, str_len);
+    path_cpy_add_root(iide->chrs, path, str_len);
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_p.ide_type.pid = getpid();
     iide->ide_t.ide_type.thr_id = pthread_self();

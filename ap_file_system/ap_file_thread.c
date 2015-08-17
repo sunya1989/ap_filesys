@@ -2,8 +2,8 @@
 //  ap_file_thread.c
 //  ap_file_system
 //
-//  Created by sunya on 14/11/18.
-//  Copyright (c) 2014年 sunya. All rights reserved.
+//  Created by HU XUKAI on 14/11/18.
+//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
 //
 
 #include <stdlib.h>
