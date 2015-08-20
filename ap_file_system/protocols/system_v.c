@@ -69,7 +69,7 @@ v_msgsnd(int msgid, const void *buf, size_t len, unsigned long ch_n, int msgflg)
         seg.data_len = dl< AP_MSGSEG_LEN ? (int)dl : AP_MSGSEG_LEN;
         do {
             msgsnd_s = msgsnd(msgid, (const void *)&seg, MSG_LEN, msgflg);
-            if (msgsnd_s == -1) {
+            if (msgsnd_s == -1 && errno != EINTR) {
                 errno = EBADF;
                 return -1;
             }
@@ -95,7 +95,7 @@ static ssize_t v_msgrcv(int msgid, void **d_buf, unsigned long wait_seq)
     do {
         do{
             recv_s = msgrcv(msgid, (void *)&buf, MSG_LEN, wait_seq, 0);
-            if (recv_s == -1) {
+            if (recv_s == -1 && errno != EINTR) {
                 perror("rcv failed");
                 return -1;
             }

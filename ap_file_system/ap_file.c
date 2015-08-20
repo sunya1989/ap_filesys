@@ -323,6 +323,8 @@ ssize_t ap_read(int fd, void *buf, size_t len)
         return -1;
     }
     read_n = file->f_ops->read(file, buf, file->off_size, len);
+    if (read_n > 0)
+        file->off_size += read_n;
     pthread_mutex_unlock(&file->file_lock);
     return read_n;
 }
@@ -355,6 +357,8 @@ ssize_t ap_write(int fd, void *buf, size_t len)
     }
     
     write_n = file->f_ops->write(file, buf, file->off_size, len);
+    if (write_n > 0)
+        file->off_size += write_n;
     pthread_mutex_unlock(&file->file_lock);
     return write_n;
 }
@@ -366,7 +370,6 @@ off_t ap_lseek(int fd, off_t ops, int origin)
         return -1;
     }
     struct ap_file *file;
-    off_t now_off;
     
     pthread_mutex_lock(&file_info.files_lock);
     if (file_info.file_list[fd] == NULL) {
@@ -376,12 +379,13 @@ off_t ap_lseek(int fd, off_t ops, int origin)
     file = file_info.file_list[fd];
     pthread_mutex_lock(&file->file_lock);
     pthread_mutex_unlock(&file_info.files_lock);
-    if (file->f_ops->llseek != NULL) {
+    if (file->f_ops->llseek == NULL) {
         errno = ESPIPE;
         return -1;
     }
+    file->off_size = file->f_ops->llseek(file, ops, origin);
     pthread_mutex_unlock(&file->file_lock);
-    return now_off;
+    return file->off_size;
 }
 
 int ap_mkdir(char *path, unsigned long mode)
@@ -438,11 +442,10 @@ int ap_mkdir(char *path, unsigned long mode)
     }
     
     s_make = par_indic->cur_inode->i_ops->mkdir(par_indic); //由此函数直接负责将ap_inode插入到链表中
+    AP_INODE_INICATOR_FREE(par_indic);
     if (s_make == -1) {
-        AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
-    AP_INODE_INICATOR_FREE(par_indic);
     return 0;
 }
 

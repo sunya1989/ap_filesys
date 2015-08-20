@@ -43,7 +43,6 @@ static ssize_t stdio_age_read(struct ger_stem_node *stem, char *buf, off_t off_s
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     ssize_t n_read;
-    
     n_read = read(sa->fd, buf, len);
     return n_read;
 }

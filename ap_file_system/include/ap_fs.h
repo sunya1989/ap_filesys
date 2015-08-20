@@ -64,7 +64,11 @@ struct ap_file{
     unsigned long mod;
     pthread_mutex_t file_lock;
     struct ap_file_operations *f_ops;
+    
     off_t off_size;
+    int orign;
+    int ipc_need_seek;
+    
     struct bag file_bag;
     struct list_head ipc_file;
     void *x_object;
@@ -226,7 +230,7 @@ static inline void HOLDER_FREE(struct holder *hl)
 
 static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
 {
-    struct ipc_inode_holder *hl = Mallocx(sizeof(*hl));
+    struct ipc_inode_holder *hl = Mallocz(sizeof(*hl));
     hl->inde = NULL;
     hl->ipc_byp_hash = NULL;
     return hl;
@@ -270,11 +274,8 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
 static inline struct ap_inode *MALLOC_AP_INODE()
 {
     struct ap_inode *inode;
-    inode = malloc(sizeof(*inode));
-    if (inode == NULL) {
-        perror("ap_inode malloc failed\n");
-        exit(-1);
-    }
+    inode = Mallocz(sizeof(*inode));
+   
     AP_INODE_INIT(inode);
     return inode;
 }
@@ -387,6 +388,7 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     file->file_bag.is_embed = 1;
     file->file_bag.count = 0;
     file->ipc_fd = -1;
+    file->ipc_need_seek = 0;
     INIT_LIST_HEAD(&file->ipc_file);
     int init = pthread_mutex_init(&file->file_lock, NULL);
     if (init != 0) {
@@ -399,11 +401,7 @@ static inline void AP_FILE_INIT(struct ap_file *file)
 static inline struct ap_file *AP_FILE_MALLOC()
 {
     struct ap_file *apf;
-    apf = malloc(sizeof(*apf));
-    if (apf == NULL) {
-        perror("ap_File malloc failed\n");
-        exit(1);
-    }
+    apf = Mallocz(sizeof(*apf));
     AP_FILE_INIT(apf);
     return apf;
 }

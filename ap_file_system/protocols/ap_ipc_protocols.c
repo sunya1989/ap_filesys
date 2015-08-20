@@ -9,7 +9,9 @@
 #include <stdio.h>
 #include <ipc_protocols.h>
 #include <pthread.h>
+#include <bag.h>
 #include "system_v.h"
+BAG_IMPOR_FREE(PAKAGE_HINT_FREE, struct package_hint);
 struct ap_ipc_operations *ap_ipc_pro_ops[TYP_NUM] = {
     &system_v_ops,
 };

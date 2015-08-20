@@ -5,7 +5,6 @@
 //  Created by HU XUKAI on 15/8/2.
 //  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
-
 #ifndef ap_file_system_ipc_protocols_h
 #define ap_file_system_ipc_protocols_h
 #include <ap_ipc.h>
@@ -36,10 +35,13 @@ struct ap_msgreply{
 
 struct ap_msgreq_type{
     op_type_t op_type;
-    unsigned long flags;
-    size_t read_len;
-    size_t wirte_len;
-    off_t off_size;
+    struct ipc_file_op_info{
+        unsigned long flags;
+        size_t read_len;
+        size_t wirte_len;
+        off_t off_size;
+        int orign;
+    }f_o_info;
 };
 
 struct ap_msgreq{

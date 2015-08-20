@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <ap_hash.h>
+#include <bag.h>
 
 #define AP_IPC_PATH_CIL "/tmp/ap_procs/%ld_0"
 #define AP_IPC_PATH_SER "/tmp/ap_procs/%ld_1"
@@ -73,6 +74,17 @@ struct package_hint{
     void *p_hint;
     void (*p_release)(struct package_hint *);
 };
+
+BAG_DEFINE_FREE(PAKAGE_HINT_FREE);
+
+static inline void PAKAGE_HINT_FREE(struct package_hint *h)
+{
+    if (h->p_release == NULL) {
+        return;
+    }
+    h->p_release(h);
+}
+
 
 struct ap_ipc_info_head;
 

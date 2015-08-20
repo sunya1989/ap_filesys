@@ -36,10 +36,10 @@ static struct ap_inode_operations proc_inode_operations;
 static struct ap_inode_operations proc_file_i_operations;
 static struct ap_file_operations proc_file_operations;
 
-static void ap_msg_send_err(struct ap_ipc_port *port,errno_t err, int re_type)
+static void ap_msg_send_err(struct ap_ipc_port *port, errno_t err, int re_type)
 {
     struct ap_msgreply re;
-    re.rep_t.err = EINVAL;
+    re.rep_t.err = err;
     re.struct_l = 0;
     re.rep_t.re_type = -1;
     port->ipc_ops->ipc_send(port, &re, sizeof(re), NULL);
@@ -85,10 +85,19 @@ static struct ap_file *get_o_file(thrd_byp_t *byp, int ipc_fd)
     struct ap_file *pos;
     list_for_each_entry(pos, &byp->file_o, ipc_file){
         if (pos->ipc_fd == ipc_fd) {
+            pthread_mutex_unlock(&byp->file_lock);
             return pos;
         }
     }
+    pthread_mutex_unlock(&byp->file_lock);
     return NULL;
+}
+
+static inline void add_o_file(thrd_byp_t *byp, struct ap_file *file)
+{
+    pthread_mutex_lock(&byp->file_lock);
+    list_add(&file->ipc_file, &byp->file_o);
+    pthread_mutex_unlock(&byp->file_lock);
 }
 
 static thrd_byp_t
@@ -272,9 +281,9 @@ static void client_rdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
         if (dir->d_buff != NULL) {
             free(dir->d_buff);
         }
-        dir->d_buff = Mallocz(req->req_t.read_len);
+        dir->d_buff = Mallocz(req->req_t.f_o_info.read_len);
         read_n = hl->ihl.inde->i_ops->
-        readdir(hl->ihl.inde, dir, dir->d_buff, DIR_RD_ONECE_NUM(req->req_t.read_len));
+        readdir(hl->ihl.inde, dir, dir->d_buff, DIR_RD_ONECE_NUM(req->req_t.f_o_info.read_len));
         
         len = sizeof(struct ap_msgreply) + read_n;
         re = Mallocz(len);
@@ -329,7 +338,7 @@ static void client_r(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     thrd_byp_t *byp;
     ssize_t read_n;
     size_t len;
-    char *read_buf = Mallocz(req->req_t.read_len);
+    char *read_buf = Mallocz(req->req_t.f_o_info.read_len);
     hl = ipc_holder_hash_get(iide->ide_p, 0);
     if (hl == NULL) {
         ap_msg_send_err(port, EINVAL, -1);
@@ -344,7 +353,8 @@ static void client_r(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     }
     
     file = get_o_file(byp, iide->fd);
-    read_n = inde->f_ops->read(file, read_buf, req->req_t.off_size, req->req_t.read_len);
+    read_n = inde->f_ops->
+    read(file, read_buf, req->req_t.f_o_info.off_size, req->req_t.f_o_info.read_len);
     if (read_n <= 0) {
         ap_msg_send_err(port, errno, (int)read_n);
         return;
@@ -386,7 +396,8 @@ static void client_w(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     }
     
     file = get_o_file(byp, iide->fd);
-    write_n = inde->f_ops->write(file, req_d[1], req->req_t.off_size, req->req_t.wirte_len);
+    write_n = inde->f_ops->
+    write(file, req_d[1], req->req_t.f_o_info.off_size, req->req_t.f_o_info.wirte_len);
     if (write_n < 0) {
         ap_msg_send_err(port ,errno, -1);
         return;
@@ -422,7 +433,7 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     AP_FILE_INIT(file);
     
     if (inde->f_ops->open != NULL) {
-        open_s = inde->f_ops->open(file, inde, req->req_t.flags);
+        open_s = inde->f_ops->open(file, inde, req->req_t.f_o_info.flags);
         if (open_s == -1) {
             ap_msg_send_err(port, errno, -1);
             AP_FILE_FREE(file);
@@ -451,9 +462,7 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     
     thr_byp = container_of(un, thrd_byp_t, h_un);
     
-    pthread_mutex_lock(&thr_byp->file_lock);
-    list_add(&file->ipc_file, &thr_byp->file_o);
-    pthread_mutex_unlock(&thr_byp->file_lock);
+    add_o_file(thr_byp, file);
     
     re.rep_t.re_type = 0;
     re.ipc_fd = open_s;
@@ -955,8 +964,8 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     
     msgbuf = constr_req(iide, buf_l, list, 1, &ttlen);
     msgbuf->req.req_t.op_type = r;
-    msgbuf->req.req_t.read_len = size;
-    msgbuf->req.req_t.off_size = off;
+    msgbuf->req.req_t.f_o_info.read_len = size;
+    msgbuf->req.req_t.f_o_info.off_size = off;
     
     struct package_hint hint;
     
@@ -1032,8 +1041,8 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     msg_buf = collect_items(items, buf_l + size, list, 2);
     msgbuf = constr_req(msg_buf, buf_l + size, list, 2, &ttlen);
     msgbuf->req.req_t.op_type = w;
-    msgbuf->req.req_t.wirte_len = size;
-    msgbuf->req.req_t.off_size = off;
+    msgbuf->req.req_t.f_o_info.wirte_len = size;
+    msgbuf->req.req_t.f_o_info.off_size = off;
     
     struct package_hint hint;
     
@@ -1070,6 +1079,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
         errno = ENOENT;
         return -1;
     }
+    SHOW_TRASH_BAG;
     if (s_port->ipc_ops->ipc_probe != NULL&&
         s_port->ipc_ops->ipc_probe(s_port) == -1) {
         errno = EBADF;
@@ -1098,29 +1108,31 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
     
     msgbuf = constr_req(iide, buf_l, list, 1, &ttlen);
     msgbuf->req.req_t.op_type = o;
+    msgbuf->req.req_t.f_o_info.flags = flag;
+    TRASH_BAG_RAW_PUSH(msgbuf, free);
     
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
     ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1)
-        return -1;
+        B_return(-1);
+    TRASH_BAG_RAW_PUSH(&hint, BAG_PAKAGE_HINT_FREE);
     
     recv_s = c_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1)
-        return -1;
+        B_return(-1);
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
     if (msgre->rep_t.re_type == -1) {
         errno = msgre->rep_t.err;
-        return -1;
+        B_return(-1);
     }
+    TRASH_BAG_RAW_PUSH(msgre, free);
+    
     file->ipc_fd = msgre->ipc_fd;
     int o = (int)msgre->rep_t.re_type;
-
-    free(msgbuf);
-    free(msg_reply);
-    return o;
+    B_return(o);
 }
 
 static int proc_unlink(struct ap_inode *inode)
@@ -1313,7 +1325,7 @@ static ssize_t proc_readdir
     msgbuf = constr_req(iide, buf_l, lis, 1, &ttlen);
     TRASH_BAG_RAW_PUSH(msgbuf, free);
     msgbuf->req.req_t.op_type = rdir;
-    msgbuf->req.req_t.read_len = num;
+    msgbuf->req.req_t.f_o_info.read_len = num;
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
@@ -1336,6 +1348,14 @@ static ssize_t proc_readdir
         memcpy(buff, msgre->re_struct, msgre->rep_t.read_n);
     }
     B_return(msgre->rep_t.read_n);
+}
+
+static off_t proc_llseek(struct ap_file *file, off_t off_size, int orign)
+{
+    file->off_size = off_size;
+    file->orign = orign;
+    file->ipc_need_seek = 1;
+    return off_size;
 }
 
 static int proc_closedir(struct ap_inode *inode)
