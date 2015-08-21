@@ -67,7 +67,6 @@ struct ap_file{
     
     off_t off_size;
     int orign;
-    int ipc_need_seek;
     
     struct bag file_bag;
     struct list_head ipc_file;
@@ -388,7 +387,6 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     file->file_bag.is_embed = 1;
     file->file_bag.count = 0;
     file->ipc_fd = -1;
-    file->ipc_need_seek = 0;
     INIT_LIST_HEAD(&file->ipc_file);
     int init = pthread_mutex_init(&file->file_lock, NULL);
     if (init != 0) {

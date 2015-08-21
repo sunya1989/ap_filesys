@@ -6,23 +6,23 @@
 //  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
 #include <stdio.h>
-#include <ap_fs.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
 #include <envelop.h>
-#include <ap_file.h>
-#include <ap_pthread.h>
 #include <errno.h>
-#include <ap_hash.h>
 #include <stdlib.h>
 #include <list.h>
 #include <sys/stat.h>
 #include <convert.h>
 #include <dirent.h>
 #include <time.h>
+#include <ap_fs.h>
+#include <ap_hash.h>
 #include <ap_string.h>
+#include <ap_file.h>
+#include <ap_pthread.h>
 #include <ipc_protocol_headers.h>
 #include "proc_fs.h"
 #define IPC_PATH 0
@@ -93,13 +93,6 @@ static struct ap_file *get_o_file(thrd_byp_t *byp, int ipc_fd)
     return NULL;
 }
 
-static inline void add_o_file(thrd_byp_t *byp, struct ap_file *file)
-{
-    pthread_mutex_lock(&byp->file_lock);
-    list_add(&file->ipc_file, &byp->file_o);
-    pthread_mutex_unlock(&byp->file_lock);
-}
-
 static thrd_byp_t
 *get_thr_byp(struct ipc_inode_holder *ihl, struct ipc_inode_ide *iide)
 {
@@ -110,6 +103,36 @@ static thrd_byp_t
     }
     return container_of(un, thrd_byp_t, h_un);
 }
+
+static struct ap_file *look_up_file(struct ipc_inode_ide *iide)
+{
+    struct holder *hl;
+    struct ap_inode *inode;
+    struct ap_file *file;
+    thrd_byp_t *byp;
+    
+    hl = ipc_holder_hash_get(iide->ide_p, 0);
+    if (hl == NULL)
+        return NULL;
+    
+    inode = hl->ihl.inde;
+    byp = get_thr_byp(&hl->ihl, iide);
+    if (byp == NULL)
+        return NULL;
+    
+    file = get_o_file(byp, iide->fd);
+    if (file == NULL)
+        return NULL;
+    return file;
+}
+
+static inline void add_o_file(thrd_byp_t *byp, struct ap_file *file)
+{
+    pthread_mutex_lock(&byp->file_lock);
+    list_add(&file->ipc_file, &byp->file_o);
+    pthread_mutex_unlock(&byp->file_lock);
+}
+
 
 static inline void rest_iide(struct ipc_inode_ide *iide)
 {
@@ -171,6 +194,24 @@ static void handle_disc(struct ap_inode *inde, struct ap_ipc_port *p, const char
     parent->parent = NULL;
     info->disc = 1;
     inode_disc_free(inde);
+}
+
+static int check_connect(struct ap_ipc_info *info, struct ap_inode *inode)
+{
+    struct ap_ipc_port *s_port;
+    if (info->disc) {
+        inode_disc_free(inode);
+        errno = ENOENT;
+        return -1;
+    }
+    s_port = info->port_pair->far_port;
+    if (s_port->ipc_ops->ipc_probe != NULL&&
+        s_port->ipc_ops->ipc_probe(s_port) == -1) {
+        errno = EBADF;
+        handle_disc(inode, s_port, info->info_h->sever_name);
+        return -1;
+    }
+    return 0;
 }
 
 static int ap_ipc_kick_start(struct ap_ipc_port *port, const char *path)
@@ -331,28 +372,20 @@ static void client_r(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
 {
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
     rest_iide(iide);
-    struct holder *hl;
     struct ap_inode *inde;
     struct ap_file *file;
     struct ap_msgreply *re;
-    thrd_byp_t *byp;
     ssize_t read_n;
     size_t len;
     char *read_buf = Mallocz(req->req_t.f_o_info.read_len);
-    hl = ipc_holder_hash_get(iide->ide_p, 0);
-    if (hl == NULL) {
+    
+    file = look_up_file(iide);
+    inde = file->relate_i;
+    if (file == NULL){
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
     
-    inde = hl->ihl.inde;
-    byp = get_thr_byp(&hl->ihl, iide);
-    if (byp == NULL) {
-        ap_msg_send_err(port, EINVAL, -1);
-        return;
-    }
-    
-    file = get_o_file(byp, iide->fd);
     read_n = inde->f_ops->
     read(file, read_buf, req->req_t.f_o_info.off_size, req->req_t.f_o_info.read_len);
     if (read_n <= 0) {
@@ -376,26 +409,18 @@ static void client_w(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
 {
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
     rest_iide(iide);
-    struct holder *hl;
     struct ap_inode *inde;
     struct ap_file *file;
     struct ap_msgreply re;
-    thrd_byp_t *byp;
     ssize_t write_n;
     
-    hl = ipc_holder_hash_get(iide->ide_p, 0);
-    if (hl == NULL) {
+    file = look_up_file(iide);
+    inde = file->relate_i;
+    if (file == NULL){
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
-    inde = hl->ihl.inde;
-    byp = get_thr_byp(&hl->ihl, iide);
-    if (byp == NULL) {
-        ap_msg_send_err(port, EINVAL, -1);
-        return;
-    }
-    
-    file = get_o_file(byp, iide->fd);
+
     write_n = inde->f_ops->
     write(file, req_d[1], req->req_t.f_o_info.off_size, req->req_t.f_o_info.wirte_len);
     if (write_n < 0) {
@@ -474,25 +499,15 @@ static void client_c(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
 {
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
     rest_iide(iide);
-    struct holder *hl;
     struct ap_inode *inde;
     struct ap_file *file;
     thrd_byp_t *byp;
     
-    hl = ipc_holder_hash_get(iide->ide_p, 0);
-    if (hl == NULL) {
+    file = look_up_file(iide);
+    if (file == NULL){
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
-    
-    inde = hl->ihl.inde;
-    byp = get_thr_byp(&hl->ihl, iide);
-    if (byp == NULL) {
-        ap_msg_send_err(port, EINVAL, -1);
-        return;
-    }
-    
-    file = get_o_file(byp, iide->fd);
     if (file->f_ops->release != NULL) {
        int rs = file->f_ops->release(file, inde);
         if (rs == -1) {
@@ -526,6 +541,31 @@ static void client_d(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     pthread_mutex_unlock(&un->table_lock);
     
     HOLDER_FREE(hl);
+}
+
+static void client_seek(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *req)
+{
+    struct ipc_inode_ide *iide =  (struct ipc_inode_ide *)req_d[0];
+    rest_iide(iide);
+    struct ap_file *file;
+    struct ap_msgreply re;
+    
+    file = look_up_file(iide);
+    if (file == NULL){
+        ap_msg_send_err(port, EINVAL, -1);
+        return;
+    }
+    
+    if (file->f_ops->llseek == NULL) {
+        ap_msg_send_err(port, ESPIPE, -1);
+        return;
+    }
+    
+    file->off_size = file->f_ops->
+    llseek(file, req->req_t.f_o_info.off_size, req->req_t.f_o_info.orign);
+    re.rep_t.re_type = file->off_size;
+    re.struct_l = 0;
+    port->ipc_ops->ipc_send(port, &re, sizeof(re), NULL);
 }
 
 static void *ap_proc_sever(void *arg)
@@ -575,6 +615,9 @@ static void *ap_proc_sever(void *arg)
                 break;
             case cdir:
                 client_cdir(p_port, req_detail, &msg_buf->req);
+                break;
+            case seek:
+                client_seek(p_port, req_detail, &msg_buf->req);
                 break;
             default:
                 fprintf(stderr,"ap_msg wrong type\n");
@@ -821,7 +864,8 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     info = (struct ap_ipc_info *)indc->cur_inode->x_object;
     struct ap_ipc_port *s_port = info->port_pair->far_port;
     struct ap_ipc_port *c_port = info->port_pair->local_port;
-    
+   
+    SHOW_TRASH_BAG;
     str_len = strlen(indc->the_name);
     struct ipc_inode_ide *iide;
     size_t buf_l = sizeof(*iide) + str_len + 2;
@@ -830,36 +874,39 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
     iide->off_set_p = iide->off_set_t = 0;
+    TRASH_BAG_RAW_PUSH(iide, free);
     
     size_t lis[] = {buf_l};
     size_t ttlen;
     buf = constr_req(iide, buf_l, lis, 1, &ttlen);
     buf->req.req_t.op_type = g;
-    struct package_hint hint;
+    TRASH_BAG_RAW_PUSH(buf, free);
     
+    struct package_hint hint;
     ssize_t sent_s = s_port->ipc_ops->
     ipc_send(s_port, buf, ttlen, &hint);
     if (sent_s == -1) {
         errno = ENOENT;
-        return -1;
+        B_return(-1);
     }
     ssize_t recv_s = s_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1) {
         errno = ENOENT;
-        return -1;
+        B_return(-1);
     }
+    TRASH_BAG_RAW_PUSH(msg_reply, free);
     //initialize inode
     struct ap_msgreply *msgre = (struct ap_msgreply *)msg_reply;
     if (msgre->rep_t.re_type != 0 && !msgre->struct_l) {
         errno = msgre->rep_t.err;
-        return (int)msgre->rep_t.re_type;
+        B_return((int)msgre->rep_t.re_type);
     }
 
     f_indc = (struct ap_inode_indicator*)msgre->re_struct;
     if(msgre->rep_t.re_type){
         errno = msgre->rep_t.err;
-        return (int)msgre->rep_t.re_type;
+        B_return((int)msgre->rep_t.re_type);
     }
     
     f_ind = (struct ap_inode *)(f_indc + 1);
@@ -883,11 +930,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     ap_inode_put(indc->cur_inode);
     ap_inode_get(cur_ind);
     indc->cur_inode = cur_ind;
-    
-    free(iide);
-    free(msg_reply);
-    free(buf);
-    return (int)msgre->rep_t.re_type;
+    B_return((int)msgre->rep_t.re_type);
 }
 
 static int find_proc_inode(struct ap_inode_indicator *indc)
@@ -929,19 +972,12 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     struct ap_ipc_info *info = inode->parent->x_object;
     struct ap_ipc_port *s_port = info->port_pair->far_port;
     struct ap_ipc_port *c_port = info->port_pair->local_port;
-    if (info->disc) {
-        inode_disc_free(inode);
-        errno = ENOENT;
-        return -1;
-    }
     
-    if (s_port->ipc_ops->ipc_probe != NULL&&
-        s_port->ipc_ops->ipc_probe(s_port) == -1) {
-        errno = EBADF;
-        handle_disc(inode, s_port, info->info_h->sever_name);
+    int check = check_connect(info, inode);
+    if (check == -1)
         return -1;
-    }
-
+    
+    SHOW_TRASH_BAG;
     struct ap_msgbuf *msgbuf;
     struct ipc_inode_ide *iide;
     const char *path = inode->ipc_path_hash.ide.ide_c;
@@ -958,6 +994,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     iide->fd = file->ipc_fd;
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
+    TRASH_BAG_RAW_PUSH(iide, free);
     
     size_t list[] = {buf_l};
     size_t ttlen;
@@ -966,31 +1003,30 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     msgbuf->req.req_t.op_type = r;
     msgbuf->req.req_t.f_o_info.read_len = size;
     msgbuf->req.req_t.f_o_info.off_size = off;
+    TRASH_BAG_RAW_PUSH(msgbuf, free);
     
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
     ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1)
-        return -1;
+        B_return(-1);
     
     recv_s = c_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1)
-        return -1;
+        B_return(-1);
+    TRASH_BAG_RAW_PUSH(msg_reply, free);
     
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
     if (msgre->rep_t.re_type <= 0) {
         errno = msgre->rep_t.err;
-        return msgre->rep_t.re_type;
+        B_return(msgre->rep_t.re_type);
     }
     
     memcpy(buf, msgre->re_struct, msgre->rep_t.read_n);
     ssize_t o = msgre->rep_t.re_type;
-    free(iide);
-    free(msgbuf);
-    free(msgre);
-    return o;
+    B_return(o);
 }
 
 static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t size)
@@ -1001,18 +1037,11 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     void *msg_buf;
     s_port = info->port_pair->far_port;
     c_port = info->port_pair->local_port;
-    if (info->disc) {
-        inode_disc_free(inode);
-        errno = ENOENT;
+    int check = check_connect(info, inode);
+    if (check == -1)
         return -1;
-    }
-    if (s_port->ipc_ops->ipc_probe != NULL&&
-        s_port->ipc_ops->ipc_probe(s_port) == -1) {
-        errno = EBADF;
-        handle_disc(inode, s_port, info->info_h->sever_name);
-        return -1;
-    }
     
+    SHOW_TRASH_BAG;
     struct ap_msgbuf *msgbuf;
     const char *path = inode->ipc_path_hash.ide.ide_c;
     struct ipc_inode_ide *iide;
@@ -1029,6 +1058,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_t.ide_type.thr_id = thr_id;
     iide->ide_p.ide_type.pid = pid;
+    TRASH_BAG_RAW_PUSH(iide, free);
     
     void *items[] = {
         iide,
@@ -1043,29 +1073,27 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     msgbuf->req.req_t.op_type = w;
     msgbuf->req.req_t.f_o_info.wirte_len = size;
     msgbuf->req.req_t.f_o_info.off_size = off;
+    TRASH_BAG_RAW_PUSH(msg_buf, free);
     
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
     ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1)
-        return -1;
+        B_return(-1);
     
     recv_s = c_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1)
-        return -1;
-    
+        B_return(-1);
+    TRASH_BAG_RAW_PUSH(msg_reply, free);
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
     if (msgre->rep_t.re_type <= 0) {
         errno = msgre->rep_t.err;
-        return msgre->rep_t.re_type;
+        B_return(msgre->rep_t.re_type);
     }
     ssize_t o = msgre->rep_t.re_type;
-    free(iide);
-    free(msgbuf);
-    free(msgre);
-    return o;
+    B_return(o);
 }
 
 static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long flag)
@@ -1074,18 +1102,12 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
     struct ap_ipc_info *info = inode->parent->x_object;
     s_port = info->port_pair->far_port;
     c_port = info->port_pair->local_port;
-    if (info->disc) {
-        inode_disc_free(inode);
-        errno = ENOENT;
+    
+    int check = check_connect(info, inode);
+    if (check == -1)
         return -1;
-    }
+    
     SHOW_TRASH_BAG;
-    if (s_port->ipc_ops->ipc_probe != NULL&&
-        s_port->ipc_ops->ipc_probe(s_port) == -1) {
-        errno = EBADF;
-        handle_disc(inode, s_port, info->info_h->sever_name);
-        return -1;
-    }
     struct ap_msgbuf *msgbuf;
     struct ipc_inode_ide *iide;
     const char *path = inode->ipc_path_hash.ide.ide_c;
@@ -1155,17 +1177,11 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     struct ap_ipc_port *s_port, *c_port;
     s_port = info->port_pair->far_port;
     c_port = info->port_pair->local_port;
-    if (info->disc) {
-        inode_disc_free(inode);
-        return 0;
-    }
-    if (s_port->ipc_ops->ipc_probe != NULL&&
-        s_port->ipc_ops->ipc_probe(s_port) == -1) {
-        errno = EBADF;
-        handle_disc(inode, s_port, info->info_h->sever_name);
-        return -1;
-    }
     
+    int check = check_connect(info, inode);
+    if (check == -1)
+        return -1;
+    SHOW_TRASH_BAG;
     struct ap_msgbuf *msgbuf;
     const char *path = inode->ipc_path_hash.ide.ide_c;
     struct ipc_inode_ide *iide;
@@ -1183,37 +1199,34 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
-    
+    TRASH_BAG_RAW_PUSH(iide, free);
     size_t ttlen;
     
     msgbuf = constr_req(iide, buf_l, list, 1, &ttlen);
     msgbuf->req.req_t.op_type = c;
-    
+    TRASH_BAG_RAW_PUSH(msgbuf, free);
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
     ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1) {
-        return -1;
+        B_return(-1);
     }
     
     recv_s = c_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1) {
-        return -1;
+        B_return(-1);
     }
-    
+    TRASH_BAG_RAW_PUSH(msg_reply, free);
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
     if (msgre->rep_t.re_type == -1) {
         errno = msgre->rep_t.err;
-        return -1;
+        B_return(-1);
     }
     
     int o = (int)msgre->rep_t.re_type;
-    free(msgbuf);
-    free(msgre);
-    free(iide);
-    return o;
+    B_return(o);
 }
 void proc_dir_release(void *cusor)
 {
@@ -1289,18 +1302,10 @@ static ssize_t proc_readdir
     struct ap_ipc_port *s_port, *c_port;
     s_port = info->port_pair->far_port;
     c_port = info->port_pair->local_port;
-    if (info->disc) {
-        inode_disc_free(inode);
-        errno = ENOENT;
+   
+    int check = check_connect(info, inode);
+    if (check == -1)
         return -1;
-    }
-    
-    if (s_port->ipc_ops->ipc_probe != NULL&&
-        s_port->ipc_ops->ipc_probe(s_port) == -1) {
-        errno = EBADF;
-        handle_disc(inode, s_port, info->info_h->sever_name);
-        return -1;
-    }
     
     struct ap_msgbuf *msgbuf;
     struct ipc_inode_ide *iide;
@@ -1352,10 +1357,42 @@ static ssize_t proc_readdir
 
 static off_t proc_llseek(struct ap_file *file, off_t off_size, int orign)
 {
-    file->off_size = off_size;
-    file->orign = orign;
-    file->ipc_need_seek = 1;
-    return off_size;
+    struct ap_inode *inode = file->relate_i;
+    struct ap_ipc_info *info = inode->parent->x_object;
+    struct ap_ipc_port *s_port, *c_port;
+    s_port = info->port_pair->far_port;
+    c_port = info->port_pair->local_port;
+    ssize_t send_s, recv_s;
+   
+    int check = check_connect(info, inode);
+    if (check == -1)
+        return -1;
+    
+    struct ap_msgbuf buf;
+    void *rep;
+    buf.req.req_t.f_o_info.off_size = off_size;
+    buf.req.req_t.f_o_info.orign = orign;
+    
+    struct package_hint hint;
+    send_s = s_port->ipc_ops->
+    ipc_send(s_port, &buf, sizeof(struct ap_msgbuf), &hint);
+    if (send_s == -1)
+        return -1;
+    
+    recv_s = c_port->ipc_ops->
+    ipc_recv(c_port, &rep, AP_IPC_ONE_MSG_UNION, &hint, NULL);
+    if (recv_s == -1)
+        return -1;
+    struct ap_msgreply *msg_rep = rep;
+    if (msg_rep->rep_t.re_type == -1) {
+        errno = msg_rep->rep_t.err;
+        free(rep);
+        return -1;
+    }
+    
+    file->off_size = msg_rep->rep_t.re_type;
+    free(rep);
+    return file->off_size;
 }
 
 static int proc_closedir(struct ap_inode *inode)
@@ -1364,18 +1401,10 @@ static int proc_closedir(struct ap_inode *inode)
     struct ap_ipc_port *s_port, *c_port;
     s_port = info->port_pair->far_port;
     c_port = info->port_pair->local_port;
-    if (info->disc) {
-        inode_disc_free(inode);
-        errno = ENOENT;
-        return -1;
-    }
     
-    if (s_port->ipc_ops->ipc_probe != NULL&&
-        s_port->ipc_ops->ipc_probe(s_port) == -1) {
-        errno = EBADF;
-        handle_disc(inode, s_port, info->info_h->sever_name);
+    int check = check_connect(info, inode);
+    if (check == -1)
         return -1;
-    }
     
     SHOW_TRASH_BAG;
     ssize_t send_s, recive_s;
@@ -1422,19 +1451,12 @@ static int proc_destory(struct ap_inode *inode)
     struct ap_ipc_port *s_port, *c_port;
     s_port = info->port_pair->far_port;
     c_port = info->port_pair->local_port;
-    if (info->disc) {
-        inode_disc_free(inode);
-        errno = ENOENT;
+   
+    int check = check_connect(info, inode);
+    if (check == -1)
         return -1;
-    }
     
-    if (s_port->ipc_ops->ipc_probe != NULL&&
-        s_port->ipc_ops->ipc_probe(s_port) == -1) {
-        errno = EBADF;
-        handle_disc(inode, s_port, info->info_h->sever_name);
-        return -1;
-    }
-    
+    SHOW_TRASH_BAG;
     struct ipc_inode_ide *iide;
     struct ap_msgbuf *msgbuf;
     const char *path = inode->ipc_path_hash.ide.ide_c;
@@ -1450,34 +1472,35 @@ static int proc_destory(struct ap_inode *inode)
     strncpy(iide->chrs, path, str_len);
     iide->ide_p.ide_type.pid = pid;
     iide->off_set_p = 0;
+    TRASH_BAG_RAW_PUSH(iide, free);
+
     size_t ttlen;
     msgbuf = constr_req(iide, buf_l, list, 1, &ttlen);
     msgbuf->req.req_t.op_type = d;
+    TRASH_BAG_RAW_PUSH(msgbuf, free);
     
     struct package_hint hint;
     
     send_s = s_port->ipc_ops->
     ipc_send(s_port, msgbuf, ttlen, &hint);
     if (send_s == -1)
-        return -1;
+        B_return(-1);
     
     recv_s = c_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1)
-        return -1;
+        B_return(-1);
+    TRASH_BAG_RAW_PUSH(msg_reply, free);
     
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
 
     if (msgre->rep_t.re_type == -1) {
         errno = msgre->rep_t.err;
-        return -1;
+        B_return(-1);
     }
     
     int o = (int)msgre->rep_t.re_type;
-    free(iide);
-    free(msgbuf);
-    free(msgre);
-    return o;
+    B_return(o);
 }
 
 static struct ap_inode_operations procfs_inode_operations = {
@@ -1508,6 +1531,7 @@ static struct ap_file_operations proc_file_operations = {
     .write = proc_write,
     .release = proc_release,
     .open = proc_open,
+    .llseek = proc_llseek,
 };
 
 int init_proc_fs()

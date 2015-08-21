@@ -14,6 +14,7 @@ typedef enum op_type{
     r,
     rdir,
     cdir,
+    seek,
     o,
     c,
     d,
