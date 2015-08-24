@@ -295,10 +295,20 @@ static int v_ipc_close(struct ap_ipc_port *port)
     return 0;
 }
 
+static int v_probe(struct ap_ipc_port *port)
+{
+    struct v_port *v_port = port->x_object;
+    if (msgget(v_port->head.key, 0) == -1) {
+        return -1;
+    }
+    return 0;
+}
+
 struct ap_ipc_operations system_v_ops = {
     .ipc_get_port = v_ipc_get_port,
     .ipc_connect = v_ipc_connect,
     .ipc_send = v_ipc_send,
     .ipc_recv = v_ipc_recv,
     .ipc_close = v_ipc_close,
+    .ipc_probe = v_probe, 
 };

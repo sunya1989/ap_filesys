@@ -18,9 +18,9 @@ struct ap_inode_indicator;
 
 struct ap_inode{
 	char *name;
-	int is_dir;
-    int is_mount_point,is_gate; //是否为挂载点,是否为link点
+    int is_mount_point,is_gate,is_dir,is_ipc_base; //是否为挂载点,是否为link点
     int is_search_mt;
+    
     int links;
     
     struct ap_file_system_type *fsyst;
@@ -243,6 +243,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
     inode->mount_inode = inode->parent = inode->prev_mpoints = NULL;
     inode->real_inode = inode;
     inode->links = 0;
+    inode->is_ipc_base = 0;
     inode->is_search_mt = 0;
     inode->fsyst = NULL;
     

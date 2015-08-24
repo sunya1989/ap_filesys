@@ -60,7 +60,7 @@ static off_t stdio_age_llseek(struct ger_stem_node *stem, off_t off_set, int ori
     struct std_age *sa = container_of(stem, struct std_age, stem);
     off_t off_size;
     
-    off_size = lseek(sa->fd, off_size, origin);
+    off_size = lseek(sa->fd, off_set, origin);
     return off_size;
 }
 
