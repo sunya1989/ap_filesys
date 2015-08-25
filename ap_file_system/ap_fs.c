@@ -22,7 +22,7 @@ static struct ap_inode root_mt = {
     .links = 1,
     .mt_pass_lock = PTHREAD_MUTEX_INITIALIZER,
     .mt_ch_lock = PTHREAD_MUTEX_INITIALIZER,
-    .mt_children =LIST_HEAD_INIT(root_mt.mt_children),
+    .mt_children = LIST_HEAD_INIT(root_mt.mt_children),
 };
 
 static struct ap_inode root_dir = {

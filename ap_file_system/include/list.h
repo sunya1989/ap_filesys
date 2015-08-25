@@ -77,6 +77,10 @@ list_entry((pos)->member.next, typeof(*(pos)), member)
 #define list_for_each(pos, head) \
 for (pos = (head)->next; pos != (head); pos = pos->next)
 
+#define list_for_each_middle(pos, middle, head) \
+for (pos = (middle)->next; pos != (head); pos = pos->next)
+
+
 #define list_for_each_use(pos1, pos2, head) \
 for (pos1 = (head)->next, pos2 = (head)->next->next; pos1 != (head); pos1 = pos2, pos2 = pos1->next)
 

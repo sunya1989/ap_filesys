@@ -239,36 +239,41 @@ static ssize_t
 ger_readdir(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
 {
     struct ap_dirent *dirt_p = buff;
-    struct ger_stem_node *pos;
+    struct ger_stem_node *pos0 = NULL;
+    struct list_head *pos1;
     struct ger_stem_node *node = inode->x_object;
     int num_c = 0;
     
     struct list_head *start = dir->cursor == NULL?
-    &node->children : dir->cursor;
-    
+    &node->children : &((struct ger_stem_node *)dir->cursor)->child;
+    if (node->prepare_raw_data != NULL) {
+        node->prepare_raw_data(node);
+    }
     pthread_mutex_lock(&node->ch_lock);
-    list_for_each_entry_middle(pos, &node->children, start, child){
+    list_for_each_middle(pos1, start, &node->children){
+        pos0 = list_entry(pos1, struct ger_stem_node, child);
+        dirt_p->name_l = strlen(pos0->stem_name);
+        strncpy(dirt_p->name, pos0->stem_name, dirt_p->name_l);
+        dirt_p++;
+        num_c++;
         if (num_c == num) {
             break;
         }
-        dirt_p->name_l = strlen(pos->stem_name);
-        strncpy(dirt_p->name, pos->stem_name, dirt_p->name_l);
-        dirt_p++;
-        num_c++;
     }
     if (dir->cursor == NULL) {
         dir->release = ger_dir_cursor_release;
     }
-    if (num_c != 0 && pos != node) {
+    if (num_c != 0 && pos1 != &node->children) {
         if (dir->cursor != NULL) {
             counter_put(&((struct ger_stem_node *)
                           dir->cursor)->stem_inuse);
         }
-        counter_get(&pos->stem_inuse);
-        dir->cursor = pos;
+        counter_get(&pos0->stem_inuse);
+        dir->cursor = pos0;
     }else if(dir->cursor != NULL){
         counter_put(&((struct ger_stem_node *)
                       dir->cursor)->stem_inuse);
+        dir->done = 1;
         dir->cursor = NULL;
     }
     pthread_mutex_unlock(&node->ch_lock);

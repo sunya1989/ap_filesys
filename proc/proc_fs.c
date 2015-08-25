@@ -338,12 +338,14 @@ static void client_rdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
         read_n = hl->ihl.inde->i_ops->
         readdir(hl->ihl.inde, dir, dir->d_buff, DIR_RD_ONECE_NUM(req->req_t.f_o_info.read_len));
         
-        len = sizeof(struct ap_msgreply) + read_n;
+        len = sizeof(struct ap_msgreply) + read_n + sizeof(int);
         re = Mallocz(len);
         re->rep_t.re_type = read_n;
         re->rep_t.read_n = read_n;
         re->struct_l = 1;
         memcpy(re->re_struct, dir->d_buff, read_n);
+       *((int *)(re->re_struct + read_n)) = dir->done;
+        
         port->ipc_ops->ipc_send(port, re, len, NULL);
         free(re);
         free(dir->d_buff);
@@ -1033,8 +1035,8 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1)
         B_return(-1);
-    TRASH_BAG_RAW_PUSH(msg_reply, free);
     
+    TRASH_BAG_RAW_PUSH(msg_reply, free);
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
     if (msgre->rep_t.re_type <= 0) {
         errno = msgre->rep_t.err;
@@ -1372,6 +1374,7 @@ static ssize_t proc_readdir
     if (msgre->rep_t.read_n > 0) {
         memcpy(buff, msgre->re_struct, msgre->rep_t.read_n);
     }
+    dir->done = *(int *)(msgre->struct_l + msgre->rep_t.read_n);
     B_return(msgre->rep_t.read_n);
 }
 
@@ -1422,7 +1425,6 @@ static off_t proc_llseek(struct ap_file *file, off_t off_size, int orign)
         errno = msg_rep->rep_t.err;
         B_return(-1);
     }
-    
     file->off_size = msg_rep->rep_t.re_type;
     B_return(file->off_size);
 }

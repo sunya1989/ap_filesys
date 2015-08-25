@@ -136,6 +136,7 @@ struct ap_dir_t{
     struct ap_inode *dir_i;
     void *cursor;
     void (*release)(void *);
+    int done;
 };
 
 #define DEFALUT_DIR_RD_ONECE_NUM (4096 / sizeof(struct ap_dirent))
@@ -146,9 +147,9 @@ static inline AP_DIR *MALLOC_AP_DIR()
 {
     AP_DIR *dir = Mallocz(sizeof(*dir));
     dir->d_buff = Mallocz(DEFALUT_DIR_RD_ONECE_LEN);
-    dir->d_buff = dir->d_buff + DEFALUT_DIR_RD_ONECE_LEN;
-    dir->d_buff_p = dir->d_buff;
+    dir->d_buff_p = dir->d_buff_end = dir->d_buff;
     dir->cursor = NULL;
+    dir->done = 0;
     return dir;
 }
 

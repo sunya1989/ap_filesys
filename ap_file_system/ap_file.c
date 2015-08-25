@@ -765,6 +765,7 @@ AP_DIR *ap_open_dir(const char *path)
     AP_DIR *dir;
     struct ap_inode_indicator *indc;
     struct ap_file_pthread *ap_fpthr;
+    ap_fpthr = pthread_getspecific(file_thread_key);
     
     SHOW_TRASH_BAG;
     indc = MALLOC_INODE_INDICATOR();
@@ -798,6 +799,7 @@ struct ap_dirent *ap_readdir(AP_DIR *dir)
         errno = EINVAL;
         return NULL;
     }
+    
     struct ap_inode *inode = dir->dir_i;
     if (inode->i_ops->readdir == NULL) {
         errno = ESRCH;
@@ -807,7 +809,12 @@ struct ap_dirent *ap_readdir(AP_DIR *dir)
     ssize_t read;
     struct ap_dirent *dirt;
     if (dir->d_buff_p == dir->d_buff_end) {
-        memset(dir->d_buff_p, '\0', (dir->d_buff_end - dir->d_buff));
+        if (dir->done) {
+            dir->done = 0;
+            return NULL;
+        }
+        memset(dir->d_buff, '\0', (dir->d_buff_end - dir->d_buff));
+        dir->d_buff_p = dir->d_buff;
         read = inode->i_ops->
         readdir(inode, dir, dir->d_buff, DEFALUT_DIR_RD_ONECE_NUM);
         dir->d_buff_end = dir->d_buff + read;
@@ -817,7 +824,7 @@ struct ap_dirent *ap_readdir(AP_DIR *dir)
         }
     }
     dirt = (struct ap_dirent *)dir->d_buff_p;
-    dir->d_buff_p += sizeof(*dir);
+    dir->d_buff_p += sizeof(*dirt);
     return dirt;
 }
 
