@@ -12,7 +12,7 @@
 #include <sys/stat.h>
 #include <sys/msg.h>
 #include "system_v.h"
-#define V_PATH_CAT "@SYSTEM_V"
+#define V_PATH_CAT "#SYSTEM_V"
 
 struct msg_recv_hint{
     unsigned long ch_n;

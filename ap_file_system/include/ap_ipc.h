@@ -56,7 +56,6 @@ Lock_test(fd, F_WRLCK, offset, whence, len)
 int lock_reg(int, int, int, off_t, int, off_t);
 void Lock_reg(int, int, int, off_t, int, off_t);
 
-
 #define AP_C_T 0
 #define AP_IPC_PID 1
 #define AP_IPC_KEY 2
