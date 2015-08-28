@@ -174,7 +174,7 @@ extern int ap_mount2(char *file_system, const char *path)
         errno = EINVAL;
         return -1;
     }
-    const char *tmp_path;
+    char *tmp_path;
     int slash_no;
     void *m_info;
     tmp_path = regular_path(path, &slash_no);
@@ -193,6 +193,7 @@ extern int ap_mount2(char *file_system, const char *path)
     m_info = fsyst->get_mount_info(tmp_path);
     __ap_mount(m_info, fsyst, path);
     counter_put(&fsyst->fs_type_counter);
+    free(tmp_path);
     return 0;
 }
 

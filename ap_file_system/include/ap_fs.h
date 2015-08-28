@@ -325,7 +325,7 @@ static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
 
 struct ap_inode_indicator{
     char full_path[FULL_PATH_LEN];
-	const char *path;
+    char *path;
     int slash_remain;
     const char *the_name;
     char *name_buff;
@@ -353,6 +353,9 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
 
 static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 {
+    if (indc->path != NULL) {
+        free(indc->path);
+    }
     if (indc->cur_inode != NULL) {
          ap_inode_put(indc->cur_inode);
     }
@@ -368,11 +371,7 @@ static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
 {
     struct ap_inode_indicator *indic;
-    indic = malloc(sizeof(*indic));
-    if (indic == NULL) {
-        perror("malloc failed");
-        exit(1);
-    }
+    indic = Mallocz(sizeof(*indic));
     AP_INODE_INDICATOR_INIT(indic);
     return indic;
 }
@@ -523,6 +522,6 @@ extern void ipc_holder_hash_delet(struct holder *hl);
 extern void inode_ipc_get(void *ind);
 extern void inode_ipc_put(void *ind);
 extern int decompose_mt(struct ap_inode *mt);
-extern const char *regular_path(const char *path, int *slash_no);
+extern char *regular_path(const char *path, int *slash_no);
 #endif
 

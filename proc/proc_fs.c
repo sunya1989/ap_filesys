@@ -328,32 +328,32 @@ static void client_rdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
         byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
         if(hash_union_insert_recheck(hl->ihl.ipc_byp_hash, &byp->h_un) != &byp->h_un)
             THRD_BYP_FREE(byp);
-        
-        if (byp->dir_o == NULL) {
-            dir = MALLOC_AP_DIR();
-            byp->dir_o = dir;
-            dir->dir_i = hl->ihl.inde;
-            ap_inode_get(dir->dir_i);
-        }
-        if (dir->d_buff != NULL)
-            free(dir->d_buff);
-        
-        dir->d_buff = Mallocz(req->req_t.f_o_info.read_len);
-        read_n = hl->ihl.inde->i_ops->
-        readdir(hl->ihl.inde, dir, dir->d_buff, DIR_RD_ONECE_NUM(req->req_t.f_o_info.read_len));
-        
-        len = sizeof(struct ap_msgreply) + read_n + sizeof(int);
-        re = Mallocz(len);
-        re->rep_t.re_type = read_n;
-        re->rep_t.read_n = read_n;
-        re->struct_l = 1;
-        memcpy(re->re_struct, dir->d_buff, read_n);
-       *((int *)(re->re_struct + read_n)) = dir->done;
-        
-        port->ipc_ops->ipc_send(port, re, len, NULL);
-        free(re);
-        free(dir->d_buff);
     }
+    
+    if (byp->dir_o == NULL) {
+        dir = MALLOC_AP_DIR();
+        byp->dir_o = dir;
+        dir->dir_i = hl->ihl.inde;
+        ap_inode_get(dir->dir_i);
+    }
+    
+    dir = byp->dir_o;
+    if (dir->d_buff != NULL)
+        memset(dir->d_buff, '\0', DEFALUT_DIR_RD_ONECE_LEN);
+    
+    read_n = hl->ihl.inde->i_ops->
+    readdir(hl->ihl.inde, dir, dir->d_buff, DIR_RD_ONECE_NUM(req->req_t.f_o_info.read_len));
+    
+    len = sizeof(struct ap_msgreply) + read_n + sizeof(int);
+    re = Mallocz(len);
+    re->rep_t.re_type = read_n;
+    re->rep_t.read_n = read_n;
+    re->struct_l = 1;
+    memcpy(re->re_struct, dir->d_buff, read_n);
+    re->rep_t.readdir_is_done = dir->done;
+    
+    port->ipc_ops->ipc_send(port, re, len, NULL);
+    free(re);
 }
 
 static void client_cdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *req)
@@ -1478,7 +1478,7 @@ static ssize_t proc_readdir
     if (msgre->rep_t.read_n > 0) {
         memcpy(buff, msgre->re_struct, msgre->rep_t.read_n);
     }
-    dir->done = *(int *)(msgre->struct_l + msgre->rep_t.read_n);
+    dir->done = msgre->rep_t.readdir_is_done;
     B_return(msgre->rep_t.read_n);
 }
 

@@ -25,6 +25,7 @@ struct ap_msgrep_type{
     ssize_t re_type;
     size_t read_n;
     size_t write_n;
+    int readdir_is_done;
 };
 
 struct ap_msgreply{

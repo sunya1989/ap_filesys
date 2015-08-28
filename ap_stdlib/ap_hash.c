@@ -81,10 +81,7 @@ void hash_union_insert(struct ap_hash *table, struct hash_union *un)
     list_add(&un->union_lis, &table->hash_table[hash_n].hash_union_entry);
     pthread_mutex_unlock(lock);
     
-    pthread_mutex_lock(&table->r_size_lock);
-    table->r_size++;
-    pthread_mutex_unlock(&table->r_size_lock);
-    
+    increase_hash_rsize(table);
     un->table = &table->hash_table[hash_n];
     return;
 }
@@ -101,7 +98,7 @@ struct hash_union
     }
     pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
     pthread_mutex_lock(lock);
-    head = &ipc_hold_table.hash_table[hash_n].holder;
+    head = &table->hash_table[hash_n].hash_union_entry;
     list_for_each_entry(pos, head, union_lis){
         if (strcmp(pos->ide.ide_c, un->ide.ide_c) == 0 &&
             pos->ide.ide_type.ide_i == un->ide.ide_type.ide_i) {

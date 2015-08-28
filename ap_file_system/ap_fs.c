@@ -380,7 +380,7 @@ static int __initial_indicator(const char *path, struct ap_inode_indicator *indc
     int slash_no;
     indc->cur_inode = ap_fpthr->c_wd;
     
-    path = regular_path(path, &slash_no);
+    char *r_path = regular_path(path, &slash_no);
     if (path == NULL) {
         errno = EINVAL;
         return -1;
@@ -409,7 +409,7 @@ static int __initial_indicator(const char *path, struct ap_inode_indicator *indc
         }
     }
 COMPLETE:
-    indc->path = path;
+    indc->path = r_path;
     indc->cur_mtp = indc->cur_inode->mount_inode;
     strncpy(indc->full_path, path, strlen(path));
     ap_inode_get(indc->cur_inode);
@@ -423,12 +423,11 @@ int initial_indicator(const char *path,
     return __initial_indicator(path, ind, ap_fpthr);
 }
 
-
-const char *regular_path(const char *path, int *slash_no)
+char *regular_path(const char *path, int *slash_no)
 {
     char *slash;
     const char *path_cursor = path;
-    const char *reg_path;
+    char *reg_path;
     
     size_t path_len = strlen(path);
     if (path_len == 0 || slash_no == NULL || path_len > FULL_PATH_LEN) {
@@ -454,9 +453,12 @@ const char *regular_path(const char *path, int *slash_no)
         }
     }
     
-    reg_path = path;
+    ssize_t len = strlen(path);
+    reg_path = Mallocz(len + 1);
+    strncpy(reg_path, path, len);
     if (*(path_end-1) == '/') {
         (*slash_no)--;
+       *(reg_path + (len - 1)) = '\0';
     }
     
     return reg_path;

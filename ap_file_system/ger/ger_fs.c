@@ -275,7 +275,10 @@ ger_readdir(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
                       dir->cursor)->stem_inuse);
         dir->done = 1;
         dir->cursor = NULL;
+    }else{
+        dir->done = 1;
     }
+        
     pthread_mutex_unlock(&node->ch_lock);
     return (num_c * sizeof(*dirt_p));
 }
