@@ -38,6 +38,7 @@ struct ap_msgreply{
 struct ap_msgreq_type{
     op_type_t op_type;
     struct ipc_file_op_info{
+        pmide_t pm_ide;
         unsigned long flags;
         size_t read_len;
         size_t wirte_len;

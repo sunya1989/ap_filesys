@@ -64,7 +64,8 @@ static char **pull_req(struct ap_msgreq *req)
     return msg_req;
 }
 
-static struct ap_msgbuf *constr_req(void *buf, size_t buf_len, size_t list[], int lis_len, size_t *ttlen)
+static struct ap_msgbuf *
+constr_req(void *buf, size_t buf_len, size_t list[], int lis_len, size_t *ttlen)
 {
     *ttlen = sizeof(struct ap_msgbuf) + buf_len + sizeof(size_t)*lis_len;
     struct ap_msgbuf *msgbuf = (struct ap_msgbuf *)Mallocz(*ttlen);
@@ -132,6 +133,17 @@ static struct ap_file *look_up_file(struct ipc_inode_ide *iide)
     return file;
 }
 
+static int creat_permission_file(char *path, mode_t mode)
+{
+    int fd = mkstemp(path);
+    if (fd == -1) {
+        return -1;
+    }
+    chmod(path, mode);
+    close(fd);
+    return 0;
+}
+
 static inline void add_o_file(thrd_byp_t *byp, struct ap_file *file)
 {
     pthread_mutex_lock(&byp->file_lock);
@@ -195,7 +207,8 @@ static struct ipc_inode_ide *get_iide_path(const char *path, size_t *ttlen)
     return iide;
 }
 
-static void handle_disc(struct ap_inode *inde, struct ap_ipc_port *p, const char *sever_name)
+static void
+handle_disc(struct ap_inode *inde, struct ap_ipc_port *p, const char *sever_name)
 {
     recode_proc_disc(p, sever_name);
     if (inde == NULL) {
@@ -274,6 +287,7 @@ static void client_g(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
         return;
     }
     
+    indic->pm_ide = req->req_t.f_o_info.pm_ide;
     len = sizeof(struct ap_msgreply) + sizeof(*indic) + sizeof(struct ap_inode);
     
     struct ap_msgreply *re_m = Mallocx(len);
@@ -504,7 +518,6 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     }
     
     thr_byp = container_of(un, thrd_byp_t, h_un);
-    
     add_o_file(thr_byp, file);
     
     re.rep_t.re_type = 0;
@@ -717,7 +730,9 @@ static struct ap_inode
     snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN, "/%ld_client", (long)pid);
     get_ipc_c_port(m_info->typ, p_file);
     
-    snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/%s@%ld",m_info->sever_name,(long)pid);
+    snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/permission#%ld",(long)pid);
+    creat_permission_file(p_file, 0420);
+    
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->cs_port);
     pthread_detach(thr_n);
     if (thr_cr_s == -1) {
@@ -731,6 +746,7 @@ static struct ap_inode
     strncpy(sever_name, m_info->sever_name, strl1);
     h_info->sever_name = sever_name;
     
+    snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/%s@%ld",m_info->sever_name,(long)pid);
     k_s = ap_ipc_kick_start(h_info->cs_port, p_file);
     if (k_s == -1){
         h_info->cs_port->ipc_ops->ipc_close(h_info->cs_port);
@@ -837,6 +853,20 @@ static int ipc_get_root(ppair_t *ppair)
     return (int)msgre->rep_t.re_type;
 }
 
+static pmide_t get_permission_ide(const char *path)
+{
+    int fd;
+    if ((fd = open(path, O_RDONLY)) != -1){
+        close(fd);
+        return user;
+    }
+    if ((fd = open(path, O_WRONLY)) != -1){
+        close(fd);
+        return gruop;
+    }
+    return other;
+}
+
 /**
  *get the inode of the process with respect to certain pid
  */
@@ -904,6 +934,7 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
         return -1;
     }
     
+    
     int get_r = ipc_get_root(port_pair);
     if (get_r == -1)
         return -1;
@@ -913,6 +944,8 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     info->port_pair = port_pair;
     info->c_t = c_typ;
     info->info_h = h_info;
+    snprintf(full_p+strl3+strl0, AP_IPC_PATH_LEN, "/permission#%s",(h_info->sever_name+strl0+1));
+    info->pm_id = get_permission_ide(full_p);
     
     inode->name = Mallocz(strl1 + 1);
     strncpy(inode->name, indc->the_name, strl1);
@@ -968,6 +1001,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     size_t ttlen;
     buf = constr_req(iide, buf_l, lis, 1, &ttlen);
     buf->req.req_t.op_type = g;
+    buf->req.req_t.f_o_info.pm_ide = info->pm_id;
     TRASH_BAG_RAW_PUSH(buf, free);
     
     struct package_hint hint;
@@ -1015,10 +1049,13 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     cur_ind->name = Mallocz(len + 1);
     strncpy(cur_ind->name, dir_name, len);
     
-    if (f_ind->is_dir == 1)
+    if (f_ind->is_dir == 1){
         cur_ind->i_ops = &proc_file_i_operations;
-    else
+    }
+    else{
         cur_ind->f_ops = &proc_file_operations;
+        cur_ind->i_ops = &proc_file_i_operations;
+    }
     
     ap_inode_put(indc->cur_inode);
     ap_inode_get(cur_ind);

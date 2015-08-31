@@ -10,16 +10,24 @@
 #include <ap_ipc.h>
 #include "counter.h"
 #include "list.h"
-#define _OPEN_MAX 1024
-#define FULL_PATH_LEN 300
+#define _OPEN_MAX       1024
+#define FULL_PATH_LEN   300
+#define MAY_EXEC		0x00000001
+#define MAY_WRITE		0x00000002
+#define MAY_READ		0x00000004
+
 struct ap_inode_operations;
 struct ap_file_operations;
 struct ap_inode_indicator;
 
 struct ap_inode{
 	char *name;
-    int is_mount_point,is_gate,is_dir,is_ipc_base; //是否为挂载点,是否为link点
+    int is_mount_point,is_gate,is_dir,is_ipc_base;
     int is_search_mt;
+    
+    uid_t i_uid;
+    gid_t i_gid;
+    mode_t i_mode;
     
     int links;
     
@@ -31,8 +39,6 @@ struct ap_inode{
     
     struct counter inode_counter;
     struct counter mount_p_counter;
-    
-    unsigned long mode; //权限检查暂时还没有
 	void *x_object;
 	
     union{
@@ -73,6 +79,9 @@ struct ap_file{
     void *x_object;
 };
 
+pthread_mutex_t umask_lock;
+int ap_umask = 022;
+
 struct ap_inode_operations{
     int (*get_inode) (struct ap_inode_indicator *);
     int (*find_inode) (struct ap_inode_indicator *);
@@ -83,6 +92,7 @@ struct ap_inode_operations{
     int (*unlink) (struct ap_inode *);
     ssize_t (*readdir) (struct ap_inode *, AP_DIR *, void *, size_t);
     int (*closedir)(struct ap_inode *);
+    int (*permission)(struct ap_inode *, int, struct ap_inode_indicator *);
 };
 
 struct ap_file_operations{
@@ -91,15 +101,13 @@ struct ap_file_operations{
     off_t (*llseek) (struct ap_file *, off_t, int);
     int (*release) (struct ap_file *,struct ap_inode *);
     int (*open) (struct ap_file *, struct ap_inode *, unsigned long);
-    int (*destory) (struct ap_inode *);
 };
 
 BAG_DEFINE_FREE(AP_INODE_FREE);
 static inline void AP_INODE_FREE(struct ap_inode *inode)
 {
-    struct ap_inode *i_d = inode->is_dir? inode:inode->parent;
-    if (i_d->i_ops != NULL && i_d->i_ops->destory != NULL) {
-        i_d->i_ops->destory(inode);
+    if (inode->i_ops != NULL && inode->i_ops->destory != NULL) {
+        inode->i_ops->destory(inode);
     }
     pthread_mutex_destroy(&inode->ch_lock);
     pthread_mutex_destroy(&inode->data_lock);
@@ -331,6 +339,7 @@ struct ap_inode_indicator{
     char *name_buff;
     char *cur_slash;
     struct bag indic_bag;
+    pmide_t pm_ide;
     struct ap_inode *gate;
     struct ap_inode *cur_mtp;
 	struct ap_inode *cur_inode;
@@ -376,7 +385,6 @@ static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
     return indic;
 }
 
-
 BAG_DEFINE_FREE(AP_FILE_FREE);
 static inline void AP_FILE_INIT(struct ap_file *file)
 {
@@ -413,7 +421,6 @@ static inline void AP_FILE_FREE(struct ap_file *apf)
     }
     free(apf);
 }
-
 
 struct ap_file_struct{
     struct ap_file *file_list[_OPEN_MAX];
@@ -522,6 +529,7 @@ extern void ipc_holder_hash_delet(struct holder *hl);
 extern void inode_ipc_get(void *ind);
 extern void inode_ipc_put(void *ind);
 extern int decompose_mt(struct ap_inode *mt);
+extern int ap_vfs_permission(struct ap_inode_indicator *indic, int mask);
 extern char *regular_path(const char *path, int *slash_no);
 #endif
 

@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <list.h>
 #include <counter.h>
+#include <envelop.h>
 
 #define GER_FILE_FS "ger"
 
@@ -21,6 +22,7 @@ struct stem_inode_operations;
 struct ger_stem_node{
     const char *stem_name;
     int is_dir;
+    int stem_mode;
     
     struct ger_stem_node *parent;
     struct list_head children;
@@ -61,12 +63,7 @@ static inline void STEM_FREE(struct ger_stem_node *stem)
 static inline struct ger_stem_node *MALLOC_STEM()
 {
     struct ger_stem_node *stem;
-    stem = malloc(sizeof(*stem));
-    if (stem == NULL) {
-        perror("ger_stem malloc failed\n");
-        exit(1);
-    }
-    
+    stem = Mallocz(sizeof(*stem));
     STEM_INIT(stem);
     return stem;
 }

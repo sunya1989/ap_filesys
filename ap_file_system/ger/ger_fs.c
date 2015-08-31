@@ -5,6 +5,7 @@
 //  Created by HU XUKAI on 14/12/24.
 //  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
 //
+#include <unistd.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -15,6 +16,7 @@
 
 static struct ap_file_operations ger_file_operations;
 static struct ap_inode_operations ger_inode_operations;
+static struct ap_inode_operations get_file_inode_operations;
 
 static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
 {
@@ -34,8 +36,12 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
         ind->i_ops = &ger_inode_operations;
     }else{
         ind->f_ops = &ger_file_operations;
+        ind->i_ops = &get_file_inode_operations;
     }
-
+    
+    ind->i_uid = getuid();
+    ind->i_gid = getegid();
+    ind->i_mode = stem->stem_mode;
     return ind;
 }
 
@@ -133,7 +139,6 @@ ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long flags)
     if (stem->sf_ops->stem_open != NULL) {
       return stem->sf_ops->stem_open(stem, flags);
     }
-    
     return 0;
 }
 
@@ -299,6 +304,21 @@ static int ger_destory(struct ap_inode *ind)
     return 0;
 }
 
+static int
+ger_permission(struct ap_inode *inode, int mask, struct ap_inode_indicator *indic)
+{
+    mode_t mode = inode->i_mode;
+    if (indic->pm_ide == user)
+        mode >>= 6;
+    else if(indic->pm_ide == gruop)
+        mode >>= 3;
+    
+    if ((mode & mask & (MAY_READ | MAY_WRITE | MAY_EXEC)) == mask )
+        return 0;
+    
+    return -1;
+}
+
 static struct ap_file_operations ger_file_operations = {
     .read = ger_read,
     .write = ger_write,
@@ -307,12 +327,18 @@ static struct ap_file_operations ger_file_operations = {
     .open = ger_open,
 };
 
+static struct ap_inode_operations get_file_inode_operations = {
+    .destory = ger_destory,
+    .permission = ger_permission,
+};
+
 static struct ap_inode_operations ger_inode_operations = {
     .get_inode = ger_get_inode,
     .rmdir = ger_rmdir,
     .mkdir = ger_mkdir,
     .destory = ger_destory,
     .readdir = ger_readdir,
+    .permission = ger_permission,
     .unlink = ger_unlink,
 };
 

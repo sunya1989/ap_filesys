@@ -5,6 +5,7 @@
 //  Created by HU XUKAI on 14/11/12.
 //  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
 //
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <ap_fs.h>
@@ -29,6 +30,7 @@ static struct ap_inode root_dir = {
     .name = "root_t",
     .is_dir = 1,
     .links = 1,
+    .i_mode = 0777,
     .mount_inode = &root_mt,
     .data_lock = PTHREAD_MUTEX_INITIALIZER,
     .inode_counter = INIT_COUNTER,
@@ -102,6 +104,11 @@ AGAIN:
             errno = ENOTDIR;
             BAG_EXCUTE(&mount_ps);
             return(-1);
+        }
+        
+        if (ap_vfs_permission(start, MAY_EXEC) != 0) {
+            errno = EACCES;
+            return -1;
         }
         
         struct list_head *_cusor;
@@ -410,6 +417,7 @@ static int __initial_indicator(const char *path, struct ap_inode_indicator *indc
     }
 COMPLETE:
     indc->path = r_path;
+    indc->pm_ide = user;
     indc->cur_mtp = indc->cur_inode->mount_inode;
     strncpy(indc->full_path, path, strlen(path));
     ap_inode_get(indc->cur_inode);
@@ -421,6 +429,15 @@ int initial_indicator(const char *path,
                       struct ap_file_pthread *ap_fpthr)
 {
     return __initial_indicator(path, ind, ap_fpthr);
+}
+
+extern int ap_vfs_permission(struct ap_inode_indicator *indic, int mask)
+{
+    struct ap_inode *inode = indic->cur_inode;
+    if (inode->i_ops != NULL && inode->i_ops->permission != NULL) {
+        return inode->i_ops->permission(inode, mask, indic);
+    }
+    return 0;
 }
 
 char *regular_path(const char *path, int *slash_no)
@@ -443,9 +460,12 @@ char *regular_path(const char *path, int *slash_no)
     }
     
     while ((slash = strchr(path_cursor, '/')) != NULL) {
-        if (*(++slash) == '/') {
+        if (*(slash + 1) == '/' ||
+            (*(slash + 2) == '.' && *(slash + 3) == '.') ||
+            (*(slash + 2) == '.' && *(slash + 3) == '/')) {
             return NULL;
         }
+        slash++;
         (*slash_no)++;
         path_cursor = slash;
         if (path_cursor == path_end) {
@@ -456,7 +476,7 @@ char *regular_path(const char *path, int *slash_no)
     ssize_t len = strlen(path);
     reg_path = Mallocz(len + 1);
     strncpy(reg_path, path, len);
-    if (*(path_end-1) == '/') {
+    if (*(path_end-1) == '/' && *slash_no != 1) {
         (*slash_no)--;
        *(reg_path + (len - 1)) = '\0';
     }

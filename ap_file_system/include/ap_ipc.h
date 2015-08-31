@@ -14,8 +14,6 @@
 #include <ap_hash.h>
 #include <bag.h>
 
-#define AP_IPC_PATH_CIL "/tmp/ap_procs/%ld_0"
-#define AP_IPC_PATH_SER "/tmp/ap_procs/%ld_1"
 #define AP_PROC_FILE "/tmp/ap_procs"
 #define AP_PROC_DISC_F "/tmp/ap_proc_disc"
 #define AP_IPC_PATH_LEN 512
@@ -75,7 +73,6 @@ struct package_hint{
 };
 
 BAG_DEFINE_FREE(PAKAGE_HINT_FREE);
-
 static inline void PAKAGE_HINT_FREE(struct package_hint *h)
 {
     if (h->p_release == NULL) {
@@ -98,6 +95,12 @@ struct ap_ipc_port{
     void *x_object;
 };
 
+typedef enum permission_ide{
+    user = 0,
+    gruop,
+    other,
+}pmide_t;
+
 static inline struct ap_ipc_port *MALLOC_IPC_PORT()
 {
     struct ap_ipc_port *port = Mallocz(sizeof(*port));
@@ -113,6 +116,7 @@ static inline void IPC_PORT_FREE(struct ap_ipc_port *port)
 struct ap_ipc_info{
     struct ap_ipc_info_head *info_h;
     ppair_t *port_pair;
+    pmide_t pm_id;
     int disc;
     enum connet_typ c_t;                /*connect type of the severend*/
     struct ap_hash *inde_hash_table;

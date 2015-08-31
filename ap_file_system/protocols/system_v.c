@@ -118,12 +118,12 @@ FINISH:
     return rv;
 }
 
-static key_t ap_ftok(pid_t pid, const char *ipc_path)
+static key_t ap_ftok(pid_t pid, char *ipc_path)
 {
     int cr_s;
     key_t key;
     
-    open(ipc_path, O_CREAT | O_TRUNC | O_RDWR);
+    cr_s = mkstemp(ipc_path);
     if (cr_s == -1)
         return -1;
     chmod(ipc_path, 0777);

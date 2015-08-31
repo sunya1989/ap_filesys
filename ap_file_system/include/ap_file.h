@@ -1,6 +1,6 @@
 #ifndef ap_file_system_ap_file_h
 #define ap_file_system_ap_file_h
-#define AP_REWIND_DIR "sunya_rewind_dir_19891102"
+#define AP_REWIND_DIR "sunya_rewind_dir_19891102"/*need recheck*/
 typedef struct ap_dir_t AP_DIR;
 struct ap_dirent{
     char name[300];
