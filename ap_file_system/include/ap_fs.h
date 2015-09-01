@@ -64,6 +64,9 @@ struct ap_inode{
     struct ap_inode_operations *i_ops;
 };
 
+pthread_mutex_t umask_lock;
+extern int ap_umask;
+
 struct ap_file{
     int ipc_fd;
     struct ap_inode *relate_i;
@@ -78,9 +81,6 @@ struct ap_file{
     struct list_head ipc_file;
     void *x_object;
 };
-
-pthread_mutex_t umask_lock;
-int ap_umask = 022;
 
 struct ap_inode_operations{
     int (*get_inode) (struct ap_inode_indicator *);

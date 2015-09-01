@@ -9,12 +9,17 @@
 #include <stdlib.h>
 #include <ap_pthread.h>
 #include <ap_file.h>
+#include <bag.h>
 
 pthread_once_t thread_once = PTHREAD_ONCE_INIT;
-
 static void thread_file_destory(void *my_data)
 {
     free(my_data);
+}
+
+static void ap_at_exit()
+{
+    BAG_EXCUTE(&global_bag);
 }
 
 static void thread_init()
@@ -24,6 +29,8 @@ static void thread_init()
         perror("ap_thread_init failed\n");
         exit(1);
     }
+    
+    atexit(ap_at_exit);
 }
 
 int ap_file_thread_init()
@@ -32,7 +39,7 @@ int ap_file_thread_init()
     
     pthread_once(&thread_once, thread_init);
     file_pthr = Mallocz(sizeof(*file_pthr));
-   
+    
     AP_FILE_THREAD_INIT(file_pthr);
     
     int set = pthread_setspecific(file_thread_key, file_pthr);

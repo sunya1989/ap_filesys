@@ -9,8 +9,7 @@
 #ifndef ap_file_system_bag_h
 #define ap_file_system_bag_h
 
-#define BAG_HEAD_INIT(name) {&name.list, NULL, &name.list}
-
+#define BAG_HEAD_INIT(name) { &name.list, NULL, &name.list }
 #define SHOW_TRASH_BAG    struct bag_head *____bag_l; \
                           do{____bag_l = MALLOC_BAG_HEAD();}while(0)
 #define TRASH_BAG_PUSH(b) do{__bag_push(b, ____bag_l);}while(0)
@@ -67,6 +66,8 @@ struct bag_head{
     struct bag **list_tail;
 };
 
+extern struct bag_head global_bag;
+
 extern void __bag_push(struct bag *bag, struct bag_head *head);
 extern void __bag_release(struct bag_head *head);
 extern void __bag_pour(struct bag_head *head);
@@ -85,4 +86,5 @@ static inline void __bag_rewind_pos(struct bag_head *head)
 
 extern struct bag_head *MALLOC_BAG_HEAD();
 extern struct bag *MALLOC_BAG();
+extern void clean_file(void *path);
 #endif

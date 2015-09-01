@@ -135,12 +135,16 @@ static struct ap_file *look_up_file(struct ipc_inode_ide *iide)
 
 static int creat_permission_file(char *path, mode_t mode)
 {
-    int fd = mkstemp(path);
+    int fd = creat(path,mode);
     if (fd == -1) {
         return -1;
     }
     chmod(path, mode);
     close(fd);
+    size_t strl = strlen(path);
+    char *t_path = Mallocz(strl + 1);
+    strncpy(t_path, path, strl);
+    BAG_RAW_PUSH(t_path, clean_file, &global_bag);
     return 0;
 }
 
@@ -721,7 +725,6 @@ static struct ap_inode
     h_info = MALLOC_IPC_INFO_HEAD();
     ops = ap_ipc_pro_ops[m_info->typ];
     if ((h_info->cs_port = ops->ipc_get_port(p_file, 0777)) == NULL){
-        IPC_PORT_FREE(h_info->cs_port);
         IPC_INFO_HEAD_FREE(h_info);
         return NULL;
     }
@@ -732,7 +735,7 @@ static struct ap_inode
     
     snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/permission#%ld",(long)pid);
     creat_permission_file(p_file, 0420);
-    
+
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->cs_port);
     pthread_detach(thr_n);
     if (thr_cr_s == -1) {

@@ -9,6 +9,7 @@
 #include <string.h>
 #include <errno.h>
 #include <ap_fs.h>
+#include <bag.h>
 #include <ap_pthread.h>
 
 static struct ap_file_operations root_file_operations;
@@ -40,6 +41,8 @@ static struct ap_inode root_dir = {
     .i_ops = &root_dir_operations,
     .f_ops = &root_file_operations,
 };
+
+int ap_unmask = 022;
 
 struct ap_file_struct file_info = {
     .o_files = 0,

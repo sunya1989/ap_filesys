@@ -13,7 +13,6 @@
 #include <list.h>
 #include <counter.h>
 #include <envelop.h>
-
 #define GER_FILE_FS "ger"
 
 struct stem_file_operations;

@@ -123,12 +123,16 @@ static key_t ap_ftok(pid_t pid, char *ipc_path)
     int cr_s;
     key_t key;
     
-    cr_s = mkstemp(ipc_path);
+    cr_s = creat(ipc_path, 0777);
     if (cr_s == -1)
         return -1;
     chmod(ipc_path, 0777);
     close(cr_s);
     key = ftok(ipc_path, (int)pid);
+    size_t strl = strlen(ipc_path);
+    char *t_path = Mallocz(strl + 1);
+    strncpy(t_path, ipc_path, strl);
+    BAG_RAW_PUSH(t_path, clean_file, &global_bag);
     return key;
 }
 

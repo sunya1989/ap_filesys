@@ -8,8 +8,10 @@
 
 #include <stdio.h>
 #include <bag.h>
+#include <unistd.h>
 #include <envelop.h>
 
+struct bag_head global_bag = BAG_HEAD_INIT(global_bag);
 struct bag_head *MALLOC_BAG_HEAD()
 {
     struct bag_head *bh;
@@ -109,3 +111,9 @@ void __bag_pour(struct bag_head *head)
     }
     head->list_tail = &head->list;
 }
+
+void clean_file(void *path)
+{
+    unlink(path);
+}
+
