@@ -148,7 +148,7 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     
     size_t len = strlen(par_indic->full_path);
     char *mount_path = Mallocz(len + 1);
-    memcpy(mount_path, par_indic->full_path, len);
+    strncpy(mount_path, par_indic->full_path, len);
     mount_point->name = mount_path;
     mount_point->fsyst = fsyst;
     add_mt_inodes(mount_point,par_indic->cur_mtp);

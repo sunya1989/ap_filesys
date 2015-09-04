@@ -258,7 +258,6 @@ static int ap_ipc_kick_start(struct ap_ipc_port *port, const char *path)
     if (fs == NULL)
         return -1;
     
-    
     size_t w_n = fputs(port->port_dis, fs);
     if (w_n < strlen(port->port_dis)) {
         unlink(path);
@@ -266,6 +265,10 @@ static int ap_ipc_kick_start(struct ap_ipc_port *port, const char *path)
     }
     fclose(fs);
     close(fd);
+    size_t strl = strlen(path);
+    char *t_path = Mallocz(strl + 1);
+    strncpy(t_path, path, strl);
+    BAG_RAW_PUSH(t_path, clean_file, &global_bag);
     return 0;
 }
 

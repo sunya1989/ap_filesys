@@ -21,9 +21,11 @@ struct ap_file_operations;
 struct ap_inode_indicator;
 
 struct ap_inode{
-	char *name;
+	char *name;         /*inode name need to be free in inode_free, 
+                         so need to be malloced*/
     int is_mount_point,is_gate,is_dir,is_ipc_base;
-    int is_search_mt;
+    int is_search_mt;   /*set to 1 when wlak_path routine is using
+                         it in order to prevent from deleting by other thread*/
     
     uid_t i_uid;
     gid_t i_gid;
@@ -33,8 +35,8 @@ struct ap_inode{
     
     struct ap_file_system_type *fsyst;
     
-    struct ap_inode *real_inode; //point to the real entry
-    struct ap_inode *mount_inode;
+    struct ap_inode *real_inode; /*point to the real inode entry*/
+    struct ap_inode *mount_inode; /*point to the mount point*/
     struct ap_inode *parent;
     
     struct counter inode_counter;
@@ -54,12 +56,13 @@ struct ap_inode{
     pthread_mutex_t inodes_lock;
     pthread_mutex_t mt_pass_lock;
     pthread_mutex_t mt_ch_lock;
-    pthread_mutex_t data_lock; //目前用于保护link数据
+    pthread_mutex_t data_lock;
     pthread_mutex_t ch_lock;
     
     struct hash_union ipc_path_hash;
     
-    struct ap_inode *prev_mpoints;
+    struct ap_inode *prev_mpoints;/*point to the previous mount inode or 
+                                   regular inode in the same mount point*/
 	struct ap_file_operations *f_ops;
     struct ap_inode_operations *i_ops;
 };
@@ -115,6 +118,7 @@ static inline void AP_INODE_FREE(struct ap_inode *inode)
     pthread_mutex_destroy(&inode->mt_pass_lock);
     
     COUNTER_FREE(&inode->inode_counter);
+    free(inode->name);
     free(inode);
 }
 
@@ -190,7 +194,7 @@ struct ipc_inode_thread_byp{
     struct hash_union h_un;
     pthread_mutex_t file_lock;
     struct list_head file_o; /*the list of opened files*/
-    AP_DIR *dir_o;  /*opend dir*/
+    AP_DIR *dir_o;  /*opened dir*/
 };
 
 typedef struct ipc_inode_thread_byp thrd_byp_t;

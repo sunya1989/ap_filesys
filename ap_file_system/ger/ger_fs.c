@@ -25,7 +25,7 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     ind = MALLOC_AP_INODE();
     n_len = strlen(stem->stem_name);
     ind->name = Mallocz(n_len + 1);
-    memcpy(ind->name, stem->stem_name, n_len);
+    strncpy(ind->name, stem->stem_name, n_len);
     ind->x_object = stem;
     
     counter_get(&stem->stem_inuse);
@@ -355,8 +355,8 @@ static struct ap_inode
     ind->is_dir = 1;
     
     n_len = strlen(root_stem->stem_name);
-    name = malloc(n_len + 1);
-    memcpy(name, root_stem->stem_name, n_len+1);
+    name = Mallocz(n_len + 1);
+    strncpy(name, root_stem->stem_name, n_len+1);
     
     root_stem->stem_name = name;
     ind->name = name;

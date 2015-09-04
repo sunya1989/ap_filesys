@@ -125,20 +125,17 @@ struct ap_ipc_info{
 struct ap_ipc_info_head{
     struct ap_ipc_port *cs_port;
     const char *sever_name; 
-    pthread_mutex_t typ_lock;
 };
 
 static inline struct ap_ipc_info_head *MALLOC_IPC_INFO_HEAD()
 {
     struct ap_ipc_info_head *h_info;
     h_info = Mallocz(sizeof(*h_info));
-    pthread_mutex_init(&h_info->typ_lock, NULL);
     return h_info;
 }
 
 static inline void IPC_INFO_HEAD_FREE(struct ap_ipc_info_head *h_info)
 {
-    pthread_mutex_destroy(&h_info->typ_lock);
     free(h_info);
 }
 
