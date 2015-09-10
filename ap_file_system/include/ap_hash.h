@@ -39,8 +39,8 @@ struct hash_table_union{
 
 struct ap_hash{
     pthread_mutex_t r_size_lock;
-    size_t r_size;
-    size_t size;
+    size_t r_size;  /*indicate how many objcet are actually in hash tale*/
+    size_t size;    /*capacity*/
     struct hash_table_union hash_table[0];
 };
 
@@ -79,7 +79,7 @@ static inline void INITIALIZE_HASH_UNION(struct hash_union *ihu)
 
 static inline struct ap_hash *MALLOC_IPC_HASH(size_t size)
 {
-    struct ap_hash *hash_t = Mallocx(sizeof(struct hash_table_union) *size);
+    struct ap_hash *hash_t = Mallocz(sizeof(struct hash_table_union) *size);
     hash_t->size = size;
     hash_t->r_size = 0;
     for (size_t i = 0; i<size; i++) {

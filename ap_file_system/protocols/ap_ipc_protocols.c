@@ -12,11 +12,11 @@
 #include <bag.h>
 #include "system_v.h"
 BAG_IMPOR_FREE(PAKAGE_HINT_FREE, struct package_hint);
-struct ap_ipc_operations *ap_ipc_pro_ops[TYP_NUM] = {
+struct ap_ipc_operations *ap_ipc_pro_ops[IPC_TYP_NUM] = {
     &system_v_ops,
 };
 pthread_mutex_t c_port_lock = PTHREAD_MUTEX_INITIALIZER;
-struct ap_ipc_port *ipc_c_ports[TYP_NUM];
+struct ap_ipc_port *ipc_c_ports[IPC_TYP_NUM];
 
 struct ap_ipc_port *get_ipc_c_port(enum connet_typ typ, const char *path)
 {

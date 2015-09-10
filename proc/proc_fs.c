@@ -640,7 +640,9 @@ static void *ap_proc_sever(void *arg)
     if (lisen_port->ipc_ops->ipc_lisen != NULL)
         lisen_port->ipc_ops->ipc_lisen(lisen_port);
     while (1) {
-        recv_s = lisen_port->ipc_ops->ipc_recv(lisen_port,&buf,AP_IPC_ONE_MSG_UNION,NULL,p_port);
+        recv_s = lisen_port->ipc_ops->
+        ipc_recv(lisen_port, &buf, AP_IPC_ONE_MSG_UNION, NULL, p_port);
+        
         BAG_RAW_PUSH(buf, free, &trashs);
         msg_buf = (struct ap_msgbuf *)buf;
         type = msg_buf->req.req_t.op_type;
@@ -727,11 +729,11 @@ static struct ap_inode
     snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN, "/%ld_sever",(long)pid);
     h_info = MALLOC_IPC_INFO_HEAD();
     ops = ap_ipc_pro_ops[m_info->typ];
-    if ((h_info->cs_port = ops->ipc_get_port(p_file, 0777)) == NULL){
+    if ((h_info->s_port = ops->ipc_get_port(p_file, 0777)) == NULL){
         IPC_INFO_HEAD_FREE(h_info);
         return NULL;
     }
-    h_info->cs_port->ipc_ops = ops;
+    h_info->s_port->ipc_ops = ops;
     
     snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN, "/%ld_client", (long)pid);
     get_ipc_c_port(m_info->typ, p_file);
@@ -739,11 +741,11 @@ static struct ap_inode
     snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/permission#%ld",(long)pid);
     creat_permission_file(p_file, 0420);
 
-    int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->cs_port);
+    int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->s_port);
     pthread_detach(thr_n);
     if (thr_cr_s == -1) {
-        h_info->cs_port->ipc_ops->ipc_close(h_info->cs_port);
-        IPC_PORT_FREE(h_info->cs_port);
+        h_info->s_port->ipc_ops->ipc_close(h_info->s_port);
+        IPC_PORT_FREE(h_info->s_port);
         IPC_INFO_HEAD_FREE(h_info);
         return NULL;
     }
@@ -753,10 +755,10 @@ static struct ap_inode
     h_info->sever_name = sever_name;
     
     snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/%s@%ld",m_info->sever_name,(long)pid);
-    k_s = ap_ipc_kick_start(h_info->cs_port, p_file);
+    k_s = ap_ipc_kick_start(h_info->s_port, p_file);
     if (k_s == -1){
-        h_info->cs_port->ipc_ops->ipc_close(h_info->cs_port);
-        IPC_PORT_FREE(h_info->cs_port);
+        h_info->s_port->ipc_ops->ipc_close(h_info->s_port);
+        IPC_PORT_FREE(h_info->s_port);
         IPC_INFO_HEAD_FREE(h_info);
         return NULL;
     }

@@ -17,11 +17,13 @@
 struct msg_recv_hint{
     unsigned long ch_n;
 };
+
 struct v_head{
     pid_t pid;
     int msgid;
     key_t key;
 };
+
 struct v_port{
     struct v_head head;
     unsigned long channel;
@@ -190,6 +192,7 @@ static ppair_t *v_ipc_connect(struct ap_ipc_port *port, const char *local_addr)
     
     port->x_object = v_port;
     pair->far_port = port;
+    port->local_port = c_port;
     pair->local_port = c_port;
     
     return pair;
@@ -236,7 +239,9 @@ static struct ap_ipc_port *v_ipc_get_port(const char *pathname, mode_t mode)
 static ssize_t v_ipc_send
 (struct ap_ipc_port *port, void *buf, size_t len, struct package_hint *hint)
 {
-    struct ap_ipc_port *recv_port = ipc_c_ports[SYSTEM_V];
+    struct ap_ipc_port *recv_port = port->local_port == NULL ?
+    ipc_c_ports[SYSTEM_V] : port->local_port;
+    
     if (recv_port == NULL)
         return -1;
     

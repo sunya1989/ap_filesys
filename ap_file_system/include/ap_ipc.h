@@ -63,10 +63,10 @@ void Lock_reg(int, int, int, off_t, int, off_t);
 struct ap_ipc_operations;
 enum connet_typ{
     SYSTEM_V = 0,
-    TYP_NUM,
+    IPC_TYP_NUM,
 };
 
-extern  struct ap_ipc_port *ipc_c_ports[TYP_NUM];
+extern  struct ap_ipc_port *ipc_c_ports[IPC_TYP_NUM];
 struct package_hint{
     void *p_hint;
     void (*p_release)(struct package_hint *);
@@ -91,6 +91,7 @@ typedef struct ap_ipc_port_pair{
 
 struct ap_ipc_port{
     struct ap_ipc_operations *ipc_ops;
+    struct ap_ipc_port *local_port;
     const char *port_dis;
     void *x_object;
 };
@@ -123,7 +124,7 @@ struct ap_ipc_info{
 };
 
 struct ap_ipc_info_head{
-    struct ap_ipc_port *cs_port;
+    struct ap_ipc_port *s_port;         /*sever port*/
     const char *sever_name; 
 };
 

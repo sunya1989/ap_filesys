@@ -57,5 +57,5 @@ struct ap_msgbuf{
     struct ap_msgreq req;
 };
 
-extern struct ap_ipc_operations *ap_ipc_pro_ops[TYP_NUM];
+extern struct ap_ipc_operations *ap_ipc_pro_ops[IPC_TYP_NUM];
 #endif
