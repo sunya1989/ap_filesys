@@ -12,16 +12,21 @@
 #include <dirent.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <ap_fs.h>
 #include <envelop.h>
 
 static void age_dirprepare_raw_data(struct ger_stem_node *stem);
 static struct stem_inode_operations std_age_inode_operations;
 static struct stem_file_operations std_age_file_operations;
 
-void STD_AGE_INIT(struct std_age *age,char *tarf, enum file_state state)
+void STD_AGE_INIT(struct std_age *age, char *tarf, enum file_state state)
 {
     STEM_INIT(&age->stem);
     
+    size_t strl = strlen(tarf);
+    char *name = Mallocz(strl + 1);
+    strncpy(name, tarf, strl);
+    age->stem.stem_name = name;
     age->stem.sf_ops = &std_age_file_operations;
     age->fd = -1;
     age->fs = NULL;
@@ -32,6 +37,11 @@ void STD_AGE_INIT(struct std_age *age,char *tarf, enum file_state state)
 void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard)
 {
     STEM_INIT(&age_dir->stem);
+    size_t strl = strlen(tard);
+    char *name = Mallocz(strl + 1);
+    strncpy(name, tard, strl);
+    age_dir->stem.stem_name = name;
+    
     age_dir->target_dir = tard;
     if (tard != NULL) {
         age_dir->stem.prepare_raw_data = age_dirprepare_raw_data;
@@ -144,7 +154,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
                 sa_temp = MALLOC_STD_AGE(tard, g_fileno);
                 sa_temp->stem.stem_name = cp_path;
                 sa_dir->stem.is_dir = 0;
-                sa_dir->stem.stem_mode = 0777 & ~(022);
+                sa_dir->stem.stem_mode = 0777 & ~(ap_umask);
                 hook_to_stem(stem, &sa_temp->stem);
                 sa_temp->stem.parent = stem;
             }else if(S_ISDIR(stat_buf.st_mode)){
@@ -152,7 +162,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
                 sa_dir_temp = MALLOC_STD_AGE_DIR(tard);
                 sa_dir_temp->stem.stem_name = cp_path;
                 sa_dir_temp->stem.is_dir = 1;
-                sa_dir->stem.stem_mode = 0766 & ~(022);
+                sa_dir->stem.stem_mode = 0766 & ~(ap_umask);
                 hook_to_stem(stem, &sa_dir_temp->stem);
                 sa_dir_temp->stem.parent = stem;
             }else{

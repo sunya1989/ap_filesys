@@ -68,3 +68,15 @@ char *path_cpy_add_root(char *dest, const char *src, size_t len)
     strncpy(cp, src, len);
     return dest;
 }
+
+char *string_copy(const char *c, char *p)
+{
+    size_t strl = strlen(c);
+    char *r = Mallocz(strl + 1);
+    strncpy(r, c, strl);
+    return r;
+}
+
+
+
+

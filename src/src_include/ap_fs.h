@@ -141,6 +141,7 @@ static inline void ap_inode_put(struct ap_inode *inode)
     }
 }
 
+extern int ap_unmask;
 struct ap_dir_t{
     char *d_buff;
     char *d_buff_end;

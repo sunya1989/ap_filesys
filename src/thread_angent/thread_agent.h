@@ -16,7 +16,6 @@
 struct thread_attr_operations{
     ssize_t (*attr_read)(void *,struct ger_stem_node*, off_t, size_t);
     ssize_t (*attr_write)(void *, struct ger_stem_node*, off_t, size_t);
-    
 };
 
 struct thread_age_attribute{
