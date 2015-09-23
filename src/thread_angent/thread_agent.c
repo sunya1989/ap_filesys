@@ -6,6 +6,7 @@
 //  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
 
+#include <string.h>
 #include <stdio.h>
 #include <envelop.h>
 #include "thread_agent.h"
@@ -17,7 +18,7 @@ void THREAD_AGE_DIR_INIT(struct thread_age_dir *thr_dir, const char *name)
 {
     STEM_INIT(&thr_dir->thr_dir_stem);
     size_t strl = strlen(name);
-    char *n = Mallocz(strl+1);
+    char *n = Malloc_z(strl+1);
     strncpy(n, name, strl);
     thr_dir->thr_dir_stem.is_dir = 1;
     thr_dir->thr_dir_stem.stem_name = n;
@@ -29,7 +30,7 @@ void THREAD_AGE_ATTR_INIT(struct thread_age_attribute *thr_attr, const char *nam
 {
     STEM_INIT(&thr_attr->thr_stem);
     size_t strl = strlen(name);
-    char *n = Mallocz(strl+1);
+    char *n = Malloc_z(strl+1);
     strncpy(n, name, strl);
     thr_attr->thr_stem.is_dir = 0;
     thr_attr->thr_stem.stem_name = n;

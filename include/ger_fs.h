@@ -61,7 +61,7 @@ static inline void STEM_FREE(struct ger_stem_node *stem)
 static inline struct ger_stem_node *MALLOC_STEM()
 {
     struct ger_stem_node *stem;
-    stem = Mallocz(sizeof(*stem));
+    stem = Malloc_z(sizeof(*stem));
     STEM_INIT(stem);
     return stem;
 }

@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/msg.h>
+#include <string.h>
 #include "system_v.h"
 #define V_PATH_CAT "#SYSTEM_V"
 
@@ -37,7 +38,7 @@ struct v_msgbuf{
 
 static inline struct v_port *MALLOC_V_PORT()
 {
-    struct v_port *v_port = Mallocz(sizeof(*v_port));
+    struct v_port *v_port = Malloc_z(sizeof(*v_port));
     pthread_mutex_init(&v_port->ch_lock, NULL);
     return v_port;
 }
@@ -108,7 +109,7 @@ static ssize_t v_msgrcv(int msgid, void **d_buf, unsigned long wait_seq)
             if (dl == 0)
                 goto FINISH;
             
-            *d_buf = Mallocz(dl);
+            *d_buf = Malloc_z(dl);
             cc_p = c_p = *d_buf;
         }
         data_l = buf.data_len;
@@ -132,7 +133,7 @@ static key_t ap_ftok(pid_t pid, char *ipc_path)
     close(cr_s);
     key = ftok(ipc_path, (int)pid);
     size_t strl = strlen(ipc_path);
-    char *t_path = Mallocz(strl + 1);
+    char *t_path = Malloc_z(strl + 1);
     strncpy(t_path, ipc_path, strl);
     BAG_RAW_PUSH(t_path, clean_file, &global_bag);
     return key;
@@ -167,7 +168,7 @@ static ppair_t *v_ipc_connect(struct ap_ipc_port *port, const char *local_addr)
     struct ap_ipc_port *c_port;
     const char *txt = port->port_dis;
     cut = cut_str(txt, ':', AP_IPC_RECODE_NUM);
-    ppair_t *pair = Mallocz(sizeof(*pair));
+    ppair_t *pair = Malloc_z(sizeof(*pair));
     
     pid = atoi(cut[AP_IPC_PID]);
     key = atoi(cut[AP_IPC_KEY]);
@@ -226,10 +227,10 @@ static struct ap_ipc_port *v_ipc_get_port(const char *pathname, mode_t mode)
     /*connect type:pid:key:msgid*/
     sprintf(dis, "%d:%ld:%d:%d",SYSTEM_V,(long)pid,key,msgid);
     size_t len = strlen(dis);
-    char *p_dis = Mallocz(len + 1);
+    char *p_dis = Malloc_z(len + 1);
     strncpy(p_dis, dis, len);
     
-    port = Mallocz(sizeof(*port));
+    port = Malloc_z(sizeof(*port));
     port->port_dis = p_dis;
     port->x_object = v_port;
     port->ipc_ops = ap_ipc_pro_ops[SYSTEM_V];
@@ -248,9 +249,9 @@ static ssize_t v_ipc_send
     struct v_port *recv_v_port = recv_port->x_object;
     struct v_port *v_port = port->x_object;
     struct v_msgbuf *v_buf;
-    struct msg_recv_hint *r_h = Mallocz(sizeof(*r_h));
+    struct msg_recv_hint *r_h = Malloc_z(sizeof(*r_h));
     size_t s_l = sizeof(*v_buf) + len;
-    v_buf = Mallocz(s_l);
+    v_buf = Malloc_z(s_l);
     memcpy(v_buf->buf, buf, len);
     ssize_t send_s;
     unsigned long ch_n = get_channel(recv_v_port);
@@ -288,7 +289,7 @@ static ssize_t v_ipc_recv
         p_port->ipc_ops = &system_v_ops;
     }
     size_t t_rv = recv_s - sizeof(*v_port);
-    char *d_buf = Mallocz(t_rv);
+    char *d_buf = Malloc_z(t_rv);
     memcpy(d_buf, v_buf->buf, t_rv);
     free(*buf);
     *buf = d_buf;

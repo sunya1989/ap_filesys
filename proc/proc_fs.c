@@ -50,13 +50,13 @@ static char **pull_req(struct ap_msgreq *req)
     size_t data_len;
     char *p;
     char *cp;
-    char **msg_req = Mallocz(sizeof(char *) *req->index_lenth);
+    char **msg_req = Malloc_z(sizeof(char *) *req->index_lenth);
     size_t *list = (size_t *)req->req_detail;
     char *detail = (char *)(list + req->index_lenth);
     p = detail;
     for (int i = 0; i<req->index_lenth; i++) {
         data_len = list[i];
-        cp = Mallocz(data_len + 1);
+        cp = Malloc_z(data_len + 1);
         memcpy(cp, p, data_len);
         msg_req[i] = cp;
         p += data_len;
@@ -68,7 +68,7 @@ static struct ap_msgbuf *
 constr_req(void *buf, size_t buf_len, size_t list[], int lis_len, size_t *ttlen)
 {
     *ttlen = sizeof(struct ap_msgbuf) + buf_len + sizeof(size_t)*lis_len;
-    struct ap_msgbuf *msgbuf = (struct ap_msgbuf *)Mallocz(*ttlen);
+    struct ap_msgbuf *msgbuf = (struct ap_msgbuf *)Malloc_z(*ttlen);
     msgbuf->req.index_lenth = lis_len;
     size_t *si = (size_t *)msgbuf->req.req_detail;
     char *cp = (char *)(si + lis_len);
@@ -142,7 +142,7 @@ static int creat_permission_file(char *path, mode_t mode)
     chmod(path, mode);
     close(fd);
     size_t strl = strlen(path);
-    char *t_path = Mallocz(strl + 1);
+    char *t_path = Malloc_z(strl + 1);
     strncpy(t_path, path, strl);
     BAG_RAW_PUSH(t_path, clean_file, &global_bag);
     return 0;
@@ -203,7 +203,7 @@ static struct ipc_inode_ide *get_iide_path(const char *path, size_t *ttlen)
     struct ipc_inode_ide *iide;
     size_t str_len = strlen(path);
     size_t buf_l = sizeof(*iide) + str_len + 2;
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     path_cpy_add_root(iide->chrs, path, str_len);
     iide->ide_p.ide_type.pid = getpid();
     iide->ide_t.ide_type.thr_id = pthread_self();
@@ -266,7 +266,7 @@ static int ap_ipc_kick_start(struct ap_ipc_port *port, const char *path)
     fclose(fs);
     close(fd);
     size_t strl = strlen(path);
-    char *t_path = Mallocz(strl + 1);
+    char *t_path = Malloc_z(strl + 1);
     strncpy(t_path, path, strl);
     BAG_RAW_PUSH(t_path, clean_file, &global_bag);
     return 0;
@@ -308,7 +308,7 @@ static void client_g(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     
     if (!get) {
         hl = MALLOC_HOLDER();
-        char *ide_c = Mallocz(str_len + 1);
+        char *ide_c = Malloc_z(str_len + 1);
         strncpy(ide_c, path, str_len);
         hl->ide.ide_c = ide_c;
         hl->ide.ide_type.ide_i =iide->ide_p.ide_type.pid;
@@ -344,7 +344,7 @@ static void client_rdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
     if (byp == NULL) {
         byp = MALLOC_THRD_BYP();
         size_t str_l = strlen(iide->ide_t.ide_c);
-        byp->h_un.ide.ide_c = Mallocz(str_l + 1);
+        byp->h_un.ide.ide_c = Malloc_z(str_l + 1);
         strncpy((char *)byp->h_un.ide.ide_c, iide->ide_t.ide_c, str_l);
         byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
         if(hash_union_insert_recheck(hl->ihl.ipc_byp_hash, &byp->h_un) != &byp->h_un)
@@ -366,7 +366,7 @@ static void client_rdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
     readdir(hl->ihl.inde, dir, dir->d_buff, DIR_RD_ONECE_NUM(req->req_t.f_o_info.read_len));
     
     len = sizeof(struct ap_msgreply) + read_n + sizeof(int);
-    re = Mallocz(len);
+    re = Malloc_z(len);
     re->rep_t.re_type = read_n;
     re->rep_t.read_n = read_n;
     re->struct_l = 1;
@@ -400,7 +400,7 @@ static void client_cdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
         AP_DIR_FREE(byp->dir_o);
     
     
-    re = Mallocz(sizeof(*re));
+    re = Malloc_z(sizeof(*re));
     re->rep_t.re_type = 0;
     port->ipc_ops->ipc_send(port, re, sizeof(*re), NULL);
     free(re);
@@ -416,7 +416,7 @@ static void client_r(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     struct ap_msgreply *re;
     ssize_t read_n;
     size_t len;
-    char *read_buf = Mallocz(req->req_t.f_o_info.read_len);
+    char *read_buf = Malloc_z(req->req_t.f_o_info.read_len);
     
     file = look_up_file(iide);
     inde = file->relate_i;
@@ -434,7 +434,7 @@ static void client_r(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     
     len = sizeof(struct ap_msgreply) + read_n;
     
-    re = Mallocz(len);
+    re = Malloc_z(len);
     re->rep_t.re_type = read_n;
     re->rep_t.read_n = read_n;
     re->struct_l = 1;
@@ -515,7 +515,7 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     if (un == NULL) {
         thr_byp = MALLOC_THRD_BYP();
         size_t str_l = strlen(iide->ide_t.ide_c);
-        thr_byp->h_un.ide.ide_c = Mallocz(str_l + 1);
+        thr_byp->h_un.ide.ide_c = Malloc_z(str_l + 1);
         strncpy((char *)thr_byp->h_un.ide.ide_c, iide->ide_t.ide_c, str_l);
         thr_byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
         if((un = hash_union_insert_recheck(hl->ihl.ipc_byp_hash, &thr_byp->h_un)) !=
@@ -631,7 +631,7 @@ static void *ap_proc_sever(void *arg)
     struct ap_ipc_port *lisen_port = arg;
     void *buf;
     char **req_detail;
-    struct ap_ipc_port *p_port = Mallocz(sizeof(*p_port));
+    struct ap_ipc_port *p_port = Malloc_z(sizeof(*p_port));
     struct ap_msgbuf *msg_buf;
     op_type_t type;
     ap_file_thread_init();
@@ -750,7 +750,7 @@ static struct ap_inode
         return NULL;
     }
     
-    char *sever_name = Mallocz(strl1 + 1);
+    char *sever_name = Malloc_z(strl1 + 1);
     strncpy(sever_name, m_info->sever_name, strl1);
     h_info->sever_name = sever_name;
     
@@ -801,7 +801,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
         }
         if (strncmp(path, sever_name, strl) == 0) {
             inode = MALLOC_AP_INODE();
-            inode->name = Mallocz(strl +1);
+            inode->name = Malloc_z(strl +1);
             inode->is_dir = 1;
             inode->parent = indc->cur_inode;
             inode->mount_inode = indc->cur_inode->mount_inode;
@@ -830,7 +830,7 @@ static int ipc_get_root(ppair_t *ppair)
     SHOW_TRASH_BAG;
     struct ipc_inode_ide *iide;
     size_t buf_l = sizeof(*iide) + 1;
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     iide->chrs[0] = '/';
     iide->ide_p.ide_type.pid = getpid();
     iide->ide_t.ide_type.thr_id = pthread_self();
@@ -913,7 +913,7 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     if (fs == NULL)
         return -1;
     
-    char *port_dis = Mallocz(AP_IPC_RECODE_LEN);
+    char *port_dis = Malloc_z(AP_IPC_RECODE_LEN);
     if(fgets(port_dis, AP_IPC_RECODE_LEN, fs) == NULL){
         fclose(fs);
         return -1;
@@ -955,7 +955,7 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     snprintf(full_p+strl3+strl0, AP_IPC_PATH_LEN, "/permission#%s",(h_info->sever_name+strl0+1));
     info->pm_id = get_permission_ide(full_p);
     
-    inode->name = Mallocz(strl1 + 1);
+    inode->name = Malloc_z(strl1 + 1);
     strncpy(inode->name, indc->the_name, strl1);
     inode->parent = indc->cur_inode;
     inode->mount_inode = indc->cur_inode->mount_inode;
@@ -998,7 +998,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     str_len = strlen(indc->the_name);
     struct ipc_inode_ide *iide;
     size_t buf_l = sizeof(*iide) + str_len + 2;
-    iide = Mallocz(buf_l + 1);
+    iide = Malloc_z(buf_l + 1);
     path_cpy_add_root(iide->chrs, indc->the_name, str_len);
     iide->ide_p.ide_type.pid = pid;
     iide->ide_t.ide_type.thr_id = thr_id;
@@ -1054,7 +1054,7 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
         dir_name++;
     
     size_t len = strlen(dir_name);
-    cur_ind->name = Mallocz(len + 1);
+    cur_ind->name = Malloc_z(len + 1);
     strncpy(cur_ind->name, dir_name, len);
     
     if (f_ind->is_dir == 1){
@@ -1094,7 +1094,7 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     if (get)
         return get;
     strl = strlen(ide.ide_c) + 2;
-    path = Mallocz(strl);
+    path = Malloc_z(strl);
     path_cpy_add_root(path, ide.ide_c, strlen(ide.ide_c));
     
     indc->cur_inode->ipc_path_hash.ide.ide_c = path;
@@ -1126,7 +1126,7 @@ static ssize_t proc_read(struct ap_file *file, char *buf, off_t off, size_t size
     
     size_t str_len = strlen(path);
     size_t buf_l = sizeof(*iide) + str_len + 2;
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     path_cpy_add_root(iide->chrs, path, str_len);
     iide->off_set_p = iide->off_set_t = 0;
     iide->fd = file->ipc_fd;
@@ -1191,7 +1191,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
  
     size_t str_len = strlen(path);
     size_t buf_l = sizeof(*iide) + str_len + 2;
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     path_cpy_add_root(iide->chrs, path, str_len);
     iide->fd = file->ipc_fd;
     iide->off_set_p = iide->off_set_t = 0;
@@ -1267,7 +1267,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
     size_t buf_l = sizeof(*iide) + str_len + 2;
     size_t list[] = {buf_l};
     
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     path_cpy_add_root(iide->chrs, path, str_len);
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_p.ide_type.pid = pid;
@@ -1346,7 +1346,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     size_t str_len = strlen(path);
     size_t buf_l = str_len + sizeof(*iide) + 2;
     size_t list[] = {buf_l};
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     path_cpy_add_root(iide->chrs, path, str_len);
     iide->fd = file->ipc_fd;
     iide->off_set_p = iide->off_set_t = 0;
@@ -1485,7 +1485,7 @@ static ssize_t proc_readdir
     size_t str_len = strlen(path);
     size_t buf_l = sizeof(*iide) + str_len + 2;
     size_t lis[] = {buf_l};
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     path_cpy_add_root(iide->chrs, path, str_len);
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_p.ide_type.pid = pid;
@@ -1602,7 +1602,7 @@ static int proc_closedir(struct ap_inode *inode)
     size_t str_len = strlen(path);
     size_t buf_l = sizeof(*iide) + str_len + 2;
     size_t lis[] = {buf_l};
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     path_cpy_add_root(iide->chrs, path, str_len);
     iide->off_set_p = iide->off_set_t = 0;
     iide->ide_p.ide_type.pid = getpid();
@@ -1663,7 +1663,7 @@ static int proc_destory(struct ap_inode *inode)
     size_t buf_l = sizeof(*iide) + str_len + 1;
     size_t list[] = {buf_l};
     
-    iide = Mallocz(buf_l);
+    iide = Malloc_z(buf_l);
     strncpy(iide->chrs, path, str_len);
     iide->ide_p.ide_type.pid = pid;
     iide->off_set_p = 0;

@@ -57,6 +57,12 @@ int ap_open(const char *path, int flags)
     file = AP_FILE_MALLOC();
     AP_FILE_INIT(file);
     
+    if ((ap_vfs_permission(final_indc, 1 << flags)) != 0){
+        errno = EACCES;
+        return -1;
+    }
+    
+    
     if (final_indc->cur_inode->f_ops->open != NULL) {
         int open_s;
         open_s = final_indc->cur_inode->f_ops->open(file, final_indc->cur_inode, flags);
@@ -147,7 +153,7 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     pthread_mutex_unlock(&parent->ch_lock);
     
     size_t len = strlen(par_indic->full_path);
-    char *mount_path = Mallocz(len + 1);
+    char *mount_path = Malloc_z(len + 1);
     strncpy(mount_path, par_indic->full_path, len);
     mount_point->name = mount_path;
     mount_point->fsyst = fsyst;
@@ -160,7 +166,7 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
             dir_name++;
         }
         len = strlen(dir_name);
-        mount_inode->name = Mallocz(len + 1);
+        mount_inode->name = Malloc_z(len + 1);
         strncpy(mount_inode->name, dir_name, len);
     }
     
@@ -575,7 +581,7 @@ int ap_link(const char *l_path, const char *t_path)
     }
     
     size_t strl = strlen(gate_indc->the_name);
-    gate_name = Mallocz(strl + 1);
+    gate_name = Malloc_z(strl + 1);
     strncpy(gate_name, gate_indc->the_name, strl);
     
     gate_parent = gate_indc->cur_inode;

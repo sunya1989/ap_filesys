@@ -11,6 +11,8 @@
 #include <ap_file.h>
 #include <bag.h>
 
+pthread_key_t file_thread_key;
+
 pthread_once_t thread_once = PTHREAD_ONCE_INIT;
 static void thread_file_destory(void *my_data)
 {
@@ -38,7 +40,7 @@ int ap_file_thread_init()
     struct ap_file_pthread *file_pthr;
     
     pthread_once(&thread_once, thread_init);
-    file_pthr = Mallocz(sizeof(*file_pthr));
+    file_pthr = Malloc_z(sizeof(*file_pthr));
     
     AP_FILE_THREAD_INIT(file_pthr);
     

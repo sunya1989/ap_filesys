@@ -22,7 +22,7 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
         hasf_str = str;
     }else{
         size_t strl = strlen(str) + strlen(ide->ide_c);
-        join = Mallocz(strl);
+        join = Malloc_z(strl);
         strcpy(join, str);
         strcat(join, ide->ide_c);
         hasf_str = join;

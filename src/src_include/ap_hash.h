@@ -79,7 +79,7 @@ static inline void INITIALIZE_HASH_UNION(struct hash_union *ihu)
 
 static inline struct ap_hash *MALLOC_IPC_HASH(size_t size)
 {
-    struct ap_hash *hash_t = Mallocz(sizeof(struct hash_table_union) *size);
+    struct ap_hash *hash_t = Malloc_z(sizeof(struct hash_table_union) *size);
     hash_t->size = size;
     hash_t->r_size = 0;
     for (size_t i = 0; i<size; i++) {

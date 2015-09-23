@@ -24,7 +24,7 @@ static struct ap_inode *ger_alloc_inode(struct ger_stem_node *stem)
     ssize_t n_len;
     ind = MALLOC_AP_INODE();
     n_len = strlen(stem->stem_name);
-    ind->name = Mallocz(n_len + 1);
+    ind->name = Malloc_z(n_len + 1);
     strncpy(ind->name, stem->stem_name, n_len);
     ind->x_object = stem;
     
@@ -53,7 +53,7 @@ void *ger_ger_mount_info(const char *path)
     struct ger_stem_node *node = MALLOC_STEM();
     add = strl == 1? 0:1;
     d += add;
-    char *name = Mallocz(strl + 1);
+    char *name = Malloc_z(strl + 1);
     strncpy(name, d, strl);
     
     node->stem_name = name;
@@ -355,11 +355,12 @@ static struct ap_inode
     ind->is_dir = 1;
     
     n_len = strlen(root_stem->stem_name);
-    name = Mallocz(n_len + 1);
+    name = Malloc_z(n_len + 1);
     strncpy(name, root_stem->stem_name, n_len+1);
     
     root_stem->stem_name = name;
     ind->name = name;
+    ind->i_mode = root_stem->stem_mode;
     ind->i_ops = &ger_inode_operations;
     ind->links++;
     

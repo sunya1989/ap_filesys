@@ -67,7 +67,7 @@ struct ap_inode{
     struct ap_inode_operations *i_ops;
 };
 
-pthread_mutex_t umask_lock;
+extern pthread_mutex_t umask_lock;
 extern int ap_umask;
 
 struct ap_file{
@@ -158,8 +158,8 @@ struct ap_dir_t{
 
 static inline AP_DIR *MALLOC_AP_DIR()
 {
-    AP_DIR *dir = Mallocz(sizeof(*dir));
-    dir->d_buff = Mallocz(DEFALUT_DIR_RD_ONECE_LEN);
+    AP_DIR *dir = Malloc_z(sizeof(*dir));
+    dir->d_buff = Malloc_z(DEFALUT_DIR_RD_ONECE_LEN);
     dir->d_buff_p = dir->d_buff_end = dir->d_buff;
     dir->cursor = NULL;
     dir->done = 0;
@@ -202,7 +202,7 @@ typedef struct ipc_inode_thread_byp thrd_byp_t;
 
 static inline thrd_byp_t *MALLOC_THRD_BYP()
 {
-    thrd_byp_t *byp = Mallocz(sizeof(*byp));
+    thrd_byp_t *byp = Malloc_z(sizeof(*byp));
     byp->dir_o = NULL;
     INIT_LIST_HEAD(&byp->file_o);
     pthread_mutex_init(&byp->file_lock, NULL);
@@ -224,7 +224,7 @@ struct holder{
 
 static inline struct holder *MALLOC_HOLDER()
 {
-    struct holder *hl = Mallocz(sizeof(*hl));
+    struct holder *hl = Malloc_z(sizeof(*hl));
     INIT_LIST_HEAD(&hl->hash_lis);
     hl->ihl.inde = NULL;
     hl->ihl.ipc_byp_hash = NULL;
@@ -243,7 +243,7 @@ static inline void HOLDER_FREE(struct holder *hl)
 
 static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
 {
-    struct ipc_inode_holder *hl = Mallocz(sizeof(*hl));
+    struct ipc_inode_holder *hl = Malloc_z(sizeof(*hl));
     hl->inde = NULL;
     hl->ipc_byp_hash = NULL;
     return hl;
@@ -288,7 +288,7 @@ static inline int AP_INODE_INIT(struct ap_inode *inode)
 static inline struct ap_inode *MALLOC_AP_INODE()
 {
     struct ap_inode *inode;
-    inode = Mallocz(sizeof(*inode));
+    inode = Malloc_z(sizeof(*inode));
    
     AP_INODE_INIT(inode);
     return inode;
@@ -385,7 +385,7 @@ static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 static inline struct ap_inode_indicator *MALLOC_INODE_INDICATOR()
 {
     struct ap_inode_indicator *indic;
-    indic = Mallocz(sizeof(*indic));
+    indic = Malloc_z(sizeof(*indic));
     AP_INODE_INDICATOR_INIT(indic);
     return indic;
 }
@@ -413,7 +413,7 @@ static inline void AP_FILE_INIT(struct ap_file *file)
 static inline struct ap_file *AP_FILE_MALLOC()
 {
     struct ap_file *apf;
-    apf = Mallocz(sizeof(*apf));
+    apf = Malloc_z(sizeof(*apf));
     AP_FILE_INIT(apf);
     return apf;
 }

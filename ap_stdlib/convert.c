@@ -5,7 +5,7 @@
 //  Created by HU XUKAI on 15/4/30.
 //  Copyright (c) 2015年
 //
-
+#include <string.h>
 #include "convert.h"
 #include "envelop.h"
 #include <stdlib.h>
@@ -76,7 +76,7 @@ char *itoa(int num, char*str, int radix)
 
 void *collect_items(void **items, size_t buf_len, size_t list[], int lis_len)
 {
-    char *buf = Mallocz(buf_len);
+    char *buf = Malloc_z(buf_len);
     char *cp = buf;
     for (int i = 0; i<lis_len; i++) {
         memcpy(cp, items[i], list[i]);

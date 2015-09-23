@@ -16,6 +16,9 @@ static struct ap_file_operations root_file_operations;
 static struct ap_inode_operations root_dir_operations;
 static struct ap_inode root_dir;
 
+pthread_mutex_t umask_lock = PTHREAD_MUTEX_INITIALIZER;
+int ap_umask = 022;
+
 #define extra_real_inode(inode) ((inode->is_mount_point)? (inode->real_inode):(inode))
 static struct ap_inode root_mt = {
     .name = "",
@@ -74,18 +77,18 @@ int walk_path(struct ap_inode_indicator *start)
     
     size_t str_len = strlen(path);
     //当strlen为零时认为寻找的是当前工作目录 所以返回 0
-    if (str_len == 0) {
+    if (str_len == 0)
         return 0;
-    }
 
     struct ap_inode *cursor_inode = start->cur_inode;
     search_mtp_lock(curr_mount_p);
     BAG_RAW_PUSH(curr_mount_p, BAG_search_mtp_unlock, &mount_ps);
   
-    start->slash_remain++;
+    if (str_len > 1)
+        start->slash_remain++;
     
     if (start->slash_remain > 1) {
-        start->name_buff = temp_path = (char *) Mallocz(str_len + 3);
+        start->name_buff = temp_path = (char *) Malloc_z(str_len + 3);
         
         if (*path == '/') {
             *temp_path = '/';
@@ -96,9 +99,8 @@ int walk_path(struct ap_inode_indicator *start)
         path = temp_path;
         
         start->cur_slash = strchr(path, '/');
-        if (start->cur_slash == path) {
+        if (start->cur_slash == path)
             path--;
-        }
     }
     
 AGAIN:
@@ -119,9 +121,9 @@ AGAIN:
        
         start->slash_remain--;
 
-        if (start->slash_remain > 0) {
+        if (start->slash_remain > 0)
             *start->cur_slash = '\0';
-        }
+
         start->the_name = path;
                 
         pthread_mutex_lock(&cursor_inode->ch_lock);
@@ -477,7 +479,7 @@ char *regular_path(const char *path, int *slash_no)
     }
     
     ssize_t len = strlen(path);
-    reg_path = Mallocz(len + 1);
+    reg_path = Malloc_z(len + 1);
     strncpy(reg_path, path, len);
     if (*(path_end-1) == '/' && *slash_no != 1) {
         (*slash_no)--;

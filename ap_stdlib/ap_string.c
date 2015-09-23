@@ -5,7 +5,7 @@
 //  Created by HU XUKAI on 15/8/3.
 //  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
-
+#include <string.h>
 #include <stdio.h>
 #include <envelop.h>
 #include <ap_string.h>
@@ -13,10 +13,10 @@ char **cut_str(const char *s, char d, size_t len)
 {
     char *s_p,*head;
     size_t p_l = strlen(s);
-    char *tm_path = Mallocz(p_l+1);
+    char *tm_path = Malloc_z(p_l+1);
     strncpy(tm_path, s, p_l);
     head = tm_path;
-    char **cut = Mallocz(sizeof(char*)*len);
+    char **cut = Malloc_z(sizeof(char*)*len);
     int i = 0;
     
     while (i < len) {
@@ -26,7 +26,7 @@ char **cut_str(const char *s, char d, size_t len)
             *s_p = '\0';
         }
         str_len = strlen(head);
-        char *item = Mallocz(str_len+1);
+        char *item = Malloc_z(str_len+1);
         strncpy(item, head, str_len);
         *(item + str_len) = '\0';
         cut[i] = item;
@@ -72,7 +72,7 @@ char *path_cpy_add_root(char *dest, const char *src, size_t len)
 char *string_copy(const char *c, char *p)
 {
     size_t strl = strlen(c);
-    char *r = Mallocz(strl + 1);
+    char *r = Malloc_z(strl + 1);
     strncpy(r, c, strl);
     return r;
 }

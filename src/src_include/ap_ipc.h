@@ -104,7 +104,7 @@ typedef enum permission_ide{
 
 static inline struct ap_ipc_port *MALLOC_IPC_PORT()
 {
-    struct ap_ipc_port *port = Mallocz(sizeof(*port));
+    struct ap_ipc_port *port = Malloc_z(sizeof(*port));
     return port;
 }
 
@@ -131,7 +131,7 @@ struct ap_ipc_info_head{
 static inline struct ap_ipc_info_head *MALLOC_IPC_INFO_HEAD()
 {
     struct ap_ipc_info_head *h_info;
-    h_info = Mallocz(sizeof(*h_info));
+    h_info = Malloc_z(sizeof(*h_info));
     return h_info;
 }
 
@@ -142,7 +142,7 @@ static inline void IPC_INFO_HEAD_FREE(struct ap_ipc_info_head *h_info)
 
 static inline struct ap_ipc_info *MALLOC_IPC_INFO()
 {
-    struct ap_ipc_info *info = Mallocz(sizeof(*info));
+    struct ap_ipc_info *info = Malloc_z(sizeof(*info));
     info->inde_hash_table = MALLOC_IPC_HASH(AP_IPC_INODE_HASH_LEN);
     return info;
 }

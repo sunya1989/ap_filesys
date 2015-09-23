@@ -15,7 +15,7 @@ struct bag_head global_bag = BAG_HEAD_INIT(global_bag);
 struct bag_head *MALLOC_BAG_HEAD()
 {
     struct bag_head *bh;
-    bh = Mallocz(sizeof(*bh));
+    bh = Malloc_z(sizeof(*bh));
     bh->list = NULL;
     bh->pos = bh->list_tail = &bh->list;
     return bh;
@@ -23,7 +23,7 @@ struct bag_head *MALLOC_BAG_HEAD()
 
 struct bag *MALLOC_BAG()
 {
-    struct bag *bg = Mallocz(sizeof(*bg));
+    struct bag *bg = Malloc_z(sizeof(*bg));
     bg->release = NULL;
     bg->trash = NULL;
     bg->is_embed = 0;

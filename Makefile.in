@@ -14,6 +14,7 @@
 
 @SET_MAKE@
 
+
 VPATH = @srcdir@
 am__is_gnu_make = { \
   if test -z '$(MAKELEVEL)'; then \
@@ -94,7 +95,7 @@ am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(top_srcdir)/configure \
-	$(am__configure_deps) $(am__DIST_COMMON)
+	$(am__configure_deps) $(pkginclude_HEADERS) $(am__DIST_COMMON)
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno config.status.lineno
 mkinstalldirs = $(install_sh) -d
@@ -128,17 +129,24 @@ am__uninstall_files_from_dir = { \
     || { echo " ( cd '$$dir' && rm -f" $$files ")"; \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
-am__installdirs = "$(DESTDIR)$(pkglibdir)"
+am__installdirs = "$(DESTDIR)$(pkglibdir)" \
+	"$(DESTDIR)$(pkgincludedir)"
 LTLIBRARIES = $(pkglib_LTLIBRARIES)
 libapfsys_la_LIBADD =
 am__dirstamp = $(am__leading_dot)dirstamp
-am_libapfsys_la_OBJECTS = src/ger/ger_fs.lo src/protocols/system_v.lo \
-	src/protocols/ap_ipc_protocols.lo \
-	src/thread_angent/thread_agent.lo src/ap_file_thread.lo \
-	src/ap_file.lo src/ap_fs.lo stdio_age/stdio_agent.lo \
-	proc/proc_fs.lo ap_stdlib/convert.lo ap_stdlib/ap_hash.lo \
-	ap_stdlib/bag.lo ap_stdlib/counter.lo ap_stdlib/ap_string.lo \
-	ap_stdlib/lock_reg.lo
+am_libapfsys_la_OBJECTS = src/ger/libapfsys_la-ger_fs.lo \
+	src/protocols/libapfsys_la-system_v.lo \
+	src/protocols/libapfsys_la-ap_ipc_protocols.lo \
+	src/thread_angent/libapfsys_la-thread_agent.lo \
+	src/libapfsys_la-ap_file_thread.lo src/libapfsys_la-ap_file.lo \
+	src/libapfsys_la-ap_fs.lo \
+	stdio_age/libapfsys_la-stdio_agent.lo \
+	proc/libapfsys_la-proc_fs.lo ap_stdlib/libapfsys_la-convert.lo \
+	ap_stdlib/libapfsys_la-ap_hash.lo \
+	ap_stdlib/libapfsys_la-bag.lo \
+	ap_stdlib/libapfsys_la-counter.lo \
+	ap_stdlib/libapfsys_la-ap_string.lo \
+	ap_stdlib/libapfsys_la-lock_reg.lo
 libapfsys_la_OBJECTS = $(am_libapfsys_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -185,6 +193,7 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
+HEADERS = $(pkginclude_HEADERS)
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) \
 	$(LISP)config.h.in
 # Read a list of newline-separated strings from the standard input,
@@ -340,14 +349,17 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 pkglib_LTLIBRARIES = libapfsys.la
-libapfsys_la_SOURCES = src/ger/ger_fs.c src/protocols/system_v.c src/protocols/system_v.h \
+libapfsys_la_SOURCES = src/ger/ger_fs.c src/protocols/system_v.c \
 					 src/protocols/ap_ipc_protocols.c src/thread_angent/thread_agent.c \
 					 src/ap_file_thread.c src/ap_file.c src/ap_fs.c \
 					 stdio_age/stdio_agent.c proc/proc_fs.h proc/proc_fs.c \
 					 ap_stdlib/convert.c ap_stdlib/ap_hash.c ap_stdlib/bag.c ap_stdlib/counter.c \
 					 ap_stdlib/ap_string.c ap_stdlib/lock_reg.c 
 
-apfsys_la_CPPFLAGS = -I$(top_srcdir)/src/src_include -I$(top_srcdir)/include
+pkginclude_HEADERS = include/ap_file.h include/counter.h include/ger_fs.h include/list.h include/stdio_agent.h \
+					 include/thread_agent.h
+
+libapfsys_la_CPPFLAGS = -I$(top_srcdir)/src/src_include -I$(top_srcdir)/include
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
@@ -442,7 +454,7 @@ src/ger/$(am__dirstamp):
 src/ger/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) src/ger/$(DEPDIR)
 	@: > src/ger/$(DEPDIR)/$(am__dirstamp)
-src/ger/ger_fs.lo: src/ger/$(am__dirstamp) \
+src/ger/libapfsys_la-ger_fs.lo: src/ger/$(am__dirstamp) \
 	src/ger/$(DEPDIR)/$(am__dirstamp)
 src/protocols/$(am__dirstamp):
 	@$(MKDIR_P) src/protocols
@@ -450,9 +462,10 @@ src/protocols/$(am__dirstamp):
 src/protocols/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) src/protocols/$(DEPDIR)
 	@: > src/protocols/$(DEPDIR)/$(am__dirstamp)
-src/protocols/system_v.lo: src/protocols/$(am__dirstamp) \
+src/protocols/libapfsys_la-system_v.lo: src/protocols/$(am__dirstamp) \
 	src/protocols/$(DEPDIR)/$(am__dirstamp)
-src/protocols/ap_ipc_protocols.lo: src/protocols/$(am__dirstamp) \
+src/protocols/libapfsys_la-ap_ipc_protocols.lo:  \
+	src/protocols/$(am__dirstamp) \
 	src/protocols/$(DEPDIR)/$(am__dirstamp)
 src/thread_angent/$(am__dirstamp):
 	@$(MKDIR_P) src/thread_angent
@@ -460,7 +473,8 @@ src/thread_angent/$(am__dirstamp):
 src/thread_angent/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) src/thread_angent/$(DEPDIR)
 	@: > src/thread_angent/$(DEPDIR)/$(am__dirstamp)
-src/thread_angent/thread_agent.lo: src/thread_angent/$(am__dirstamp) \
+src/thread_angent/libapfsys_la-thread_agent.lo:  \
+	src/thread_angent/$(am__dirstamp) \
 	src/thread_angent/$(DEPDIR)/$(am__dirstamp)
 src/$(am__dirstamp):
 	@$(MKDIR_P) src
@@ -468,17 +482,19 @@ src/$(am__dirstamp):
 src/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) src/$(DEPDIR)
 	@: > src/$(DEPDIR)/$(am__dirstamp)
-src/ap_file_thread.lo: src/$(am__dirstamp) \
+src/libapfsys_la-ap_file_thread.lo: src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
-src/ap_file.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
-src/ap_fs.lo: src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/libapfsys_la-ap_file.lo: src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/libapfsys_la-ap_fs.lo: src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 stdio_age/$(am__dirstamp):
 	@$(MKDIR_P) stdio_age
 	@: > stdio_age/$(am__dirstamp)
 stdio_age/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) stdio_age/$(DEPDIR)
 	@: > stdio_age/$(DEPDIR)/$(am__dirstamp)
-stdio_age/stdio_agent.lo: stdio_age/$(am__dirstamp) \
+stdio_age/libapfsys_la-stdio_agent.lo: stdio_age/$(am__dirstamp) \
 	stdio_age/$(DEPDIR)/$(am__dirstamp)
 proc/$(am__dirstamp):
 	@$(MKDIR_P) proc
@@ -486,24 +502,25 @@ proc/$(am__dirstamp):
 proc/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) proc/$(DEPDIR)
 	@: > proc/$(DEPDIR)/$(am__dirstamp)
-proc/proc_fs.lo: proc/$(am__dirstamp) proc/$(DEPDIR)/$(am__dirstamp)
+proc/libapfsys_la-proc_fs.lo: proc/$(am__dirstamp) \
+	proc/$(DEPDIR)/$(am__dirstamp)
 ap_stdlib/$(am__dirstamp):
 	@$(MKDIR_P) ap_stdlib
 	@: > ap_stdlib/$(am__dirstamp)
 ap_stdlib/$(DEPDIR)/$(am__dirstamp):
 	@$(MKDIR_P) ap_stdlib/$(DEPDIR)
 	@: > ap_stdlib/$(DEPDIR)/$(am__dirstamp)
-ap_stdlib/convert.lo: ap_stdlib/$(am__dirstamp) \
+ap_stdlib/libapfsys_la-convert.lo: ap_stdlib/$(am__dirstamp) \
 	ap_stdlib/$(DEPDIR)/$(am__dirstamp)
-ap_stdlib/ap_hash.lo: ap_stdlib/$(am__dirstamp) \
+ap_stdlib/libapfsys_la-ap_hash.lo: ap_stdlib/$(am__dirstamp) \
 	ap_stdlib/$(DEPDIR)/$(am__dirstamp)
-ap_stdlib/bag.lo: ap_stdlib/$(am__dirstamp) \
+ap_stdlib/libapfsys_la-bag.lo: ap_stdlib/$(am__dirstamp) \
 	ap_stdlib/$(DEPDIR)/$(am__dirstamp)
-ap_stdlib/counter.lo: ap_stdlib/$(am__dirstamp) \
+ap_stdlib/libapfsys_la-counter.lo: ap_stdlib/$(am__dirstamp) \
 	ap_stdlib/$(DEPDIR)/$(am__dirstamp)
-ap_stdlib/ap_string.lo: ap_stdlib/$(am__dirstamp) \
+ap_stdlib/libapfsys_la-ap_string.lo: ap_stdlib/$(am__dirstamp) \
 	ap_stdlib/$(DEPDIR)/$(am__dirstamp)
-ap_stdlib/lock_reg.lo: ap_stdlib/$(am__dirstamp) \
+ap_stdlib/libapfsys_la-lock_reg.lo: ap_stdlib/$(am__dirstamp) \
 	ap_stdlib/$(DEPDIR)/$(am__dirstamp)
 
 libapfsys.la: $(libapfsys_la_OBJECTS) $(libapfsys_la_DEPENDENCIES) $(EXTRA_libapfsys_la_DEPENDENCIES) 
@@ -529,21 +546,21 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/ap_hash.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/ap_string.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/bag.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/convert.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/counter.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/lock_reg.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/proc_fs.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ap_file.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ap_file_thread.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ap_fs.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/ger/$(DEPDIR)/ger_fs.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/protocols/$(DEPDIR)/ap_ipc_protocols.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/protocols/$(DEPDIR)/system_v.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/thread_angent/$(DEPDIR)/thread_agent.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@stdio_age/$(DEPDIR)/stdio_agent.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/libapfsys_la-ap_hash.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/libapfsys_la-ap_string.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/libapfsys_la-bag.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/libapfsys_la-convert.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/libapfsys_la-counter.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@ap_stdlib/$(DEPDIR)/libapfsys_la-lock_reg.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@proc/$(DEPDIR)/libapfsys_la-proc_fs.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-ap_file.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-ap_file_thread.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-ap_fs.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/ger/$(DEPDIR)/libapfsys_la-ger_fs.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/protocols/$(DEPDIR)/libapfsys_la-ap_ipc_protocols.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/protocols/$(DEPDIR)/libapfsys_la-system_v.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/thread_angent/$(DEPDIR)/libapfsys_la-thread_agent.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@stdio_age/$(DEPDIR)/libapfsys_la-stdio_agent.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
@@ -569,6 +586,111 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
 
+src/ger/libapfsys_la-ger_fs.lo: src/ger/ger_fs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/ger/libapfsys_la-ger_fs.lo -MD -MP -MF src/ger/$(DEPDIR)/libapfsys_la-ger_fs.Tpo -c -o src/ger/libapfsys_la-ger_fs.lo `test -f 'src/ger/ger_fs.c' || echo '$(srcdir)/'`src/ger/ger_fs.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/ger/$(DEPDIR)/libapfsys_la-ger_fs.Tpo src/ger/$(DEPDIR)/libapfsys_la-ger_fs.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/ger/ger_fs.c' object='src/ger/libapfsys_la-ger_fs.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/ger/libapfsys_la-ger_fs.lo `test -f 'src/ger/ger_fs.c' || echo '$(srcdir)/'`src/ger/ger_fs.c
+
+src/protocols/libapfsys_la-system_v.lo: src/protocols/system_v.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/protocols/libapfsys_la-system_v.lo -MD -MP -MF src/protocols/$(DEPDIR)/libapfsys_la-system_v.Tpo -c -o src/protocols/libapfsys_la-system_v.lo `test -f 'src/protocols/system_v.c' || echo '$(srcdir)/'`src/protocols/system_v.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/protocols/$(DEPDIR)/libapfsys_la-system_v.Tpo src/protocols/$(DEPDIR)/libapfsys_la-system_v.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/protocols/system_v.c' object='src/protocols/libapfsys_la-system_v.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/protocols/libapfsys_la-system_v.lo `test -f 'src/protocols/system_v.c' || echo '$(srcdir)/'`src/protocols/system_v.c
+
+src/protocols/libapfsys_la-ap_ipc_protocols.lo: src/protocols/ap_ipc_protocols.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/protocols/libapfsys_la-ap_ipc_protocols.lo -MD -MP -MF src/protocols/$(DEPDIR)/libapfsys_la-ap_ipc_protocols.Tpo -c -o src/protocols/libapfsys_la-ap_ipc_protocols.lo `test -f 'src/protocols/ap_ipc_protocols.c' || echo '$(srcdir)/'`src/protocols/ap_ipc_protocols.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/protocols/$(DEPDIR)/libapfsys_la-ap_ipc_protocols.Tpo src/protocols/$(DEPDIR)/libapfsys_la-ap_ipc_protocols.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/protocols/ap_ipc_protocols.c' object='src/protocols/libapfsys_la-ap_ipc_protocols.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/protocols/libapfsys_la-ap_ipc_protocols.lo `test -f 'src/protocols/ap_ipc_protocols.c' || echo '$(srcdir)/'`src/protocols/ap_ipc_protocols.c
+
+src/thread_angent/libapfsys_la-thread_agent.lo: src/thread_angent/thread_agent.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/thread_angent/libapfsys_la-thread_agent.lo -MD -MP -MF src/thread_angent/$(DEPDIR)/libapfsys_la-thread_agent.Tpo -c -o src/thread_angent/libapfsys_la-thread_agent.lo `test -f 'src/thread_angent/thread_agent.c' || echo '$(srcdir)/'`src/thread_angent/thread_agent.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/thread_angent/$(DEPDIR)/libapfsys_la-thread_agent.Tpo src/thread_angent/$(DEPDIR)/libapfsys_la-thread_agent.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/thread_angent/thread_agent.c' object='src/thread_angent/libapfsys_la-thread_agent.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/thread_angent/libapfsys_la-thread_agent.lo `test -f 'src/thread_angent/thread_agent.c' || echo '$(srcdir)/'`src/thread_angent/thread_agent.c
+
+src/libapfsys_la-ap_file_thread.lo: src/ap_file_thread.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/libapfsys_la-ap_file_thread.lo -MD -MP -MF src/$(DEPDIR)/libapfsys_la-ap_file_thread.Tpo -c -o src/libapfsys_la-ap_file_thread.lo `test -f 'src/ap_file_thread.c' || echo '$(srcdir)/'`src/ap_file_thread.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/libapfsys_la-ap_file_thread.Tpo src/$(DEPDIR)/libapfsys_la-ap_file_thread.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/ap_file_thread.c' object='src/libapfsys_la-ap_file_thread.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/libapfsys_la-ap_file_thread.lo `test -f 'src/ap_file_thread.c' || echo '$(srcdir)/'`src/ap_file_thread.c
+
+src/libapfsys_la-ap_file.lo: src/ap_file.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/libapfsys_la-ap_file.lo -MD -MP -MF src/$(DEPDIR)/libapfsys_la-ap_file.Tpo -c -o src/libapfsys_la-ap_file.lo `test -f 'src/ap_file.c' || echo '$(srcdir)/'`src/ap_file.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/libapfsys_la-ap_file.Tpo src/$(DEPDIR)/libapfsys_la-ap_file.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/ap_file.c' object='src/libapfsys_la-ap_file.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/libapfsys_la-ap_file.lo `test -f 'src/ap_file.c' || echo '$(srcdir)/'`src/ap_file.c
+
+src/libapfsys_la-ap_fs.lo: src/ap_fs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/libapfsys_la-ap_fs.lo -MD -MP -MF src/$(DEPDIR)/libapfsys_la-ap_fs.Tpo -c -o src/libapfsys_la-ap_fs.lo `test -f 'src/ap_fs.c' || echo '$(srcdir)/'`src/ap_fs.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/libapfsys_la-ap_fs.Tpo src/$(DEPDIR)/libapfsys_la-ap_fs.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/ap_fs.c' object='src/libapfsys_la-ap_fs.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/libapfsys_la-ap_fs.lo `test -f 'src/ap_fs.c' || echo '$(srcdir)/'`src/ap_fs.c
+
+stdio_age/libapfsys_la-stdio_agent.lo: stdio_age/stdio_agent.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT stdio_age/libapfsys_la-stdio_agent.lo -MD -MP -MF stdio_age/$(DEPDIR)/libapfsys_la-stdio_agent.Tpo -c -o stdio_age/libapfsys_la-stdio_agent.lo `test -f 'stdio_age/stdio_agent.c' || echo '$(srcdir)/'`stdio_age/stdio_agent.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) stdio_age/$(DEPDIR)/libapfsys_la-stdio_agent.Tpo stdio_age/$(DEPDIR)/libapfsys_la-stdio_agent.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='stdio_age/stdio_agent.c' object='stdio_age/libapfsys_la-stdio_agent.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o stdio_age/libapfsys_la-stdio_agent.lo `test -f 'stdio_age/stdio_agent.c' || echo '$(srcdir)/'`stdio_age/stdio_agent.c
+
+proc/libapfsys_la-proc_fs.lo: proc/proc_fs.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT proc/libapfsys_la-proc_fs.lo -MD -MP -MF proc/$(DEPDIR)/libapfsys_la-proc_fs.Tpo -c -o proc/libapfsys_la-proc_fs.lo `test -f 'proc/proc_fs.c' || echo '$(srcdir)/'`proc/proc_fs.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) proc/$(DEPDIR)/libapfsys_la-proc_fs.Tpo proc/$(DEPDIR)/libapfsys_la-proc_fs.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='proc/proc_fs.c' object='proc/libapfsys_la-proc_fs.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o proc/libapfsys_la-proc_fs.lo `test -f 'proc/proc_fs.c' || echo '$(srcdir)/'`proc/proc_fs.c
+
+ap_stdlib/libapfsys_la-convert.lo: ap_stdlib/convert.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ap_stdlib/libapfsys_la-convert.lo -MD -MP -MF ap_stdlib/$(DEPDIR)/libapfsys_la-convert.Tpo -c -o ap_stdlib/libapfsys_la-convert.lo `test -f 'ap_stdlib/convert.c' || echo '$(srcdir)/'`ap_stdlib/convert.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ap_stdlib/$(DEPDIR)/libapfsys_la-convert.Tpo ap_stdlib/$(DEPDIR)/libapfsys_la-convert.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ap_stdlib/convert.c' object='ap_stdlib/libapfsys_la-convert.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ap_stdlib/libapfsys_la-convert.lo `test -f 'ap_stdlib/convert.c' || echo '$(srcdir)/'`ap_stdlib/convert.c
+
+ap_stdlib/libapfsys_la-ap_hash.lo: ap_stdlib/ap_hash.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ap_stdlib/libapfsys_la-ap_hash.lo -MD -MP -MF ap_stdlib/$(DEPDIR)/libapfsys_la-ap_hash.Tpo -c -o ap_stdlib/libapfsys_la-ap_hash.lo `test -f 'ap_stdlib/ap_hash.c' || echo '$(srcdir)/'`ap_stdlib/ap_hash.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ap_stdlib/$(DEPDIR)/libapfsys_la-ap_hash.Tpo ap_stdlib/$(DEPDIR)/libapfsys_la-ap_hash.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ap_stdlib/ap_hash.c' object='ap_stdlib/libapfsys_la-ap_hash.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ap_stdlib/libapfsys_la-ap_hash.lo `test -f 'ap_stdlib/ap_hash.c' || echo '$(srcdir)/'`ap_stdlib/ap_hash.c
+
+ap_stdlib/libapfsys_la-bag.lo: ap_stdlib/bag.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ap_stdlib/libapfsys_la-bag.lo -MD -MP -MF ap_stdlib/$(DEPDIR)/libapfsys_la-bag.Tpo -c -o ap_stdlib/libapfsys_la-bag.lo `test -f 'ap_stdlib/bag.c' || echo '$(srcdir)/'`ap_stdlib/bag.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ap_stdlib/$(DEPDIR)/libapfsys_la-bag.Tpo ap_stdlib/$(DEPDIR)/libapfsys_la-bag.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ap_stdlib/bag.c' object='ap_stdlib/libapfsys_la-bag.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ap_stdlib/libapfsys_la-bag.lo `test -f 'ap_stdlib/bag.c' || echo '$(srcdir)/'`ap_stdlib/bag.c
+
+ap_stdlib/libapfsys_la-counter.lo: ap_stdlib/counter.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ap_stdlib/libapfsys_la-counter.lo -MD -MP -MF ap_stdlib/$(DEPDIR)/libapfsys_la-counter.Tpo -c -o ap_stdlib/libapfsys_la-counter.lo `test -f 'ap_stdlib/counter.c' || echo '$(srcdir)/'`ap_stdlib/counter.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ap_stdlib/$(DEPDIR)/libapfsys_la-counter.Tpo ap_stdlib/$(DEPDIR)/libapfsys_la-counter.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ap_stdlib/counter.c' object='ap_stdlib/libapfsys_la-counter.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ap_stdlib/libapfsys_la-counter.lo `test -f 'ap_stdlib/counter.c' || echo '$(srcdir)/'`ap_stdlib/counter.c
+
+ap_stdlib/libapfsys_la-ap_string.lo: ap_stdlib/ap_string.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ap_stdlib/libapfsys_la-ap_string.lo -MD -MP -MF ap_stdlib/$(DEPDIR)/libapfsys_la-ap_string.Tpo -c -o ap_stdlib/libapfsys_la-ap_string.lo `test -f 'ap_stdlib/ap_string.c' || echo '$(srcdir)/'`ap_stdlib/ap_string.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ap_stdlib/$(DEPDIR)/libapfsys_la-ap_string.Tpo ap_stdlib/$(DEPDIR)/libapfsys_la-ap_string.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ap_stdlib/ap_string.c' object='ap_stdlib/libapfsys_la-ap_string.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ap_stdlib/libapfsys_la-ap_string.lo `test -f 'ap_stdlib/ap_string.c' || echo '$(srcdir)/'`ap_stdlib/ap_string.c
+
+ap_stdlib/libapfsys_la-lock_reg.lo: ap_stdlib/lock_reg.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT ap_stdlib/libapfsys_la-lock_reg.lo -MD -MP -MF ap_stdlib/$(DEPDIR)/libapfsys_la-lock_reg.Tpo -c -o ap_stdlib/libapfsys_la-lock_reg.lo `test -f 'ap_stdlib/lock_reg.c' || echo '$(srcdir)/'`ap_stdlib/lock_reg.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ap_stdlib/$(DEPDIR)/libapfsys_la-lock_reg.Tpo ap_stdlib/$(DEPDIR)/libapfsys_la-lock_reg.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ap_stdlib/lock_reg.c' object='ap_stdlib/libapfsys_la-lock_reg.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ap_stdlib/libapfsys_la-lock_reg.lo `test -f 'ap_stdlib/lock_reg.c' || echo '$(srcdir)/'`ap_stdlib/lock_reg.c
+
 mostlyclean-libtool:
 	-rm -f *.lo
 
@@ -584,6 +706,27 @@ clean-libtool:
 
 distclean-libtool:
 	-rm -f libtool config.lt
+install-pkgincludeHEADERS: $(pkginclude_HEADERS)
+	@$(NORMAL_INSTALL)
+	@list='$(pkginclude_HEADERS)'; test -n "$(pkgincludedir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(pkgincludedir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(pkgincludedir)" || exit 1; \
+	fi; \
+	for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  echo "$$d$$p"; \
+	done | $(am__base_list) | \
+	while read files; do \
+	  echo " $(INSTALL_HEADER) $$files '$(DESTDIR)$(pkgincludedir)'"; \
+	  $(INSTALL_HEADER) $$files "$(DESTDIR)$(pkgincludedir)" || exit $$?; \
+	done
+
+uninstall-pkgincludeHEADERS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(pkginclude_HEADERS)'; test -n "$(pkgincludedir)" || list=; \
+	files=`for p in $$list; do echo $$p; done | sed -e 's|^.*/||'`; \
+	dir='$(DESTDIR)$(pkgincludedir)'; $(am__uninstall_files_from_dir)
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique
@@ -809,9 +952,9 @@ distcleancheck: distclean
 	       exit 1; } >&2
 check-am: all-am
 check: check-am
-all-am: Makefile $(LTLIBRARIES) config.h
+all-am: Makefile $(LTLIBRARIES) $(HEADERS) config.h
 installdirs:
-	for dir in "$(DESTDIR)$(pkglibdir)"; do \
+	for dir in "$(DESTDIR)$(pkglibdir)" "$(DESTDIR)$(pkgincludedir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -882,7 +1025,7 @@ info: info-am
 
 info-am:
 
-install-data-am:
+install-data-am: install-pkgincludeHEADERS
 
 install-dvi: install-dvi-am
 
@@ -930,7 +1073,7 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-pkglibLTLIBRARIES
+uninstall-am: uninstall-pkgincludeHEADERS uninstall-pkglibLTLIBRARIES
 
 .MAKE: all install-am install-strip
 
@@ -945,13 +1088,13 @@ uninstall-am: uninstall-pkglibLTLIBRARIES
 	install install-am install-data install-data-am install-dvi \
 	install-dvi-am install-exec install-exec-am install-html \
 	install-html-am install-info install-info-am install-man \
-	install-pdf install-pdf-am install-pkglibLTLIBRARIES \
-	install-ps install-ps-am install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am \
-	uninstall-pkglibLTLIBRARIES
+	install-pdf install-pdf-am install-pkgincludeHEADERS \
+	install-pkglibLTLIBRARIES install-ps install-ps-am \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags tags-am uninstall uninstall-am \
+	uninstall-pkgincludeHEADERS uninstall-pkglibLTLIBRARIES
 
 .PRECIOUS: Makefile
 

@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <ap_fs.h>
 
-pthread_key_t file_thread_key;
+extern pthread_key_t file_thread_key;
 
 struct ap_file_pthread{
     char path[FULL_PATH_LEN];
