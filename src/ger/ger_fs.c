@@ -99,7 +99,7 @@ ger_read(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object; //类型检查？
     if (stem->sf_ops->stem_read == NULL) {
-        errno = EINVAL;
+        errno = ESRCH;
         return -1;
     }
     return stem->sf_ops->stem_read(stem, buf, off_set, len);
@@ -110,7 +110,7 @@ ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object;
     if (stem->sf_ops->stem_read == NULL) {
-        errno = EINVAL;
+        errno = ESRCH;
         return -1;
     }
     return stem->sf_ops->stem_write(stem, buf, off_set, len);
@@ -147,7 +147,7 @@ static off_t ger_llseek(struct ap_file *file, off_t off_set, int origin)
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object; //类型检查？
     
     if (stem->sf_ops->stem_llseek == NULL) {
-        errno = EINVAL;
+        errno = ESRCH;
         return -1;
     }
     return stem->sf_ops->stem_llseek(stem, off_set, origin);
@@ -158,8 +158,8 @@ static int ger_unlink(struct ap_inode *ind)
     struct ger_stem_node *stem = ind->x_object; //类型检查??
     int o;
 
-    if (stem->parent->si_ops->stem_unlink == NULL) {
-        errno = EPERM;
+    if (stem->si_ops->stem_unlink == NULL) {
+        errno = ESRCH;
         return -1;
     }
     ind->x_object = NULL;
@@ -167,7 +167,7 @@ static int ger_unlink(struct ap_inode *ind)
     counter_put(&stem->stem_inuse);
     if (stem->stem_inuse.in_use != 0) {
         pthread_mutex_unlock(&stem->parent->ch_lock);
-        errno = EPERM;
+        errno = EBUSY;
         return -1;
     }
     list_del(&stem->child);
@@ -202,7 +202,7 @@ static int ger_rmdir(struct ap_inode_indicator *indc)
     pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
     pthread_mutex_unlock(&stem->ch_lock);
     if (stem->si_ops == NULL || stem->si_ops->stem_rmdir == NULL) {
-        errno = EPERM;
+        errno = ESRCH;
         return -1;
     }
     counter_put(&stem->stem_inuse);
@@ -219,7 +219,7 @@ static int ger_mkdir(struct ap_inode_indicator *indc)
     struct ap_inode *new_ind;
     
     if (stem->si_ops == NULL || stem->si_ops->stem_mkdir == NULL) {
-        errno = EPERM;
+        errno = ESRCH;
         return -1;
     }
 

@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <stdlib.h>
-#include <ap_fsys/bag.h>
+#include <bag.h>
 
 #define INIT_COUNTER {PTHREAD_MUTEX_INITIALIZER,0}
 struct counter{

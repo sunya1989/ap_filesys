@@ -10,8 +10,8 @@
 #define ap_file_system_ger_fs_h
 
 #include <pthread.h>
-#include <ap_fsys/list.h>
-#include <ap_fsys/counter.h>
+#include <list.h>
+#include <counter.h>
 #define GER_FILE_FS "ger"
 
 struct stem_file_operations;

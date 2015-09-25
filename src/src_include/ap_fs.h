@@ -50,7 +50,7 @@ struct ap_inode{
     
     struct list_head children;
     struct list_head child;
-    struct list_head mt_children;
+    struct list_head mt_children;/*mount point children wich also is mount point*/
     struct list_head mt_child;
     
     pthread_mutex_t inodes_lock;
@@ -71,7 +71,8 @@ extern pthread_mutex_t umask_lock;
 extern int ap_umask;
 
 struct ap_file{
-    int ipc_fd;
+    int ipc_fd; /*used in proc_fs.c, when you have opened a file in other process,
+                 this valude would be returned*/
     struct ap_inode *relate_i;
     unsigned long mod;
     pthread_mutex_t file_lock;

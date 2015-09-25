@@ -9,9 +9,9 @@
 #ifndef ap_file_system_thread_age_h
 #define ap_file_system_thread_age_h
 
+#include <ger_fs.h>
 #include <pthread.h>
-#include <ap_fsys/ger_fs.h>
-#include <ap_fsys/list.h>
+#include <list.h>
 
 struct thread_attr_operations{
     ssize_t (*attr_read)(void *,struct ger_stem_node*, off_t, size_t);

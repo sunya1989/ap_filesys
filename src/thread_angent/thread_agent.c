@@ -35,6 +35,7 @@ void THREAD_AGE_ATTR_INIT(struct thread_age_attribute *thr_attr, const char *nam
     thr_attr->thr_stem.is_dir = 0;
     thr_attr->thr_stem.stem_name = n;
     thr_attr->thr_stem.sf_ops = &thr_age_file_operations;
+    thr_attr->thr_stem.si_ops = &thr_age_inode_operations;
     thr_attr->x_object = NULL;
     return;
 }

@@ -17,6 +17,26 @@
 /*每当一个独立线程调用ap_open时都会产生新的file结构
  *以后能使用hash使得同一个文件对应一个fd（相对于不同线程来说）
  */
+
+static inline int get_mask_from_oflag(int flag)
+{
+    int mask = 0;
+    switch (flag) {
+        case O_RDONLY:
+            mask = MAY_READ;
+            break;
+        case O_WRONLY:
+            mask = MAY_WRITE;
+            break;
+        case O_RDWR:
+            mask = MAY_WRITE | MAY_READ;
+            break;
+        default:
+            return -1;
+    }
+    return mask;
+}
+
 int ap_open(const char *path, int flags)
 {
     int ap_fd = 0;
@@ -26,6 +46,13 @@ int ap_open(const char *path, int flags)
         errno = EINVAL;
         return -1;
     }
+    
+    int mask = get_mask_from_oflag(flags);
+    if (mask == -1) {
+        errno = EINVAL;
+        return -1;
+    }
+    
     SHOW_TRASH_BAG;
     struct ap_file *file;
     struct ap_inode_indicator *final_indc;
@@ -45,7 +72,6 @@ int ap_open(const char *path, int flags)
     
     int get = walk_path(final_indc);
     if (get == -1) {
-        errno = ENOENT;
         B_return(-1);
     }
     
@@ -57,7 +83,7 @@ int ap_open(const char *path, int flags)
     file = AP_FILE_MALLOC();
     AP_FILE_INIT(file);
     
-    if ((ap_vfs_permission(final_indc, 1 << flags)) != 0){
+    if ((ap_vfs_permission(final_indc, mask)) != 0){
         errno = EACCES;
         return -1;
     }
@@ -248,7 +274,6 @@ int ap_unmount(const char *path)
     
     int get = walk_path(ap_indic);
     if (get == -1) {
-        errno = ENOENT;
         B_return(-1);
     }
     
@@ -284,7 +309,7 @@ int ap_close(int fd)
     
     pthread_mutex_lock(&file_info.files_lock);
     if (file_info.file_list[fd] == NULL) {
-        errno = ENOENT;
+        errno = EBADF;
         return -1;
     }
     file = file_info.file_list[fd];
@@ -317,7 +342,7 @@ ssize_t ap_read(int fd, void *buf, size_t len)
     
     pthread_mutex_lock(&file_info.files_lock);
     if (file_info.file_list[fd] == NULL) {
-        errno = ENOENT;
+        errno = EBADF;
         return -1;
     }
     file = file_info.file_list[fd];
@@ -326,7 +351,7 @@ ssize_t ap_read(int fd, void *buf, size_t len)
     
     if (file->f_ops->read == NULL) {
         pthread_mutex_unlock(&file->file_lock);
-        errno = EINVAL;
+        errno = ESRCH;
         return -1;
     }
     read_n = file->f_ops->read(file, buf, file->off_size, len);
@@ -352,14 +377,14 @@ ssize_t ap_write(int fd, void *buf, size_t len)
     
     pthread_mutex_lock(&file_info.files_lock);
     if (file_info.file_list[fd] == NULL) {
-        errno = ENOENT;
+        errno = EBADF;
         return -1;
     }
     file = file_info.file_list[fd];
     pthread_mutex_lock(&file->file_lock);
     pthread_mutex_unlock(&file_info.files_lock);
     if (file->f_ops->write == NULL) {
-        errno = EINVAL;
+        errno = ESRCH;
         return -1;
     }
     
@@ -380,14 +405,14 @@ off_t ap_lseek(int fd, off_t ops, int origin)
     
     pthread_mutex_lock(&file_info.files_lock);
     if (file_info.file_list[fd] == NULL) {
-        errno = ENOENT;
+        errno = EBADF;
         return -1;
     }
     file = file_info.file_list[fd];
     pthread_mutex_lock(&file->file_lock);
     pthread_mutex_unlock(&file_info.files_lock);
     if (file->f_ops->llseek == NULL) {
-        errno = ESPIPE;
+        errno = ESRCH;
         return -1;
     }
     file->off_size = file->f_ops->llseek(file, ops, origin);
@@ -437,13 +462,13 @@ int ap_mkdir(char *path, unsigned long mode)
     }
     
     if (par_indic->slash_remain != 0) {
-        errno = EACCES;
+        errno = ENOENT;
         AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
     
     if (!par_indic->cur_inode->i_ops->mkdir) {
-        errno = EPERM;
+        errno = ESRCH;
         AP_INODE_INICATOR_FREE(par_indic);
         return -1;
     }
@@ -459,7 +484,7 @@ int ap_mkdir(char *path, unsigned long mode)
 int ap_unlink(const char *path)
 {
     if (path == NULL) {
-        errno = EFAULT;
+        errno = EINVAL;
         return -1;
     }
     
@@ -483,7 +508,6 @@ int ap_unlink(const char *path)
     
     int get = walk_path(final_indc);
     if (get == -1) {
-        errno = ENOENT;
         AP_INODE_INICATOR_FREE(final_indc);
         return -1;
     }
@@ -521,7 +545,7 @@ int ap_unlink(const char *path)
         if (op_inode->parent->i_ops->unlink != NULL) {
             int unlik_s = op_inode->parent->i_ops->unlink(op_inode);
             if (unlik_s == -1) {
-                errno = EPERM;
+                errno = EBUSY;
                 o = -1;
             }
         }
@@ -533,7 +557,7 @@ int ap_unlink(const char *path)
 int ap_link(const char *l_path, const char *t_path)
 {
     if (l_path == NULL || t_path == NULL) {
-        errno = EFAULT;
+        errno = EINVAL;
         return -1;
     }
     
@@ -598,7 +622,6 @@ int ap_link(const char *l_path, const char *t_path)
     
     get = walk_path(or_indc);
     if (get == -1) {
-        errno = ENOENT;
         AP_INODE_INICATOR_FREE(or_indc);
         return -1;
     }
@@ -629,7 +652,7 @@ int ap_link(const char *l_path, const char *t_path)
 int ap_rmdir(const char *path)
 {
     if (path == NULL) {
-        errno = EFAULT;
+        errno = EINVAL;
         return -1;
     }
     
@@ -655,7 +678,6 @@ int ap_rmdir(const char *path)
     
     int get = walk_path(final_indc);
     if (get == -1) {
-        errno = ENOENT;
         AP_INODE_INICATOR_FREE(final_indc);
         return -1;
     }
@@ -725,7 +747,7 @@ int ap_rmdir(const char *path)
 int ap_chdir(const char *path)
 {
     if (path == NULL) {
-        errno = EFAULT;
+        errno = EINVAL;
         return -1;
     }
     struct ap_file_pthread *ap_fpthr;
@@ -749,7 +771,6 @@ int ap_chdir(const char *path)
     
     int get = walk_path(final_indc);
     if (get == -1) {
-        errno = ENOENT;
         B_return(-1);
     }
     if (!final_indc->cur_inode->is_dir) {
@@ -786,7 +807,6 @@ AP_DIR *ap_open_dir(const char *path)
     
     int get = walk_path(indc);
     if (get == -1) {
-        errno = ENOENT;
         B_return(NULL);
     }
     if (!indc->cur_inode->is_dir) {
@@ -826,7 +846,6 @@ struct ap_dirent *ap_readdir(AP_DIR *dir)
         readdir(inode, dir, dir->d_buff, DEFALUT_DIR_RD_ONECE_NUM);
         dir->d_buff_end = dir->d_buff + read;
         if (read <= 0) {
-            errno = ENOENT;
             return NULL;
         }
     }

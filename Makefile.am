@@ -7,6 +7,6 @@ libapfsys_la_SOURCES = src/ger/ger_fs.c src/protocols/system_v.c \
 					 ap_stdlib/ap_string.c ap_stdlib/lock_reg.c 
 
 pkginclude_HEADERS = include/ap_file.h include/counter.h include/ger_fs.h include/list.h include/stdio_agent.h \
-					 include/thread_agent.h
+					 include/thread_agent.h include/bag.h
 
-libapfsys_la_CPPFLAGS = -I$(top_srcdir)/src/src_include -I$(top_srcdir)/include
+libapfsys_la_CPPFLAGS = -I$(top_srcdir)/src/src_include
