@@ -13,3 +13,5 @@ ap_stdlib/.deps/libapfsys_la-counter.Plo
 ap_stdlib/.deps/libapfsys_la-lock_reg.Plo
 
 autom4te.cache/requests
+
+*.Plo
