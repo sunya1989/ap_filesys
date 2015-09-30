@@ -205,10 +205,15 @@ static int ger_rmdir(struct ap_inode_indicator *indc)
         errno = ESRCH;
         return -1;
     }
+    int o = stem->si_ops->stem_rmdir(stem);
+    if (o == -1) {
+        return -1;
+    }
+    
     counter_put(&stem->stem_inuse);
     ind->x_object = NULL;
-    int o = stem->si_ops->stem_rmdir(stem);
-    return o;
+    
+    return 0;
 }
 
 static int ger_mkdir(struct ap_inode_indicator *indc)
@@ -431,12 +436,36 @@ AGAIN:
     return NULL;
 }
 
-void hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem)
+static int stem_check_unique(struct ger_stem_node *par, struct ger_stem_node *stem)
 {
+    struct list_head *pos;
+    struct ger_stem_node *stem_pos;
+    size_t strl = strlen(stem->stem_name);
+    pthread_mutex_lock(&par->ch_lock);
+    list_for_each(pos, &par->children){
+        stem_pos = list_entry(pos, struct ger_stem_node, child);
+        if (strncmp(stem->stem_name, stem_pos->stem_name, strl) == 0) {
+            pthread_mutex_unlock(&par->ch_lock);
+            return -1;
+        }
+    }
+    pthread_mutex_unlock(&par->ch_lock);
+    return 0;
+}
+
+int hook_to_stem(struct ger_stem_node *par, struct ger_stem_node *stem)
+{
+    int check = stem_check_unique(par, stem);
+    if (check == -1) {
+        errno = EEXIST;
+        return -1;
+    }
+    
     pthread_mutex_lock(&par->ch_lock);
     list_add(&stem->child, &par->children);
     stem->parent = par;
     pthread_mutex_unlock(&par->ch_lock);
+    return 0;
 }
 
 int init_fs_ger()

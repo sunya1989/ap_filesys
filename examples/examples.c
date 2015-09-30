@@ -12,11 +12,15 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <ap_fsys/ap_types.h>
 #include <ap_fsys/ap_file.h>
 #include <ap_fsys/ger_fs.h>
 #include <ap_fsys/stdio_agent.h>
 #include <ap_fsys/thread_agent.h>
+#include <ap_fsys/proc_fs.h>
+
 #define TEST_LINE_MAX 100
+#define TEST_PATH_LEN 200
 
 /*thread test-struct*/
 struct attr_test{
@@ -139,7 +143,11 @@ void thread_exmple()
     dir->thr_dir_stem.stem_mode = 0777;
     
     /*hook file(attr) to the directory(dir)*/
-    hook_to_stem(&dir->thr_dir_stem, &attr->thr_stem);
+    int hook_s = hook_to_stem(&dir->thr_dir_stem, &attr->thr_stem);
+    if (hook_s == -1) {
+        perror("hook failed\n");
+        exit(1);
+    }
     
     /*find the directory to wich you want hook dir*/
     struct ger_stem_node *root = find_stem_p("/");
@@ -149,7 +157,11 @@ void thread_exmple()
     }
     
     /*hook the dir*/
-    hook_to_stem(root, &dir->thr_dir_stem);
+    hook_s = hook_to_stem(root, &dir->thr_dir_stem);
+    if (hook_s == -1) {
+        perror("hook failed\n");
+        exit(1);
+    }
     
     /*create threads*/
     pthread_create(&n0, NULL, __test_thread_age_print, NULL);
@@ -222,7 +234,7 @@ static int ger_ex_open(struct ger_stem_node *stem, unsigned long flag)
     /*fill some contents*/
     char text[] = "ger_ex is opened";
     strncpy(ger->buf, text, sizeof(text));
-    
+    ger->size = sizeof(text);
     return 0;
 }
 
@@ -247,7 +259,7 @@ static struct stem_inode_operations ger_ex_inode_ops = {
     .stem_destory = ger_ex_destory,
 };
 
-void ger_exmple()
+static void ger_exmple()
 {
     ger_ex.is_open = 0;
     /*pointing to the file and inode operations*/
@@ -264,10 +276,18 @@ void ger_exmple()
         exit(1);
     }
     
-    hook_to_stem(root, &ger_ex.stem);
+    int hook_s = hook_to_stem(root, &ger_ex.stem);
+    if (hook_s == -1) {
+        perror("hook failed\n");
+        exit(1);
+    }
     
     /*open the file*/
-    int fd = ap_open("/ger_exmple", O_RDWR);
+    int fd = ap_open("/gernal_exmple", O_RDWR);
+    if (fd == -1) {
+        perror("gernal open failed\n");
+        exit(1);
+    }
     char buf[TEST_LINE_MAX];
     memset(buf, '\0', TEST_LINE_MAX);
     
@@ -286,7 +306,6 @@ void ger_exmple()
         exit(1);
     }
     
-    
     /*read what just have been wrote*/
     memset(buf, '\0', TEST_LINE_MAX);
     read_n = ap_read(fd, buf, TEST_LINE_MAX);
@@ -300,6 +319,81 @@ void ger_exmple()
     return;
 }
 
+static void proc_example()
+{
+    int fd;
+    char test_r[4] = {'\0','\0','\0','\0'};
+    AP_DIR *dir;
+    struct ap_dirent *dirt;
+    char proc_path[TEST_PATH_LEN];
+    memset(proc_path, '\0', TEST_PATH_LEN);
+    int loop = 0;
+    
+    /*initiate proc file system*/
+    init_proc_fs();
+    
+    /*prepare mount information*/
+    struct proc_mount_info info;
+    info.sever_name = "proc_user0";
+    info.typ = SYSTEM_V;
+    
+    /*mount file system*/
+    int mount_s = ap_mount(&info, PROC_FILE_FS, "/procs");
+    if (mount_s == -1) {
+        perror("proc mount failed\n");
+        exit(1);
+    }
+    
+    /*open directory and read*/
+    dir = ap_open_dir("/procs");
+    if (dir == NULL) {
+        perror("open dir failed\n");
+        exit(1);
+    }
+    /*prepare the path*/
+    strcat(proc_path, "/procs");
+    while (loop < 3) {
+        strncat(proc_path, "/", 1);
+        dirt = NULL;
+        dirt = ap_readdir(dir);
+        if (dirt == NULL){
+            printf("dirctory is empty!\n");
+            exit(0);
+        }
+        ap_closedir(dir);
+        strncat(proc_path, dirt->name, dirt->name_l);
+        
+        dir = NULL;
+        dir = ap_open_dir(proc_path);
+        if (dir == NULL) {
+            perror("open dir failed\n");
+            exit(1);
+        }
+    }
+    /*open the file that reside in other process*/
+    fd = ap_open(proc_path, O_RDWR);
+    if (fd == -1) {
+        perror("proc_open failed\n");
+    }
+    
+    /*write*/
+    char *write_w = "proc_user0 have wrote\n";
+    size_t len = strlen(write_w);
+    ssize_t write_n = ap_write(fd, write_w, len);
+    if (write_n < 0) {
+        perror("proc write failed");
+        exit(1);
+    }
+    /*read*/
+    ap_lseek(fd, 0, SEEK_SET);
+    ssize_t read_n = ap_read(fd, &test_r, 3);
+    if (read_n < 0) {
+        perror("proc read failed");
+    }
+    printf("%s\n",test_r);
+    ap_close(fd);
+}
+
 int main(int argc, const char * argv[]) {
     /*initiate for current thread*/
     ap_file_thread_init();
@@ -309,7 +403,7 @@ int main(int argc, const char * argv[]) {
     struct std_age_dir *root_dir;
     
     /*make a test-directory*/
-    int mk_s = mkdir("/tmp/ap_test", 0777);
+    int mk_s = mkdir("/tmp/ap_test", S_IRWXU | S_IRWXG | S_IRWXO);
     if (mk_s == -1) {
         perror("");
         exit(1);
@@ -328,7 +422,17 @@ int main(int argc, const char * argv[]) {
     root_dir->stem.stem_mode = 0777;
     
     /*mount "/"*/
-    ap_mount(&root_dir->stem, GER_FILE_FS, "/");
+    int mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
+    if (mount_s == -1) {
+        perror("mount root failed\n");
+        exit(1);
+    }
+    
+    /*demonstrate proc example*/
+    proc_example();
+    
+    /*demonstrate gernal example*/
+    ger_exmple();
     
     /*open test-file*/
     int ap_fd = ap_open("/std_test", O_RDWR);
@@ -360,11 +464,9 @@ int main(int argc, const char * argv[]) {
         perror("close failed\n");
         exit(1);
     }
-    
     /*demonstrate thread agent*/
     thread_exmple();
 }
-
 
 
 

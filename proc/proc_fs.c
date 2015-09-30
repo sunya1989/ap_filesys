@@ -140,6 +140,7 @@ static int creat_permission_file(char *path, mode_t mode)
         return -1;
     }
     chmod(path, mode);
+    
     close(fd);
     size_t strl = strlen(path);
     char *t_path = Malloc_z(strl + 1);
@@ -711,10 +712,15 @@ static struct ap_inode
 
     ipc_hold_table_init();
     
-    if (mkdir(AP_PROC_FILE, 1777) == -1 &&
-        errno != EEXIST) {
+    umask(0000);
+    int mk_s = mkdir(AP_PROC_FILE,S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
+    umask(0022);
+
+    if (mk_s == -1 && errno != EEXIST)
         return NULL;
-    }
+    if (mk_s == 0)
+        chmod(AP_PROC_FILE, S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
+    
     char p_file[AP_IPC_PATH_LEN];
     const char *path[] = {
         AP_PROC_FILE,
@@ -722,11 +728,12 @@ static struct ap_inode
     };
     
     path_names_cat(p_file, path, 2, "/");
-    int mkd = mkdir(p_file, 0755);
+    int mkd = mkdir(p_file, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
     if (mkd == -1 && errno != EEXIST) {
         return NULL;
     }
-    snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN, "/%ld_sever",(long)pid);
+    
+    snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN - strl3 -1, "/%ld_sever",(long)pid);
     h_info = MALLOC_IPC_INFO_HEAD();
     ops = ap_ipc_pro_ops[m_info->typ];
     if ((h_info->s_port = ops->ipc_get_port(p_file, 0777)) == NULL){
@@ -735,11 +742,11 @@ static struct ap_inode
     }
     h_info->s_port->ipc_ops = ops;
     
-    snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN, "/%ld_client", (long)pid);
+    snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN - strl3 -1, "/%ld_client", (long)pid);
     get_ipc_c_port(m_info->typ, p_file);
     
-    snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/permission#%ld",(long)pid);
-    creat_permission_file(p_file, 0420);
+    snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN - strl3 -1, "/permission#%ld",(long)pid);
+    creat_permission_file(p_file, S_IRUSR | S_IWGRP);
 
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->s_port);
     pthread_detach(thr_n);
@@ -754,7 +761,7 @@ static struct ap_inode
     strncpy(sever_name, m_info->sever_name, strl1);
     h_info->sever_name = sever_name;
     
-    snprintf(p_file + strl3 +1, AP_IPC_PATH_LEN, "/%s@%ld",m_info->sever_name,(long)pid);
+    snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN - strl3 -1, "/%s@%ld",m_info->sever_name,(long)pid);
     k_s = ap_ipc_kick_start(h_info->s_port, p_file);
     if (k_s == -1){
         h_info->s_port->ipc_ops->ipc_close(h_info->s_port);
@@ -935,7 +942,7 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     s_port->ipc_ops = ap_ipc_pro_ops[c_typ];
     
     size_t strl3 = strlen(AP_PROC_FILE);
-    snprintf(full_p+strl3, AP_IPC_PATH_LEN, "/%s/%ld_client",h_info->sever_name,(long)getpid());
+    snprintf(full_p+strl3, AP_IPC_PATH_LEN - strl3, "/%s/%ld_client",h_info->sever_name,(long)getpid());
     if ((port_pair = s_port->ipc_ops->ipc_connect(s_port, full_p)) == NULL) {
         handle_disc(NULL, s_port, sever_name);
         free(port_dis);
@@ -952,7 +959,7 @@ static int procff_get_inode(struct ap_inode_indicator *indc)
     info->port_pair = port_pair;
     info->c_t = c_typ;
     info->info_h = h_info;
-    snprintf(full_p+strl3+strl0, AP_IPC_PATH_LEN, "/permission#%s",(h_info->sever_name+strl0+1));
+    snprintf(full_p+strl3+strl0, AP_IPC_PATH_LEN - strl3 - strl0, "/permission#%s",(h_info->sever_name+strl0+1));
     info->pm_id = get_permission_ide(full_p);
     
     inode->name = Malloc_z(strl1 + 1);
@@ -985,7 +992,9 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     pid_t pid = getpid();
     pthread_t thr_id = pthread_self();
     
-    *indc->cur_slash = '/';
+    if (indc->slash_remain > 0)
+        *indc->cur_slash = '/';
+    
     info = get_ipc_info(indc->cur_inode);
     int check = check_connect(info, indc->cur_inode);
     if (check == -1)
@@ -1049,8 +1058,10 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     cur_ind->is_dir = f_ind->is_dir;
     cur_ind->parent = indc->cur_inode;
     
-    char *dir_name = strrchr(indc->the_name, '/');
-    if (strcmp(indc->the_name, "/"))
+    const char *dir_name = strrchr(indc->the_name, '/');
+    if (dir_name == NULL)
+        dir_name = indc->the_name;
+    else if (strcmp(indc->the_name, "/"))
         dir_name++;
     
     size_t len = strlen(dir_name);
@@ -1080,7 +1091,9 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     size_t strl;
     int get = 0;
     
-    *indc->cur_slash = '/';
+    if (indc->slash_remain > 0)
+        *indc->cur_slash = '/';
+
     info = get_ipc_info(indc->cur_inode);
     ide.ide_c = indc->the_name;
     ide.ide_type.ide_i = 0;
@@ -1399,6 +1412,8 @@ static ssize_t procfs_readdir
     DIR *dp;
     struct dirent *dirp;
     struct ap_dirent *dir_tp = buff;
+    struct ap_ipc_info_head *h_info = inode->x_object;
+    const char *sever_name = h_info->sever_name;
     size_t i = 0;
     if ((dp = dir->cursor) == NULL) {
         dp = opendir(AP_PROC_FILE);
@@ -1414,7 +1429,8 @@ static ssize_t procfs_readdir
             break;
         }
         if (strcmp(dirp->d_name, ".") == 0 ||
-            strcmp(dirp->d_name, "..") == 0) {
+            strcmp(dirp->d_name, "..") == 0 ||
+            strncmp(sever_name, dirp->d_name, dirp->d_namlen) == 0) {
             i--;
             continue;
         }
@@ -1435,8 +1451,9 @@ static ssize_t procff_readdir
     size_t i = 0;
     char *sever_n = inode->name;
     char full_p[AP_IPC_PATH_LEN];
+    char *at_p;
     const char *names[] = {
-      AP_PROC_FILE,
+        AP_PROC_FILE,
         sever_n,
     };
     if ((dp = dir->cursor) == NULL) {
@@ -1450,9 +1467,10 @@ static ssize_t procff_readdir
     }
     
     while ((dirp = readdir(dp)) != NULL && i < num) {
-        if (strchr(dirp->d_name, AT) == NULL) {
+        if ((at_p = strchr(dirp->d_name, AT)) == NULL) {
             continue;
         }
+        
         strncpy(dir_tp->name, dirp->d_name, dirp->d_namlen);
         dir_tp->name_l = dirp->d_namlen;
         dir_tp++;

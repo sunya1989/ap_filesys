@@ -16,7 +16,6 @@
 #define AP_PNOEXIST 0
 #define MSG_LEN (sizeof(struct ap_msgseg) - sizeof(long))
 extern struct ap_ipc_operations system_v_ops;
-
 struct ap_msgseg{
     long mtype;
     size_t seq;

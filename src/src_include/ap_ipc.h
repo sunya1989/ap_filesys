@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <ap_hash.h>
 #include <bag.h>
+#include <ap_types.h>
 
 #define AP_PROC_FILE "/tmp/ap_procs"
 #define AP_PROC_DISC_F "/tmp/ap_proc_disc"
@@ -61,10 +62,7 @@ void Lock_reg(int, int, int, off_t, int, off_t);
 #define AP_IPC_RECODE_NUM 4
 #define AP_IPC_ONE_MSG_UNION -1
 struct ap_ipc_operations;
-enum connet_typ{
-    SYSTEM_V = 0,
-    IPC_TYP_NUM,
-};
+
 
 extern  struct ap_ipc_port *ipc_c_ports[IPC_TYP_NUM];
 struct package_hint{
