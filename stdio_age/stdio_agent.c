@@ -2,26 +2,33 @@
 //  stdio_agent.c
 //  ap_file_system
 //
-//  Created by sunya on 14/12/26.
-//  Copyright (c) 2014年 sunya. All rights reserved.
+//  Created by HU XUKAI on 14/12/26.
+//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
 //
-#include "stdio_agent.h"
+#include <string.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <ap_fs.h>
 #include <envelop.h>
+#include "stdio_agent.h"
+
 
 static void age_dirprepare_raw_data(struct ger_stem_node *stem);
 static struct stem_inode_operations std_age_inode_operations;
 static struct stem_file_operations std_age_file_operations;
 
-void STD_AGE_INIT(struct std_age *age,char *tarf, enum file_state state)
+void STD_AGE_INIT(struct std_age *age, char *tarf, enum file_state state)
 {
     STEM_INIT(&age->stem);
     
+    size_t strl = strlen(tarf);
+    char *name = Malloc_z(strl + 1);
+    strncpy(name, tarf, strl);
+    age->stem.stem_name = name;
     age->stem.sf_ops = &std_age_file_operations;
     age->fd = -1;
     age->fs = NULL;
@@ -32,6 +39,11 @@ void STD_AGE_INIT(struct std_age *age,char *tarf, enum file_state state)
 void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard)
 {
     STEM_INIT(&age_dir->stem);
+    size_t strl = strlen(tard);
+    char *name = Malloc_z(strl + 1);
+    strncpy(name, tard, strl);
+    age_dir->stem.stem_name = name;
+    
     age_dir->target_dir = tard;
     if (tard != NULL) {
         age_dir->stem.prepare_raw_data = age_dirprepare_raw_data;
@@ -43,7 +55,6 @@ static ssize_t stdio_age_read(struct ger_stem_node *stem, char *buf, off_t off_s
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     ssize_t n_read;
-    
     n_read = read(sa->fd, buf, len);
     return n_read;
 }
@@ -61,7 +72,7 @@ static off_t stdio_age_llseek(struct ger_stem_node *stem, off_t off_set, int ori
     struct std_age *sa = container_of(stem, struct std_age, stem);
     off_t off_size;
     
-    off_size = lseek(sa->fd, off_size, origin);
+    off_size = lseek(sa->fd, off_set, origin);
     return off_size;
 }
 
@@ -93,7 +104,7 @@ static int stdio_age_rmdir(struct ger_stem_node *stem)
 static inline char *combine_path(const char *path1, const char *path2){
     size_t len1  = strlen(path1);
     size_t len2 = strlen(path2);
-    char *tard = Mallocz(len1 + len2 + 2);
+    char *tard = Malloc_z(len1 + len2 + 2);
     char *tard_cp = tard;
     
     memcpy(tard_cp, path1, len1);
@@ -127,7 +138,6 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
         return;
     }
     chdir(sa_dir->target_dir);
-    
     if (stem->raw_data_isset == 0) {
         while ((dirp = readdir(dp)) != NULL) {
             path = dirp->d_name;
@@ -136,7 +146,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
                 continue;
             }
             str_len = strlen(path) + 1;
-            cp_path = Mallocz(str_len);
+            cp_path = Malloc_z(str_len);
             memcpy(cp_path, path, str_len);
             
             lstat(cp_path, &stat_buf);
@@ -145,7 +155,8 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
                 tard  = combine_path(sa_dir->target_dir, cp_path);
                 sa_temp = MALLOC_STD_AGE(tard, g_fileno);
                 sa_temp->stem.stem_name = cp_path;
-                sa_dir->stem.is_dir = 0;
+                sa_temp->stem.is_dir = 0;
+                sa_temp->stem.stem_mode = 0777 & ~(ap_umask);
                 hook_to_stem(stem, &sa_temp->stem);
                 sa_temp->stem.parent = stem;
             }else if(S_ISDIR(stat_buf.st_mode)){
@@ -153,6 +164,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
                 sa_dir_temp = MALLOC_STD_AGE_DIR(tard);
                 sa_dir_temp->stem.stem_name = cp_path;
                 sa_dir_temp->stem.is_dir = 1;
+                sa_dir_temp->stem.stem_mode = 0766 & ~(ap_umask);
                 hook_to_stem(stem, &sa_dir_temp->stem);
                 sa_dir_temp->stem.parent = stem;
             }else{

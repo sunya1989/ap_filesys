@@ -2,8 +2,7 @@
 //  lock_reg.c
 //  ap_tester
 //
-//  Created by sunya on 15/7/6.
-//  Copyright (c) 2015年 sunya. All rights reserved.
+//  Copyright (c)
 //
 
 #include <stdio.h>

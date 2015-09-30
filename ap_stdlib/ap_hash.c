@@ -2,10 +2,11 @@
 //  ap_hash.c
 //  ap_editor
 //
-//  Created by sunya on 15/5/8.
-//  Copyright (c) 2015年 sunya. All rights reserved.
+//  Created by HU XUKAI on 15/5/8.
+//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
 //
 
+#include <ap_fs.h>
 #include <stdio.h>
 #include <ap_hash.h>
 #include <string.h>
@@ -16,12 +17,12 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
     char *hasf_str;
     char *join;
     char str_arr[32];
-    char *str = ultoa(ide->ide_i, str_arr, 10);
+    char *str = ultoa(ide->ide_type.ide_i, str_arr, 10);
     if (ide->ide_c == NULL) {
         hasf_str = str;
     }else{
         size_t strl = strlen(str) + strlen(ide->ide_c);
-        join = Mallocx(strl);
+        join = Malloc_z(strl);
         strcpy(join, str);
         strcat(join, ide->ide_c);
         hasf_str = join;
@@ -39,7 +40,7 @@ void ipc_holder_hash_insert(struct holder *hl)
     pthread_mutex_t *lock = &ipc_hold_table.hash_table[hash].table_lock;
     hl->hl_un = &ipc_hold_table.hash_table[hash];
     pthread_mutex_lock(lock);
-    list_add(&hl->hash_lis, &ipc_hold_table.hash_table->holder);
+    list_add(&hl->hash_lis, &ipc_hold_table.hash_table[hash].holder);
     pthread_mutex_unlock(lock);
     return;
 }
@@ -55,9 +56,10 @@ struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou)
     hl_indx = &ipc_hold_table.hash_table[hash].holder;
     list_for_each(pos, hl_indx){
         hl = list_entry(pos, struct holder, hash_lis);
-        if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 && hl->ide.ide_i == ide.ide_i) {
+        if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 &&
+            hl->ide.ide_type.ide_i == ide.ide_type.ide_i) {
             if (inc_cou) {
-                hl->ipc_get(hl->x_object);
+                hl->ipc_get(&hl->ihl);
             }
             pthread_mutex_unlock(lock);
             return hl;
@@ -71,7 +73,7 @@ void hash_union_insert(struct ap_hash *table, struct hash_union *un)
 {
     unsigned hash_n = get_hash_n(&un->ide, table->size);
     if (hash_n > table->size) {
-        printf("hash table size erro\n");
+        fprintf(stderr,"hash table size erro\n");
         exit(1);
     }
     pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
@@ -79,19 +81,43 @@ void hash_union_insert(struct ap_hash *table, struct hash_union *un)
     list_add(&un->union_lis, &table->hash_table[hash_n].hash_union_entry);
     pthread_mutex_unlock(lock);
     
-    pthread_mutex_lock(&table->r_size_lock);
-    table->r_size++;
-    pthread_mutex_unlock(&table->r_size_lock);
-    
+    increase_hash_rsize(table);
     un->table = &table->hash_table[hash_n];
     return;
+}
+
+struct hash_union
+*hash_union_insert_recheck(struct ap_hash *table, struct hash_union *un)
+{
+    unsigned hash_n = get_hash_n(&un->ide, table->size);
+    struct list_head *head;
+    struct hash_union *pos;
+    if (hash_n > table->size) {
+        fprintf(stderr,"hash table size erro\n");
+        exit(1);
+    }
+    pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
+    pthread_mutex_lock(lock);
+    head = &table->hash_table[hash_n].hash_union_entry;
+    list_for_each_entry(pos, head, union_lis){
+        if (strcmp(pos->ide.ide_c, un->ide.ide_c) == 0 &&
+            pos->ide.ide_type.ide_i == un->ide.ide_type.ide_i) {
+            pthread_mutex_unlock(lock);
+            return pos;
+        }
+    }
+    list_add(&un->union_lis, &table->hash_table[hash_n].hash_union_entry);
+    pthread_mutex_unlock(lock);
+    increase_hash_rsize(table);
+    un->table = &table->hash_table[hash_n];
+    return un;
 }
 
 struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity ide)
 {
     unsigned hash_n = get_hash_n(&ide, table->size);
     if (hash_n > table->size) {
-        printf("hash table size erro\n");
+        fprintf(stderr,"hash table size erro\n");
         exit(1);
     }
 
@@ -104,7 +130,8 @@ struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity id
     un = &table->hash_table[hash_n].hash_union_entry;
     list_for_each(pos, un){
         hun = list_entry(pos, struct hash_union, union_lis);
-        if (strcmp(hun->ide.ide_c, ide.ide_c) == 0 && hun->ide.ide_i == ide.ide_i) {
+        if (strcmp(hun->ide.ide_c, ide.ide_c) == 0 &&
+            hun->ide.ide_type.ide_i == ide.ide_type.ide_i) {
             pthread_mutex_unlock(lock);
             return hun;
         }
