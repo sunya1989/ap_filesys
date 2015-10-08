@@ -9,4 +9,4 @@ libapfsys_la_SOURCES = src/ger/ger_fs.c src/protocols/system_v.c \
 pkginclude_HEADERS = include/ap_file.h include/counter.h include/ger_fs.h include/list.h include/stdio_agent.h \
 					 include/thread_agent.h include/bag.h include/proc_fs.h include/ap_types.h
 
-libapfsys_la_CPPFLAGS = -I$(top_srcdir)/src/src_include
+libapfsys_la_CPPFLAGS = -I$(top_srcdir)/src/src_include -lpthread

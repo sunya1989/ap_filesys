@@ -1,3 +1,9 @@
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ */
 #ifndef ap_file_system_ap_file_h
 #define ap_file_system_ap_file_h
 #define AP_REWIND_DIR "sunya_rewind_dir_19891102"/*need recheck*/

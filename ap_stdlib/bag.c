@@ -1,11 +1,10 @@
-//
-//  bag.c
-//  ap_tester
-//
-//  Created by HU XUKAI on 15/6/25.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <stdio.h>
 #include <bag.h>
 #include <unistd.h>
@@ -45,22 +44,21 @@ void *__bag_pop(struct bag_head *head)
     void *t;
     struct bag *bg = head->list;
     head->list = bg->next;
-    if (bg->count) {
+    if (bg->count)
         bg->count--;
-    }
+    
     t = bg->trash;
-    if (!bg->is_embed) {
+    if (!bg->is_embed)
         free(bg);
-    }
     
     return t;
 }
 
 void *__bag_res_pop(struct bag_head *head)
 {
-    if (*head->pos == NULL) {
+    if (*head->pos == NULL)
         return NULL;
-    }
+    
     void *t;
     struct bag *bg = *head->pos;
     t = bg->trash;
@@ -84,9 +82,9 @@ void __bag_release(struct bag_head *head)
         }
         embed = bg->is_embed;
         bg->release(bg->trash);
-        if (!embed) {
+        if (!embed)
             free(bg);
-        }
+        
     }
     head->list_tail = &head->list;
 }
@@ -102,12 +100,11 @@ void __bag_pour(struct bag_head *head)
         next = bg->next;
         embed = bg->is_embed;
         head->list = next;
-        if (bg->count) {
+        if (bg->count)
             bg->count--;
-        }
-        if (!embed) {
+        if (!embed)
             free(bg);
-        }
+        
     }
     head->list_tail = &head->list;
 }

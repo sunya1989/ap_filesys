@@ -1,11 +1,10 @@
-//
-//  counter.h
-//  ap_file_system
-//
-//  Created by HU XUKAI on 14/11/14.
-//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #ifndef ap_file_system_counter_h
 #define ap_file_system_counter_h
 #include <stdio.h>
@@ -22,9 +21,9 @@ struct counter{
 static inline int COUNTER_INIT(struct counter *counter)
 {
     int init = pthread_mutex_init(&counter->counter_lock, NULL);
-    if (init != 0) {
+    if (init != 0) 
         return -1;
-    }
+    
     counter->in_use = 0;
     return 0;
 }
@@ -80,9 +79,9 @@ counter_put_release(struct counter *counter, void (*release) (struct counter *))
         fprintf(stderr, "counter wrong!\n");
         exit(1);
     }
-    if (counter->in_use == 0) {
+    if (counter->in_use == 0)
         release(counter);
-    }
+    
     pthread_mutex_unlock(&counter->counter_lock);
     
 }

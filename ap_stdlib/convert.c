@@ -1,10 +1,10 @@
-//
-//  convert.c
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/4/30.
-//  Copyright (c) 2015年
-//
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <string.h>
 #include "convert.h"
 #include "envelop.h"

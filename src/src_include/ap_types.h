@@ -1,11 +1,9 @@
-//
-//  ap_types.h
-//  ap_tester
-//
-//  Created by sunya on 15/9/27.
-//   Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ */
 #ifndef ap_tester_ap_types_h
 #define ap_tester_ap_types_h
 enum connet_typ{

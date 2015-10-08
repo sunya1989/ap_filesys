@@ -1,3 +1,10 @@
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #ifndef ap_file_system_ap_fs_h
 #define ap_file_system_ap_fs_h
 
@@ -8,8 +15,9 @@
 #include <ap_file.h>
 #include <ap_hash.h>
 #include <ap_ipc.h>
-#include "counter.h"
-#include "list.h"
+#include <counter.h>
+#include <bitmap.h>
+#include <list.h>
 #define _OPEN_MAX       1024
 #define FULL_PATH_LEN   300
 #define MAY_EXEC		0x00000001
@@ -110,9 +118,9 @@ struct ap_file_operations{
 BAG_DEFINE_FREE(AP_INODE_FREE);
 static inline void AP_INODE_FREE(struct ap_inode *inode)
 {
-    if (inode->i_ops != NULL && inode->i_ops->destory != NULL) {
+    if (inode->i_ops != NULL && inode->i_ops->destory != NULL)
         inode->i_ops->destory(inode);
-    }
+    
     pthread_mutex_destroy(&inode->ch_lock);
     pthread_mutex_destroy(&inode->data_lock);
     pthread_mutex_destroy(&inode->mt_ch_lock);
@@ -125,21 +133,21 @@ static inline void AP_INODE_FREE(struct ap_inode *inode)
 
 static inline void ap_inode_get(struct ap_inode *inode)
 {
-    if (inode->mount_inode != NULL) {
+    if (inode->mount_inode != NULL)
         counter_get(&inode->mount_inode->mount_p_counter);
-    }
+    
     counter_get(&inode->inode_counter);
 }
 
 static inline void ap_inode_put(struct ap_inode *inode)
 {
     counter_put(&inode->inode_counter);
-    if (inode->mount_inode != NULL) {
+    if (inode->mount_inode != NULL)
         counter_put(&inode->mount_inode->mount_p_counter);
-    }
-    if (inode->links == 0 && inode->inode_counter.in_use == 0) {
+    
+    if (inode->links == 0 && inode->inode_counter.in_use == 0)
         AP_INODE_FREE(inode);
-    }
+    
 }
 
 extern int ap_unmask;
@@ -171,9 +179,9 @@ static inline void AP_DIR_FREE(AP_DIR *dir)
 {
     free(dir->d_buff);
     ap_inode_put(dir->dir_i);
-    if (dir->cursor != NULL && dir->release != NULL) {
+    if (dir->cursor != NULL && dir->release != NULL)
         dir->release(dir->cursor);
-    }
+    
     free(dir);
     return;
 }
@@ -189,6 +197,7 @@ struct ipc_inode_ide{
 
 struct ipc_inode_holder{
     struct ap_inode *inde;
+    bitmap_t *bitmap;
     struct ap_hash *ipc_byp_hash; //hash thrd_byp_t
 };
 
@@ -236,9 +245,9 @@ static inline struct holder *MALLOC_HOLDER()
 
 static inline void HOLDER_FREE(struct holder *hl)
 {
-    if (hl->destory != NULL) {
+    if (hl->destory != NULL)
         hl->destory(&hl->ihl);
-    }
+    
     free(hl);
 }
 
@@ -247,6 +256,7 @@ static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
     struct ipc_inode_holder *hl = Malloc_z(sizeof(*hl));
     hl->inde = NULL;
     hl->ipc_byp_hash = NULL;
+    hl->bitmap = create_bitmap(_OPEN_MAX);
     return hl;
 }
 
@@ -368,18 +378,18 @@ static inline void AP_INODE_INDICATOR_INIT(struct ap_inode_indicator *indc)
 
 static inline void AP_INODE_INICATOR_FREE(struct ap_inode_indicator *indc)
 {
-    if (indc->path != NULL) {
+    if (indc->path != NULL)
         free(indc->path);
-    }
-    if (indc->cur_inode != NULL) {
+    
+    if (indc->cur_inode != NULL)
          ap_inode_put(indc->cur_inode);
-    }
-    if (indc->gate != NULL) {
+    
+    if (indc->gate != NULL)
         ap_inode_put(indc->gate);
-    }
-    if (indc->name_buff != NULL) {
+    
+    if (indc->name_buff != NULL) 
         free(indc->name_buff);
-    }
+    
     free(indc);
 }
 

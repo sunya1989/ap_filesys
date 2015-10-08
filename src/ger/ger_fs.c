@@ -1,10 +1,10 @@
-//
-//  ger_fs.c
-//  ap_file_system
-//
-//  Created by HU XUKAI on 14/12/24.
-//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
-//
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -136,9 +136,11 @@ ger_open(struct ap_file *file, struct ap_inode *ind, unsigned long flags)
     file->x_object = stem;
     counter_get(&stem->stem_inuse);
     
+    stem->x_object = file;
     if (stem->sf_ops->stem_open != NULL) {
       return stem->sf_ops->stem_open(stem, flags);
     }
+    stem->x_object = NULL;
     return 0;
 }
 

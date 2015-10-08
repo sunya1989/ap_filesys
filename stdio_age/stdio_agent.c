@@ -1,10 +1,10 @@
-//
-//  stdio_agent.c
-//  ap_file_system
-//
-//  Created by HU XUKAI on 14/12/26.
-//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
-//
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -16,12 +16,21 @@
 #include <envelop.h>
 #include "stdio_agent.h"
 
-
 static void age_dirprepare_raw_data(struct ger_stem_node *stem);
 static struct stem_inode_operations std_age_inode_operations;
-static struct stem_file_operations std_age_file_operations;
+static struct stem_file_operations std_age_file_operations0;
+static struct ap_file_operations std_age_file_operations1;
 
-void STD_AGE_INIT(struct std_age *age, char *tarf, enum file_state state)
+struct std_age_file_info{
+    struct std_age *age;
+    int fd;
+    FILE *fs;
+    enum file_state state;
+};
+
+static struct stem_inode_operations std_age_file_inode_operations;
+
+void STD_AGE_INIT(struct std_age *age, char *tarf)
 {
     STEM_INIT(&age->stem);
     
@@ -29,11 +38,9 @@ void STD_AGE_INIT(struct std_age *age, char *tarf, enum file_state state)
     char *name = Malloc_z(strl + 1);
     strncpy(name, tarf, strl);
     age->stem.stem_name = name;
-    age->stem.sf_ops = &std_age_file_operations;
-    age->fd = -1;
-    age->fs = NULL;
+    age->stem.sf_ops = &std_age_file_operations0;
+    age->stem.si_ops = &std_age_file_inode_operations;
     age->target_file = tarf;
-    age->state = state;
 }
 
 void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard)
@@ -45,52 +52,63 @@ void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard)
     age_dir->stem.stem_name = name;
     
     age_dir->target_dir = tard;
-    if (tard != NULL) {
+    if (tard != NULL) 
         age_dir->stem.prepare_raw_data = age_dirprepare_raw_data;
-    }
+    
     age_dir->stem.si_ops = &std_age_inode_operations;
 }
 
-static ssize_t stdio_age_read(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
+static ssize_t stdio_age_read(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
-    struct std_age *sa = container_of(stem, struct std_age, stem);
+    struct std_age_file_info *info = file->x_object;
     ssize_t n_read;
-    n_read = read(sa->fd, buf, len);
+    n_read = read(info->fd, buf, len);
     return n_read;
 }
 
-static ssize_t stdio_age_write(struct ger_stem_node *stem, char *buf, off_t off_set, size_t len)
+static ssize_t stdio_age_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
-    struct std_age *sa = container_of(stem, struct std_age, stem);
+    struct std_age_file_info *info = file->x_object;
     ssize_t n_write;
-    n_write = write(sa->fd, buf, len);
+    n_write = write(info->fd, buf, len);
     return n_write;
 }
 
-static off_t stdio_age_llseek(struct ger_stem_node *stem, off_t off_set, int origin)
+static off_t stdio_age_llseek(struct ap_file *file, off_t off_set, int origin)
 {
-    struct std_age *sa = container_of(stem, struct std_age, stem);
+    struct std_age_file_info *info = file->x_object;
     off_t off_size;
-    
-    off_size = lseek(sa->fd, off_set, origin);
+    off_size = lseek(info->fd, off_set, origin);
     return off_size;
 }
 
-static int stdio_age_open(struct ger_stem_node *stem, unsigned long flags)
+static int stdio_age_open(struct ger_stem_node *stem, unsigned long flag)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
-    
-    if (sa->fd != -1) {
-        return sa->fd;
-    }
-    sa->fd = open(sa->target_file, (int)flags);
-    return sa->fd;
+    struct std_age_file_info *info = Malloc_z(sizeof(info));
+    struct ap_file *file = stem->x_object;
+    info->fd = -1;
+    info->fd = open(sa->target_file, (int)flag);
+    file->x_object = info;
+    file->f_ops = &std_age_file_operations1;
+    return info->fd;
 }
 
 static int stdio_age_unlink(struct ger_stem_node *stem)
 {
     struct std_age *sa = container_of(stem, struct std_age, stem);
     STD_AGE_FREE(sa);
+    return 0;
+}
+
+static int stdio_age_release(struct ap_file *file, struct ap_inode *inode)
+{
+    struct std_age_file_info *info = file->x_object;
+    if (info->fd != -1) {
+        close(info->fd);
+    }
+    free(info);
+    file->x_object = NULL;
     return 0;
 }
 
@@ -153,7 +171,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
             
             if (S_ISREG(stat_buf.st_mode)) {
                 tard  = combine_path(sa_dir->target_dir, cp_path);
-                sa_temp = MALLOC_STD_AGE(tard, g_fileno);
+                sa_temp = MALLOC_STD_AGE(tard);
                 sa_temp->stem.stem_name = cp_path;
                 sa_temp->stem.is_dir = 0;
                 sa_temp->stem.stem_mode = 0777 & ~(ap_umask);
@@ -182,14 +200,23 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
     return;
 }
 
-static struct stem_file_operations std_age_file_operations={
-    .stem_read = stdio_age_read,
-    .stem_write = stdio_age_write,
-    .stem_llseek = stdio_age_llseek,
+static struct ap_file_operations std_age_file_operations1 = {
+    .read = stdio_age_read,
+    .write = stdio_age_write,
+    .llseek = stdio_age_llseek,
+    .release = stdio_age_release,
+};
+
+static struct stem_file_operations std_age_file_operations0 = {
     .stem_open = stdio_age_open,
 };
 
-static struct stem_inode_operations std_age_inode_operations={
+static struct stem_inode_operations std_age_inode_operations = {
     .stem_rmdir = stdio_age_rmdir,
     .stem_unlink = stdio_age_unlink,
 };
+
+static struct stem_inode_operations std_age_file_inode_operations = {
+    .stem_unlink = stdio_age_unlink,
+};
+

@@ -1,11 +1,10 @@
-//
-//  thread_age.c
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/3/14.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <string.h>
 #include <stdio.h>
 #include <envelop.h>

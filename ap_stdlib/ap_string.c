@@ -1,10 +1,10 @@
-//
-//  ap_string.c
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/8/3.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <string.h>
 #include <stdio.h>
 #include <envelop.h>
@@ -22,9 +22,9 @@ char **cut_str(const char *s, char d, size_t len)
     while (i < len) {
         s_p = strchr(head, d);
         size_t str_len;
-        if (s_p != NULL) {
+        if (s_p != NULL)
             *s_p = '\0';
-        }
+        
         str_len = strlen(head);
         char *item = Malloc_z(str_len+1);
         strncpy(item, head, str_len);
@@ -39,9 +39,9 @@ char **cut_str(const char *s, char d, size_t len)
 
 char *path_name_cat(char *dest, const char *src, size_t len, char *d)
 {
-    if (strlen(dest)!=0) {
+    if (strlen(dest)!=0) 
         strncat(dest, d, 1);
-    }
+    
     strncat(dest, src, len);
     return dest;
 }

@@ -1,10 +1,10 @@
-//
-//  system_v.c
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/8/2.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <ap_string.h>
 #include <sys/ipc.h>
 #include <fcntl.h>
@@ -143,9 +143,9 @@ static inline unsigned long get_channel(struct v_port *port)
 {
     unsigned long ch_n;
     pthread_mutex_lock(&port->ch_lock);
-    if (port->channel <= 1) {
+    if (port->channel <= 1) 
         port->channel = 2;
-    }
+    
     ch_n = port->channel;
     port->channel++;
     pthread_mutex_unlock(&port->ch_lock);
@@ -308,9 +308,9 @@ static int v_ipc_close(struct ap_ipc_port *port)
 static int v_probe(struct ap_ipc_port *port)
 {
     struct v_port *v_port = port->x_object;
-    if (msgget(v_port->head.key, 0) == -1) {
+    if (msgget(v_port->head.key, 0) == -1)
         return -1;
-    }
+    
     return 0;
 }
 

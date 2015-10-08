@@ -1,10 +1,10 @@
-//
-//  ap_fs.c
-//  ap_file_system
-//
-//  Created by HU XUKAI on 14/11/12.
-//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
-//
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -12,10 +12,7 @@
 #include <bag.h>
 #include <ap_pthread.h>
 
-static struct ap_file_operations root_file_operations;
-static struct ap_inode_operations root_dir_operations;
 static struct ap_inode root_dir;
-
 pthread_mutex_t umask_lock = PTHREAD_MUTEX_INITIALIZER;
 int ap_umask = 022;
 
@@ -41,8 +38,6 @@ static struct ap_inode root_dir = {
     .ch_lock = PTHREAD_MUTEX_INITIALIZER,
     .children = LIST_HEAD_INIT(root_dir.children),
     .child = LIST_HEAD_INIT(root_dir.child),
-    .i_ops = &root_dir_operations,
-    .f_ops = &root_file_operations,
 };
 
 int ap_unmask = 022;
@@ -160,7 +155,7 @@ AGAIN:
                 goto AGAIN;
             }
         }
-        if(cursor_inode->i_ops->find_inode != NULL){
+        if(cursor_inode->i_ops != NULL && cursor_inode->i_ops->find_inode != NULL){
             get = cursor_inode->i_ops->find_inode(start);
             if (!get) {
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
@@ -173,7 +168,7 @@ AGAIN:
             return -1;
         }
         
-        if (cursor_inode->i_ops->get_inode == NULL) {
+        if (cursor_inode->i_ops == NULL || cursor_inode->i_ops->get_inode == NULL) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             BAG_EXCUTE(&mount_ps);
             return -1;
@@ -239,9 +234,9 @@ void inode_del_child(struct ap_inode *parent, struct ap_inode *child)
 int register_fsyst(struct ap_file_system_type *fsyst)
 {
     if (fsyst->get_initial_inode == NULL ||
-        fsyst->name == NULL) {
+        fsyst->name == NULL) 
         return -1;
-    }
+
     pthread_mutex_lock(&f_systems.f_system_lock);
     list_add(&fsyst->systems, &f_systems.i_file_system);
     pthread_mutex_unlock(&f_systems.f_system_lock);
@@ -277,9 +272,9 @@ static void free_o_file_in_byp(thrd_byp_t *byp)
 void THRD_BYP_FREE(thrd_byp_t *byp)
 {
     pthread_mutex_destroy(&byp->file_lock);
-    if (byp->dir_o != NULL) {
+    if (byp->dir_o != NULL) 
         AP_DIR_FREE(byp->dir_o);
-    }
+    
     free_o_file_in_byp(byp);
     free(byp);
 }
@@ -299,6 +294,7 @@ void iholer_destory(struct ipc_inode_holder *iholder)
             THRD_BYP_FREE(byp);
         }
     }
+    bitmap_free(iholder->bitmap);
 }
 
 static int check_decompose(struct ap_inode *mt)
@@ -310,9 +306,9 @@ static int check_decompose(struct ap_inode *mt)
     
     while (!BAG_EMPTY(&stack)) {
         pos0 = BAG_POP(&stack);
-        if (pos0->mount_p_counter.in_use > 0) {
+        if (pos0->mount_p_counter.in_use > 0)
             return -1;
-        }
+        
         list_for_each(lis_pos, &pos0->mt_children){
             pos1 = list_entry(lis_pos, struct ap_inode, mt_child);
             BAG_RAW_PUSH(pos1, NULL, &stack);
@@ -334,12 +330,10 @@ static void __decompose_mt(struct ap_inode *mt)
         list_for_each_use(lis_pos_inode, lis_pos1, &pos_mt->mt_inodes.mt_inode_h){
             pos_inode = list_entry(lis_pos_inode, struct ap_inode, mt_inodes.inodes);
             list_del(lis_pos_inode);
-            if (pos_inode->is_gate) {
+            if (pos_inode->is_gate)
                 inode_put_link(pos_inode->real_inode);
-            }
-            if (pos_inode->links <= 1) {
+            if (pos_inode->links <= 1)
                 AP_INODE_FREE(pos_inode);
-            }
         }
         list_for_each(lis_pos_mt, &pos_mt->mt_children){
             pos_mt_c = list_entry(lis_pos_mt, struct ap_inode, mt_child);
@@ -439,9 +433,9 @@ int initial_indicator(const char *path,
 extern int ap_vfs_permission(struct ap_inode_indicator *indic, int mask)
 {
     struct ap_inode *inode = indic->cur_inode;
-    if (inode->i_ops != NULL && inode->i_ops->permission != NULL) {
+    if (inode->i_ops != NULL && inode->i_ops->permission != NULL)
         return inode->i_ops->permission(inode, mask, indic);
-    }
+
     return 0;
 }
 
@@ -459,9 +453,8 @@ char *regular_path(const char *path, int *slash_no)
     const char *path_end = path + path_len;
     
     if (*path == '.') {
-        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
+        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/')))
             return NULL;
-        }
     }
     
     while ((slash = strchr(path_cursor, '/')) != NULL) {
@@ -473,9 +466,8 @@ char *regular_path(const char *path, int *slash_no)
         slash++;
         (*slash_no)++;
         path_cursor = slash;
-        if (path_cursor == path_end) {
+        if (path_cursor == path_end)
             break;
-        }
     }
     
     ssize_t len = strlen(path);

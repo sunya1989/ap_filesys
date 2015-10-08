@@ -1,11 +1,10 @@
-//
-//  ap_hash.c
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/5/8.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <ap_fs.h>
 #include <stdio.h>
 #include <ap_hash.h>
@@ -58,9 +57,9 @@ struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou)
         hl = list_entry(pos, struct holder, hash_lis);
         if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 &&
             hl->ide.ide_type.ide_i == ide.ide_type.ide_i) {
-            if (inc_cou) {
+            if (inc_cou) 
                 hl->ipc_get(&hl->ihl);
-            }
+            
             pthread_mutex_unlock(lock);
             return hl;
         }
