@@ -21,9 +21,6 @@ enum file_state{
 struct std_age{
     struct ger_stem_node stem;
     char *target_file;
-    int fd;
-    FILE *fs;
-    enum file_state state;
 };
 
 struct std_age_dir{
@@ -31,10 +28,10 @@ struct std_age_dir{
     struct ger_stem_node stem;
 };
 
-extern void STD_AGE_INIT(struct std_age *age, char *tarf, enum file_state state);
+extern void STD_AGE_INIT(struct std_age *age, char *tarf);
 extern void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard);
 
-static inline struct std_age *MALLOC_STD_AGE(char *tarf, enum file_state state)
+static inline struct std_age *MALLOC_STD_AGE(char *tarf)
 {
     struct std_age *sa;
     sa = malloc(sizeof(*sa));
@@ -43,7 +40,7 @@ static inline struct std_age *MALLOC_STD_AGE(char *tarf, enum file_state state)
         exit(1);
     }
     
-    STD_AGE_INIT(sa,tarf,state);
+    STD_AGE_INIT(sa,tarf);
     return sa;
 }
 
@@ -62,11 +59,6 @@ static inline struct std_age_dir *MALLOC_STD_AGE_DIR(const char *tard)
 
 static inline void STD_AGE_FREE(struct std_age *sa)
 {
-    if (sa->fs != NULL) {
-        fclose(sa->fs);
-    }else if(sa->fd != -1){
-        close(sa->fd);
-    }
     COUNTER_FREE(&sa->stem.stem_inuse);
     pthread_mutex_destroy(&sa->stem.ch_lock);
     free(sa);

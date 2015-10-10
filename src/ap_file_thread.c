@@ -11,7 +11,6 @@
 #include <bag.h>
 
 pthread_key_t file_thread_key;
-
 pthread_once_t thread_once = PTHREAD_ONCE_INIT;
 static void thread_file_destory(void *my_data)
 {

@@ -322,119 +322,6 @@ static void ger_exmple()
 
 static void proc_example()
 {
-    int fd1;
-    char test_r[TEST_LINE_MAX];
-    AP_DIR *dir;
-    struct ap_dirent *dirt;
-    char proc_path[TEST_PATH_LEN];
-    char cond_path[TEST_PATH_LEN];
-    memset(proc_path, '\0', TEST_PATH_LEN);
-    memset(cond_path, '\0', TEST_PATH_LEN);
-    memset(test_r, '\0', TEST_LINE_MAX);
-    int loop = 0;
-    
-    /*initiate proc file system*/
-    init_proc_fs();
-    
-    /*prepare mount information*/
-    struct proc_mount_info info;
-    info.sever_name = "proc_user0";
-    info.typ = SYSTEM_V;
-    
-    /*mount file system*/
-    int mount_s = ap_mount(&info, PROC_FILE_FS, "/procs");
-    if (mount_s == -1) {
-        perror("proc mount failed\n");
-        exit(1);
-    }
-    
-    /*open directory and read*/
-    dir = ap_open_dir("/procs");
-    if (dir == NULL) {
-        perror("open dir failed\n");
-        exit(1);
-    }
-    /*prepare the path*/
-    strcat(proc_path, "/procs");
-    while (loop < 2) {
-        strncat(proc_path, "/", 1);
-        dirt = NULL;
-        dirt = ap_readdir(dir);
-        if (dirt == NULL){
-            printf("dirctory is empty!\n");
-            exit(0);
-        }
-        strncat(proc_path, dirt->name, dirt->name_l);
-        ap_closedir(dir);
-        
-        dir = NULL;
-        dir = ap_open_dir(proc_path);
-        if (dir == NULL && errno != ENOTDIR) {
-            perror("open dir failed\n");
-            exit(1);
-        }
-        loop++;
-    }
-    /*find conditon file and test file*/
-    strncat(proc_path, "/", 1);
-    strncpy(cond_path, proc_path, strlen(proc_path));
-    int c_file_find = 0;
-    int t_file_find = 0;
-    
-    while (!c_file_find || !t_file_find) {
-        dirt = NULL;
-        dirt = ap_readdir(dir);
-        if (dirt == NULL){
-            printf("dirctory is empty!\n");
-            exit(0);
-        }
-        if (strncmp(dirt->name, "condition", dirt->name_l) == 0) {
-            c_file_find = 1;
-            strncat(cond_path, dirt->name, dirt->name_l);
-        }else{
-            t_file_find = 1;
-            strncat(proc_path, dirt->name, dirt->name_l);
-        }
-    }
-    ap_closedir(dir);
-    
-    /*open the file that reside in other process*/
-    fd1 = ap_open(proc_path, O_RDWR);
-    if (fd1 == -1)
-        perror("proc open failed\n");
-    
-    /*open conditon file*/
-    int fd2 = ap_open(cond_path, O_RDWR);
-    if (fd2 == -1)
-        perror("condition open failed\n");
-    
-    /*write*/
-    char *write_w = "proc_user0 have wrote\n";
-    size_t len = strlen(write_w);
-    ssize_t write_n = ap_write(fd1, write_w, len);
-    if (write_n < 0) {
-        perror("proc write failed");
-        exit(1);
-    }
-    /*read*/
-    ap_lseek(fd1, 0, SEEK_SET);
-    ssize_t read_n = ap_read(fd1, &test_r, TEST_LINE_MAX);
-    if (read_n < 0) {
-        perror("proc read failed");
-    }
-    printf("%s\n",test_r);
-    
-    char v;
-    write_n = ap_write(fd2, &v, 1);
-    if (write_n == -1) {
-        perror("write faile\n");
-        exit(1);
-    }
-    ap_close(fd1);
-    ap_close(fd2);
-}
-
-int main(int argc, const char * argv[]) {
     /*initiate for current thread*/
     ap_file_thread_init();
     
@@ -467,7 +354,7 @@ int main(int argc, const char * argv[]) {
         perror("mount root failed\n");
         exit(1);
     }
-
+    
     /*open test-file*/
     int ap_fd = ap_open("/std_test", O_RDWR);
     if (ap_fd == -1) {
@@ -522,21 +409,20 @@ int main(int argc, const char * argv[]) {
     printf("%s", buf);
     ap_close(fd);
     
-    int unl_s = unlink("/std_test_link");
+    int unl_s = ap_unlink("/std_test_link");
     if (unl_s == -1) {
         perror("unlink failed\n");
         exit(1);
     }
+    
+    /*demonstrate gernal example*/
+    ger_exmple();
     
     /*demonstrate thread agent*/
     thread_exmple();
     
     /*demonstrate proc example*/
     proc_example();
-    
-    /*demonstrate gernal example*/
-    ger_exmple();
-    
 }
 
 

@@ -89,6 +89,11 @@ static int stdio_age_open(struct ger_stem_node *stem, unsigned long flag)
     struct ap_file *file = stem->x_object;
     info->fd = -1;
     info->fd = open(sa->target_file, (int)flag);
+    if (stem != file->x_object) {
+        perror("stem != file->x_object at stdio_age_open");
+        exit(1);
+    }
+    counter_put(&stem->stem_inuse);
     file->x_object = info;
     file->f_ops = &std_age_file_operations1;
     return info->fd;

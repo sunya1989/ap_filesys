@@ -50,3 +50,7 @@ compile
 stamp-h1
 
 config.h
+
+configure
+
+Makefile

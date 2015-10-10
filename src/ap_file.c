@@ -73,8 +73,9 @@ int ap_open(const char *path, int flags)
         return -1;
     }
     
-    
-    if (final_indc->cur_inode->f_ops->open != NULL) {
+    file->f_ops = final_indc->cur_inode->f_ops;
+
+    if (file->f_ops != NULL && file->f_ops->open != NULL) {
         int open_s;
         open_s = final_indc->cur_inode->f_ops->open(file, final_indc->cur_inode, flags);
         if (open_s == -1) {
@@ -82,7 +83,6 @@ int ap_open(const char *path, int flags)
         }
     }
     
-    file->f_ops = final_indc->cur_inode->f_ops;
     file->relate_i = final_indc->cur_inode;
     ap_inode_get(final_indc->cur_inode);
     
