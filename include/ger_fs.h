@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <ap_fsys/list.h>
 #include <ap_fsys/counter.h>
+#include <ap_fsys/envelop.h>
 #define GER_FILE_FS "ger"
 
 struct stem_file_operations;

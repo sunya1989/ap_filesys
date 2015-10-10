@@ -19,8 +19,8 @@ struct thread_attr_operations{
 };
 
 struct thread_age_attribute{
-    struct ger_stem_node thr_stem;
     struct thread_attr_operations *thr_attr_ops;
+    struct ger_stem_node thr_stem;
     void *x_object;
 };
 struct thread_age_dir{
@@ -75,5 +75,4 @@ static inline void THREAD_AGE_DIR_FREE(struct thread_age_dir *thr_dir)
 
 extern struct thread_age_dir *thr_compose_attrs
 (const char *dir_name, struct thread_age_attribute **attrs, size_t size);
-
 #endif

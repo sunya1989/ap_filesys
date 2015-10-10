@@ -70,7 +70,7 @@ int ap_open(const char *path, int flags)
     
     if ((ap_vfs_permission(final_indc, mask)) != 0){
         errno = EACCES;
-        return -1;
+        B_return(-1);
     }
     
     file->f_ops = final_indc->cur_inode->f_ops;

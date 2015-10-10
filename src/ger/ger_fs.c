@@ -98,7 +98,7 @@ static ssize_t
 ger_read(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object; //类型检查？
-    if (stem->sf_ops->stem_read == NULL) {
+    if (stem->sf_ops == NULL || stem->sf_ops->stem_read == NULL) {
         errno = ESRCH;
         return -1;
     }
@@ -109,7 +109,7 @@ static ssize_t
 ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object;
-    if (stem->sf_ops->stem_read == NULL) {
+    if (stem->sf_ops == NULL || stem->sf_ops->stem_read == NULL) {
         errno = ESRCH;
         return -1;
     }
@@ -122,7 +122,7 @@ static int ger_release(struct ap_file *file,struct ap_inode *ind)
     counter_put(&stem->stem_inuse);
     file->x_object = NULL;
     
-    if (stem->sf_ops->stem_release != NULL) {
+    if (stem->sf_ops != NULL || stem->sf_ops->stem_release != NULL) {
         return stem->sf_ops->stem_release(stem);
     }
     return 0;
@@ -148,7 +148,7 @@ static off_t ger_llseek(struct ap_file *file, off_t off_set, int origin)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object; //类型检查？
     
-    if (stem->sf_ops->stem_llseek == NULL) {
+    if (stem->sf_ops == NULL || stem->sf_ops->stem_llseek == NULL) {
         errno = ESRCH;
         return -1;
     }
@@ -160,7 +160,7 @@ static int ger_unlink(struct ap_inode *ind)
     struct ger_stem_node *stem = ind->x_object; //类型检查??
     int o;
 
-    if (stem->si_ops->stem_unlink == NULL) {
+    if (stem->si_ops == NULL || stem->si_ops->stem_unlink == NULL) {
         errno = ESRCH;
         return -1;
     }
