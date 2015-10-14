@@ -90,7 +90,7 @@ static int stdio_age_open(struct ger_stem_node *stem, unsigned long flag)
     info->fd = -1;
     info->fd = open(sa->target_file, (int)flag);
     if (stem != file->x_object) {
-        perror("stem != file->x_object at stdio_age_open");
+        ap_err("stem != file->x_object at stdio_age_open");
         exit(1);
     }
     counter_put(&stem->stem_inuse);
@@ -198,7 +198,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
     }
     
     if(closedir(dp) < 0){
-        perror("close dir failed\n");
+        ap_err("close dir failed\n");
         exit(1);
     }
     chdir("-");

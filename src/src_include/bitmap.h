@@ -40,6 +40,7 @@ static inline bitmap_t *create_bitmap(size_t n) {
     bitmap_t *bm = Malloc_z(sizeof(*bm));
     pthread_mutex_init(&bm->map_lock, NULL);
     bm->map = Malloc_z((n + 7) / 8);
+    bm->size = n;
     return bm;
 }
 

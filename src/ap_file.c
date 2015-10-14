@@ -12,6 +12,7 @@
 #include <ap_fs.h>
 #include <ap_pthread.h>
 #include <bag.h>
+#include <envelop.h>
 
 static inline int get_mask_from_oflag(int flag)
 {
@@ -45,7 +46,7 @@ int ap_open(const char *path, int flags)
     TRASH_BAG_PUSH(&final_indc->indic_bag);
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
-        fprintf(stderr, "ap_thread didn't find\n");
+        ap_err("ap_thread didn't find\n");
         exit(1);
     }
     
@@ -130,7 +131,7 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
-        fprintf(stderr, "ap_thread didn't find\n");
+        ap_err("ap_thread didn't find\n");
         exit(1);
     }
     
@@ -200,7 +201,7 @@ extern int ap_mount2(char *file_system, const char *path)
     
     struct ap_file_system_type *fsyst = find_filesystem(file_system);
     if (fsyst == NULL || fsyst->get_mount_info == NULL) {
-        fprintf(stderr, "file_system didn't find\n");
+        ap_err("file_system didn't find\n");
         errno = EINVAL;
         return -1;
     }
@@ -221,7 +222,7 @@ int ap_mount(void *m_info, char *file_system, const char *path)
 
     struct ap_file_system_type *fsyst = find_filesystem(file_system);
     if (fsyst == NULL) {
-        fprintf(stderr, "file_system didn't find\n");
+        ap_err("file_system didn't find\n");
         errno = EINVAL;
         return -1;
     }
@@ -243,7 +244,8 @@ int ap_unmount(const char *path)
     struct ap_inode *op_inode, *mount_p;
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
-        perror("ap_thread didn't find\n");
+        
+        ap_err("ap_thread didn't find\n");
         exit(1);
     }
     
@@ -299,7 +301,7 @@ int ap_close(int fd)
     pthread_mutex_unlock(&file->file_lock);
     pthread_mutex_unlock(&file_info.files_lock);
     
-    if (file->f_ops->release != NULL)
+    if (file->f_ops != NULL && file->f_ops->release != NULL)
         file->f_ops->release(file, file->relate_i);
     AP_FILE_FREE(file);
     return 0;
@@ -420,7 +422,7 @@ int ap_mkdir(char *path, unsigned long mode)
     
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
-        fprintf(stderr, "ap_thread didn't find\n");
+        ap_err("ap_thread didn't find\n");
         exit(1);
     }
     
@@ -476,7 +478,7 @@ int ap_unlink(const char *path)
     
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
-        fprintf(stderr, "ap_thread didn't find\n");
+        ap_err("ap_thread didn't find\n");
         exit(1);
     }
     
@@ -521,7 +523,7 @@ int ap_unlink(const char *path)
     
     int o = 0;
     
-    if (link == 0) {     //已经没有其它目录链接此文件
+    if (link == 0) {   
         if (op_inode->i_ops != NULL && op_inode->i_ops->unlink != NULL) {
             int unlik_s = op_inode->parent->i_ops->unlink(op_inode);
             if (unlik_s == -1) {
@@ -555,7 +557,7 @@ int ap_link(const char *l_path, const char *t_path)
     
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
-        fprintf(stderr, "ap_thread didn't find\n");
+        ap_err("ap_thread didn't find\n");
         exit(1);
     }
     
@@ -645,7 +647,7 @@ int ap_rmdir(const char *path)
     
     ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
-        fprintf(stderr, "ap_thread didn't find\n");
+        ap_err("ap_thread didn't find\n");
         exit(1);
     }
     
@@ -732,7 +734,7 @@ int ap_chdir(const char *path)
     }
     struct ap_file_pthread *ap_fpthr;
     ap_fpthr = pthread_getspecific(file_thread_key);
-    if (strcmp(path, AP_REWIND_DIR) == 0) {
+    if (strcmp(path, AP_REWIND_DIR_BEYOND_ROOT) == 0) {
         ap_inode_put(ap_fpthr->c_wd);
         ap_fpthr->c_wd = ap_fpthr->m_wd;
         return 0;

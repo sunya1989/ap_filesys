@@ -17,6 +17,10 @@
 #include <sys/msg.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <stdio.h>
+#define ap_err(m) do{ fprintf(stderr,"%s %d" ,__FILE__, __LINE__); \
+                        perror(m);\
+                        }while(0)
 
 static inline void *Malloc_z(size_t size)
 {
@@ -38,7 +42,6 @@ static inline void *Mallocx(size_t size)
     return buf;
 }
 
-
 static inline int Msgget(key_t key, int flag)
 {
     errno = 0;
@@ -49,6 +52,5 @@ static inline int Msgget(key_t key, int flag)
     }
     return msgget_s;
 }
-
 
 #endif

@@ -26,7 +26,7 @@ static void thread_init()
 {
     int err = pthread_key_create(&file_thread_key, thread_file_destory);
     if (err) {
-        perror("ap_thread_init failed\n");
+        ap_err("ap_thread_init failed\n");
         exit(1);
     }
     
@@ -44,7 +44,7 @@ int ap_file_thread_init()
     
     int set = pthread_setspecific(file_thread_key, file_pthr);
     if (set) {
-        perror("ap_thread set failes\n");
+        ap_err("ap_thread set failes\n");
         exit(1);
     }
     return 0;

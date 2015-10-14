@@ -99,7 +99,7 @@ static ssize_t v_msgrcv(int msgid, void **d_buf, unsigned long wait_seq)
         do{
             recv_s = msgrcv(msgid, (void *)&buf, MSG_LEN, wait_seq, 0);
             if (recv_s == -1 && errno != EINTR) {
-                perror("rcv failed");
+                ap_err("rcv failed");
                 return -1;
             }
         }while (recv_s == -1 && errno == EINTR);

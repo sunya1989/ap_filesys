@@ -72,7 +72,7 @@ void hash_union_insert(struct ap_hash *table, struct hash_union *un)
 {
     unsigned hash_n = get_hash_n(&un->ide, table->size);
     if (hash_n > table->size) {
-        fprintf(stderr,"hash table size erro\n");
+        ap_err("hash table size erro\n");
         exit(1);
     }
     pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
@@ -92,7 +92,7 @@ struct hash_union
     struct list_head *head;
     struct hash_union *pos;
     if (hash_n > table->size) {
-        fprintf(stderr,"hash table size erro\n");
+        ap_err("hash table size erro\n");
         exit(1);
     }
     pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
@@ -116,7 +116,7 @@ struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity id
 {
     unsigned hash_n = get_hash_n(&ide, table->size);
     if (hash_n > table->size) {
-        fprintf(stderr,"hash table size erro\n");
+        ap_err("hash table size erro\n");
         exit(1);
     }
 

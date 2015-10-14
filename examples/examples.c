@@ -88,13 +88,13 @@ void *__test_thread_age_print(void *a)
         printf("%c",c);
         i++;
     }
+    ap_close(fd);
     pthread_exit(NULL);
 }
 
 /*write content into attr.buf*/
 void *__test_thread_age_w1(void *a)
 {
-    printf("W1\n");
     /*initiate for current thread*/
     ap_file_thread_init();
     int fd = ap_open("/thread_test/test0", O_WRONLY);
@@ -113,7 +113,6 @@ void *__test_thread_age_w1(void *a)
 
 void *__test_thread_age_w2(void *a)
 {
-    printf("W2\n");
     ap_file_thread_init();
     int fd = ap_open("/thread_test/test0", O_WRONLY);
     printf("w2 fd:%d\n",fd);
@@ -173,9 +172,17 @@ void thread_exmple()
     pthread_join(n2, &n_p2);
     
     /*unlink file*/
-    ap_unlink("/thread_test/test0");
+    int unl_s =  ap_unlink("/thread_test/test0");
+    if (unl_s == -1) {
+        perror("unlik failed\n");
+        exit(1);
+    }
     /*remove dir*/
-    ap_rmdir("/thread_test");
+    int rm_s = ap_rmdir("/thread_test");
+    if (rm_s == -1) {
+        perror("rmdir failed\n");
+        exit(1);
+    }
 }
 
 struct gernal{
@@ -316,7 +323,12 @@ static void ger_exmple()
     
     /*close the file*/
     ap_close(fd);
-    ap_unlink("/gernal_exmple");
+    
+    int unl_s = ap_unlink("/gernal_exmple");
+    if (unl_s == -1) {
+        perror("unlink filed\n");
+        exit(1);
+    }
     return;
 }
 
@@ -434,7 +446,6 @@ static void proc_example()
     ap_close(fd2);
 }
 
-
 int main(int argc, const char * argv[])
 {
     /*initiate for current thread*/
@@ -530,11 +541,22 @@ int main(int argc, const char * argv[])
         exit(1);
     }
     
-    /*demonstrate gernal example*/
-   // ger_exmple();
+    unl_s = ap_unlink("/std_test");
+    if (unl_s == -1) {
+        perror("unlink failed\n");
+        exit(1);
+    }
     
+    /*demonstrate gernal example*/
+    ger_exmple();
     /*demonstrate thread agent*/
     thread_exmple();
+    
+    int umount_s = ap_unmount("/");
+    if (umount_s == -1) {
+        perror("unmount failed\n");
+        exit(1);
+    }
     
     /*demonstrate proc example*/
     //proc_example();

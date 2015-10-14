@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <envelop.h>
 #define container_of(ptr, type, member) ({                      \
           const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
           (type *)( (char *)__mptr - _offsetof(type,member) );})
@@ -31,7 +32,7 @@ static inline void INIT_LIST_HEAD(struct list_head *list)
 static inline void list_add(struct list_head *new_h, struct list_head *head)
 {
     if (new_h == NULL || head == NULL) {
-        fprintf(stderr, "list can't be null\n");
+        ap_err("list can't be null\n");
         exit(1);
     }
     new_h->prev = head;
@@ -43,7 +44,7 @@ static inline void list_add(struct list_head *new_h, struct list_head *head)
 static inline void list_add_tail(struct list_head *new_h, struct list_head *head)
 {  
   if (new_h == NULL || head == NULL) {
-       fprintf(stderr, "list can't be null\n");
+        ap_err("list can't be null\n");
         exit(1);
     }
     new_h->next = head;

@@ -104,7 +104,6 @@ void __bag_pour(struct bag_head *head)
             bg->count--;
         if (!embed)
             free(bg);
-        
     }
     head->list_tail = &head->list;
 }

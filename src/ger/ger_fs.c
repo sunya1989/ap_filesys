@@ -122,7 +122,7 @@ static int ger_release(struct ap_file *file,struct ap_inode *ind)
     counter_put(&stem->stem_inuse);
     file->x_object = NULL;
     
-    if (stem->sf_ops != NULL || stem->sf_ops->stem_release != NULL) {
+    if (stem->sf_ops != NULL && stem->sf_ops->stem_release != NULL) {
         return stem->sf_ops->stem_release(stem);
     }
     return 0;
@@ -160,10 +160,6 @@ static int ger_unlink(struct ap_inode *ind)
     struct ger_stem_node *stem = ind->x_object; //类型检查??
     int o;
 
-    if (stem->si_ops == NULL || stem->si_ops->stem_unlink == NULL) {
-        errno = ESRCH;
-        return -1;
-    }
     ind->x_object = NULL;
     pthread_mutex_lock(&stem->parent->ch_lock);
     counter_put(&stem->stem_inuse);
@@ -174,8 +170,8 @@ static int ger_unlink(struct ap_inode *ind)
     }
     list_del(&stem->child);
     pthread_mutex_unlock(&stem->parent->ch_lock);
-    if (stem->parent->si_ops != NULL &&
-        stem->parent->si_ops->stem_unlink != NULL) {
+    if (stem->si_ops != NULL &&
+        stem->si_ops->stem_unlink != NULL) {
         o = stem->parent->si_ops->stem_unlink(stem);
     }
     return o;
@@ -203,13 +199,10 @@ static int ger_rmdir(struct ap_inode_indicator *indc)
     list_del(&stem->child);
     pthread_mutex_unlock(&stem->stem_inuse.counter_lock);
     pthread_mutex_unlock(&stem->ch_lock);
-    if (stem->si_ops == NULL || stem->si_ops->stem_rmdir == NULL) {
-        errno = ESRCH;
-        return -1;
-    }
-    int o = stem->si_ops->stem_rmdir(stem);
-    if (o == -1) {
-        return -1;
+    if (stem->si_ops != NULL && stem->si_ops->stem_rmdir != NULL) {
+        int o = stem->si_ops->stem_rmdir(stem);
+        if (o == -1)
+            return -1;
     }
     
     counter_put(&stem->stem_inuse);
@@ -337,6 +330,7 @@ static struct ap_file_operations ger_file_operations = {
 static struct ap_inode_operations get_file_inode_operations = {
     .destory = ger_destory,
     .permission = ger_permission,
+    .unlink = ger_unlink,
 };
 
 static struct ap_inode_operations ger_inode_operations = {
@@ -399,7 +393,7 @@ struct ger_stem_node *find_stem_p(const char *p)
     if (strcmp(s_inode->mount_inode->fsyst->name, GER_FILE_FS)) {
         B_return(NULL);
     }
-    return s_inode->x_object;
+    B_return(s_inode->x_object);
 }
 
 struct ger_stem_node

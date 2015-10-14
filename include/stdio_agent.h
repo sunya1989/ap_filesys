@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <ap_fsys/ger_fs.h>
+#include <ap_fsys/envelop.h>
 
 enum file_state{
     g_fileno = 0,
@@ -36,7 +37,7 @@ static inline struct std_age *MALLOC_STD_AGE(char *tarf)
     struct std_age *sa;
     sa = malloc(sizeof(*sa));
     if (sa == NULL) {
-        perror("malloc std_age failed\n");
+        ap_err("malloc std_age failed\n");
         exit(1);
     }
     
@@ -49,7 +50,7 @@ static inline struct std_age_dir *MALLOC_STD_AGE_DIR(const char *tard)
     struct std_age_dir *sa_dir;
     sa_dir = malloc(sizeof(*sa_dir));
     if (sa_dir == NULL) {
-        perror("malloc std_age_dir failed\n");
+        ap_err("malloc std_age_dir failed\n");
         exit(1);
     }
     

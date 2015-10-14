@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <bag.h>
+#include <envelop.h>
 
 #define INIT_COUNTER {PTHREAD_MUTEX_INITIALIZER,0}
 struct counter{
@@ -33,7 +34,7 @@ static inline struct counter *MALLOC_COUNTER()
     struct counter *counter;
     counter = malloc(sizeof(*counter));
     if (counter == NULL) {
-        perror("counter malloc failed\n");
+        ap_err("counter malloc failed\n");
         exit(1);
     }
     COUNTER_INIT(counter);
@@ -49,7 +50,7 @@ static inline void counter_get(struct counter *counter)
 {
     pthread_mutex_lock(&counter->counter_lock);
     if (counter->in_use<0) {
-        fprintf(stderr, "counter wrong!\n");
+        ap_err("counter wrong!\n");
         exit(1);
     }
     counter->in_use++;
@@ -63,7 +64,7 @@ static inline void counter_put(struct counter *counter)
     pthread_mutex_lock(&counter->counter_lock);
     counter->in_use--;
     if (counter->in_use<0) {
-        fprintf(stderr, "counter wrong!\n");
+        ap_err("counter wrong!\n");
         exit(1);
     }
     pthread_mutex_unlock(&counter->counter_lock);
@@ -76,7 +77,7 @@ counter_put_release(struct counter *counter, void (*release) (struct counter *))
     pthread_mutex_lock(&counter->counter_lock);
     counter->in_use--;
     if (counter->in_use<0) {
-        fprintf(stderr, "counter wrong!\n");
+        ap_err("counter wrong!\n");
         exit(1);
     }
     if (counter->in_use == 0)

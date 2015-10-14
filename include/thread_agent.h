@@ -36,7 +36,7 @@ static inline struct thread_age_dir *MALLOC_THREAD_AGE_DIR(const char *name)
     struct thread_age_dir *thr_dir;
     thr_dir = malloc(sizeof(*thr_dir));
     if (thr_dir == NULL) {
-        perror("malloc thread_age_dir failed\n");
+        ap_err("malloc thread_age_dir failed\n");
         exit(1);
     }
     THREAD_AGE_DIR_INIT(thr_dir,name);
@@ -51,7 +51,7 @@ thread_age_attribute *MALLOC_THREAD_AGE_ATTR
     struct thread_age_attribute *thr_attr;
     thr_attr = malloc(sizeof(*thr_attr));
     if (thr_attr == NULL) {
-        perror("malloc thread_age_attr failed\n");
+        ap_err("malloc thread_age_attr failed\n");
         exit(1);
     }
     THREAD_AGE_ATTR_INIT(thr_attr, name);

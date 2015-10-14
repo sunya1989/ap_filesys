@@ -1,13 +1,12 @@
-1.	AP_FSYS is a VFS(virtual file system)that inside a process， one can use it to organise data and features of a process
+ 	1.AP_FSYS是一个进程内的虚拟文件系统，用于组织和操作进程内的数据和特性。
 
-1.1 file system is consist of a class of information units and operations upon these units. for an instance, taking a picture as a information unit, then read and modify(write) this picture constitute operations on this picture. file system is also responsible for organising these informations (usually in the form of tree).
-
-2. 	AP_FSYS use structure ap_inode to represent a information unit, use ap_file_operations and ap_inode_operations represent operatons on that unit.(they are defined in ap_fs.h)
-
-3.gernal file system is a file system that satisfy 1.1. it has implemented ap_file_operations and ap_inode_operations, furthermore it maps ap_inode to ger_stem_node and maps ap_file_operations and ap_inode_operations to stem_file_operations and stem_inode_operations respectively(the definitions of ger_stem_node stem_file_operations and stem_inode_operations are in ger_fs.h)
-
-4.one can embed ger_stem_node into an arbitrary structure, and also can treat this structure as a "file" once the stem_file_operations and stem_inode_operations hanve been implemented. for a instance
-
+	1.1文件系统是由一簇信息元和在其上的操作组成 比如可以把一张图片看成是一个信息元 而读取和修改(写)这张图片就构成了在其上的操作。 而且文件系统还负责组织这些信息 （通常是以树的结构 也就是目录和文件的形式）
+	
+	2.AP_FSYS中以ap_inode结构体来表示一个信息元 用ap_file_operations 和 ap_inode_operations 结构体来表示在其上的操作(它们被定义在ap_fs.h头文件中)
+	
+	3.gernal file system 是在 1.1 意义下的文件系统 实现了 ap_file_operations 和 ap_inode_operations 并且把ap_inode 映射为ger_stem_node 把ap_file_operations和ap_inode_operations 映射为stem_file_operations 和 stem_inode_operations(ger_stem_node stem_file_operations stem_inode_operations 定义在ger_fs.h中)
+	
+	4.可以把ger_stem_node嵌入到任意一结构体中并实现stem_file_operations 和 stem_inode_operations 就可以把这个结构体变成一个信息元可以对其进行读写操作 比如
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
 	struct gernal{
     int is_open;
@@ -20,8 +19,7 @@
 }ger_ex;
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-stem is a instance of structure ger_stem_node that is embeded into ger_ex. the operations is following
-
+如上 ger_stem_node 结构体 stem 嵌入了ger_ex中 其上的操作如下定义 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
 static ssize_t ger_ex_read(struct ger_stem_node *stem, char *buf, off_t off, size_t size)
 {
@@ -92,7 +90,7 @@ static struct stem_inode_operations ger_ex_inode_ops = {
 };
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-we need to mount gernal file system before it can acctually work
+定义好这些操作之后我们就可以把它们加入到gernal文件系统中使其成为文件 在此之前要先挂载 gernal文件系统
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－-－－－－－exmaples.c
 int mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
@@ -111,8 +109,7 @@ int mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
 	int hook_s = hook_to_stem(root, &ger_ex.stem);
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-after hook_to_stem ger_ex is added to gernal file system then you can open read write it
-
+在hook_to_stem函数之后 ger_ex 就被加入到了gernal文件系统中 就可以进行打开，读取和写操作
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
 /*open the file*/
     int fd = ap_open("/gernal_exmple", O_RDWR);							
@@ -134,8 +131,7 @@ after hook_to_stem ger_ex is added to gernal file system then you can open read 
     ssize_t write_n = ap_write(fd, write_buf, sizeof(write_buf));
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-5. stdio agent is based on gernal file system, use stdio agent one can import directories and files that resides in OS into process. first establish a dirctory and a file
-
+5. stdio agent 是利用gernal文件系统导入操作系统中的一些目录结构或者文件到进程中 首先在操作系统中建立一个目录和其下的一个文件
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
 /*make a test-directory*/
     int mk_s = mkdir("/tmp/ap_test", S_IRWXU | S_IRWXG | S_IRWXO);
@@ -152,8 +148,7 @@ after hook_to_stem ger_ex is added to gernal file system then you can open read 
     close(fd);
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-then import this dirctory into process as root dirctory
-
+再将其导入到进程中成为根目录
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
 /*import /tmp/aptest into this process as root directory "/"*/
     root_dir = MALLOC_STD_AGE_DIR("/tmp/ap_test");
@@ -164,33 +159,33 @@ then import this dirctory into process as root dirctory
     int mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-like we have shown above one can open read write the file that just have been import, desipite "/tmp/ap_test" has become root dirctory in the process
+同样也可以进行读写打开等操作 只不过/tmp/ap_test变成了根目录
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
  int ap_fd = ap_open("/std_test", O_RDWR);
     
-     .........    
+    			.........    
     
     /*read test-file*/
     char buf[TEST_LINE_MAX];
     memset(buf, '\0', TEST_LINE_MAX);
     ssize_t read_n = ap_read(ap_fd, buf, TEST_LINE_MAX);
-
-     .........
-    	
+   	
+   			 .........
+    
     printf("%s\n",buf);
     
     /*write test-file*/
     char write_buf[] = "stdio has been worte\n";
-    ssize_t write_n = ap_write(ap_fd, write_buf, sizeof(write_buf))
-
-     .........
+    ssize_t write_n = ap_write(ap_fd, write_buf, sizeof(write_buf));
+   				.........
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-6.thread agent is also based on gernal file system, i want use it to export the attribues of a thread originally examples of thread agent is in exmaples.c
+6. thread agent 也是建立在gernal文件系统之上 起初是想把一个线程作为目录而线程的一些属性作为文件操作 例子在exmaples.c中这里不再详述
 
-7.proc file system is attempt to establish connection between two processes. for a instance, process A use AP_FSYS create a directory-file structure then process B can use proc file system access this structure inside process A.
+7. proc file system 是用于建立进程之间的联系的 比如进程A用AP_FSYS建立了一个进程内文件目录结构 进程B就可以用proc 文件系统就可以访问整个进程A的文件结构
 
-first mount the proc file system
+首先挂载proc文件系统
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
  /*prepare mount information*/
@@ -201,10 +196,12 @@ first mount the proc file system
     /*mount file system*/
     int mount_s = ap_mount(&info, PROC_FILE_FS, "/procs");
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
-info is the information that mount process need, sever_name is the sever name you choose for the process info.typ is the type of IPC you choose.
 
-meanwhile mount proc file system in other process
-first mount the root dirctory
+info是挂载所需要的挂载信息 sever_name 是你为进程所决定的服务名 info.typ 是要用的进程间通通信的方法
+
+同时在另一个进程里也挂载proc文件系统
+
+首先挂载根目录
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
  /*import /tmp/ap_test_proc into this process as root directory "/"*/
     root_dir = MALLOC_STD_AGE_DIR("/tmp/ap_test_proc");
@@ -214,9 +211,9 @@ first mount the root dirctory
     /*mount ger file system*/
     mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
-the root directory is imported "/tmp/ap_test_proc"
+根目录是导入的/tmp/ap_test_proc
 
-then mount the proc file system
+再挂载proc文件系统
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
  /*mount proc file system*/
     struct proc_mount_info m_info;
@@ -224,10 +221,10 @@ then mount the proc file system
     m_info.sever_name = "proc_user1";
     mount_s = ap_mount(&m_info, PROC_FILE_FS, "/procs");
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
-as we can see the sever name of this process is "proc_user1"
+可见这个进程的服务名是proc_user1
 
-after that we can acess the file of proc_usr1 through proc_usr0
-by the way we have also defined a condition structure as bellow
+这样一来在进程proc_user0的目录/procs下就可以访问到 proc_user1进程内的文件结构
+顺带提一下 在proc_user1中定义了一个condition结构体 其他定义如下
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
 struct condition{
@@ -241,7 +238,7 @@ struct condition{
 }cond;
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-this structure is for the testing has a condition variable and cond to the gernal file system
+这个结构体是为测试而定义的 有一个条件变量 cond 通过stem成员添加到文件系统中
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
 cond.stem.stem_name = "condition";
@@ -252,7 +249,7 @@ cond.stem.si_ops = &cond_inode_ops;
 int hook_s = hook_to_stem(root, &cond.stem);
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-open /conditon and read from it will make process wait in that condition variable
+打开/condition文件 从中读取就会等待在条件变量上
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
  int cond_fd = ap_open("/condition", O_RDWR);
 
@@ -260,10 +257,9 @@ open /conditon and read from it will make process wait in that condition variabl
 	char v;
 	ssize_t read_n = ap_read(cond_fd, &v, 1);
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
-when some other process have complete some work then write condition file will make proc_usr1 return from waiting
+只要其它进程完成一些任务后写condition文件 proc_user1进程就会从等待中返回
 
-now we can find dirctory that relate to proc_usr1 usually has the form /procs/severname/severname@pid
-
+在proc_user0 进程内可以找到proc_usr1的相关目录 路径的形式一般为/procs/severname/severname@pid
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
  /*open directory and read*/
     dir = ap_open_dir("/procs");
@@ -294,9 +290,9 @@ now we can find dirctory that relate to proc_usr1 usually has the form /procs/se
     }
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-the code above is looking for /procs/proc_usr1/proc_usr1@pid 
+上面的代码寻找/procs/proc_usr1/proc_usr1@pid 
 
-then search condition file and another file under /procs/proc_usr1/proc_usr1@pid
+再在/procs/proc_usr1/proc_usr1@pid下搜索condition文件和另一个文件
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
 while (!c_file_find || !t_file_find) {
         dirt = NULL;
@@ -315,7 +311,7 @@ while (!c_file_find || !t_file_find) {
     }
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
-read and write the file that you have found
+对找到的文件进行打开 读和写操作
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
  /*open the file that reside in other process*/
@@ -334,8 +330,9 @@ read and write the file that you have found
  ap_lseek(fd1, 0, SEEK_SET);
  ssize_t read_n = ap_read(fd1, &test_r, TEST_LINE_MAX);			
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+在读的时候用ap_lseek返回文件开头
 
-open codition file write this weak up proc_usr1 
+之后打开condition文件写这个文件就可以使得proc_user1从等待中返回并退出
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
 	/*open conditon file*/
 	int fd2 = ap_open(cond_path, O_RDWR);
@@ -344,6 +341,11 @@ open codition file write this weak up proc_usr1
 	char v;
 	write_n = ap_write(fd2, &v, 1);
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+
+
+
+
 
 
 

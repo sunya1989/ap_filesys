@@ -1,11 +1,10 @@
-//
-//  main.c
-//  proc_user1
-//
-//  Created by sunya on 15/9/1.
-//  Copyright (c) 2015年 sunya. All rights reserved.
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -159,6 +158,4 @@ int main(int argc, const char * argv[]) {
         perror("read cond failed\n");
         exit(1);
     }
-    
-    exit(0);
 }

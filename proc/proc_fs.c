@@ -426,8 +426,12 @@ static void client_r(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
+    if (file->f_ops == NULL || file->f_ops->read == NULL) {
+        ap_msg_send_err(port, ESRCH, -1);
+        return;
+    }
     
-    read_n = inde->f_ops->
+    read_n = file->f_ops->
     read(file, read_buf, req->req_t.f_o_info.off_size, req->req_t.f_o_info.read_len);
     if (read_n <= 0) {
         ap_msg_send_err(port, errno, (int)read_n);
@@ -461,8 +465,13 @@ static void client_w(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
-
-    write_n = inde->f_ops->
+    
+    if (file->f_ops == NULL || file->f_ops->write == NULL) {
+        ap_msg_send_err(port, ESRCH, -1);
+        return;
+    }
+    
+    write_n = file->f_ops->
     write(file, req_d[1], req->req_t.f_o_info.off_size, req->req_t.f_o_info.wirte_len);
     if (write_n < 0) {
         ap_msg_send_err(port ,errno, -1);
@@ -498,6 +507,8 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     file = AP_FILE_MALLOC();
     AP_FILE_INIT(file);
     
+    file->f_ops = inde->f_ops;
+    
     if (inde->f_ops!= NULL && inde->f_ops->open != NULL) {
         open_s = inde->f_ops->open(file, inde, req->req_t.f_o_info.flags);
         if (open_s == -1) {
@@ -507,7 +518,6 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
         }
     }
     
-    file->f_ops = inde->f_ops;
     file->relate_i = inde;
     file->ipc_fd = (int)atomic_set_next_unset_bit(hl->ihl.bitmap);
     ap_inode_get(inde);
@@ -529,7 +539,7 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     add_o_file(thr_byp, file);
     
     re.rep_t.re_type = 0;
-    re.ipc_fd = open_s;
+    re.ipc_fd = file->ipc_fd;
     re.struct_l = 0;
     port->ipc_ops->ipc_send(port, &re, sizeof(re), NULL);
 }
@@ -615,7 +625,7 @@ static void client_seek(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
         return;
     }
     
-    if (file->f_ops->llseek == NULL) {
+    if (file->f_ops == NULL || file->f_ops->llseek == NULL) {
         ap_msg_send_err(port, ESPIPE, -1);
         return;
     }
@@ -798,7 +808,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     errno = 0;
     dp = opendir(AP_PROC_FILE);
     if (dp == NULL) {
-        perror("ap_proc can't open the dir");
+        ap_err("ap_proc can't open the dir");
         goto FAILED;
     }
     

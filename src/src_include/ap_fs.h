@@ -18,6 +18,7 @@
 #include <counter.h>
 #include <bitmap.h>
 #include <list.h>
+#include <envelop.h>
 #define _OPEN_MAX       1024
 #define FULL_PATH_LEN   300
 #define MAY_EXEC		0x00000001
@@ -144,10 +145,8 @@ static inline void ap_inode_put(struct ap_inode *inode)
     counter_put(&inode->inode_counter);
     if (inode->mount_inode != NULL)
         counter_put(&inode->mount_inode->mount_p_counter);
-    
     if (inode->links == 0 && inode->inode_counter.in_use == 0)
         AP_INODE_FREE(inode);
-    
 }
 
 extern int ap_unmask;
@@ -238,6 +237,7 @@ static inline struct holder *MALLOC_HOLDER()
     INIT_LIST_HEAD(&hl->hash_lis);
     hl->ihl.inde = NULL;
     hl->ihl.ipc_byp_hash = NULL;
+    hl->ihl.bitmap = create_bitmap(_OPEN_MAX);
     hl->ide.ide_c = NULL;
     hl->ipc_get = hl->ipc_put = NULL;
     return hl;
@@ -308,7 +308,7 @@ static inline struct ap_inode *MALLOC_AP_INODE()
 static inline void inode_get_link(struct ap_inode *inode)
 {
     if (inode->links < 0) {
-        fprintf(stderr,"links wrong");
+        ap_err("links wrong");
         exit(1);
     }
     
@@ -320,7 +320,7 @@ static inline void inode_get_link(struct ap_inode *inode)
 static inline void inode_put_link(struct ap_inode *inode)
 {
     if (inode->links <= 0) {
-        fprintf(stderr,"links wrong");
+        ap_err("links wrong");
         exit(1);
     }
     
@@ -415,7 +415,7 @@ static inline void AP_FILE_INIT(struct ap_file *file)
     INIT_LIST_HEAD(&file->ipc_file);
     int init = pthread_mutex_init(&file->file_lock, NULL);
     if (init != 0) {
-        perror("file init fialed\n");
+        ap_err("file init fialed\n");
         exit(1);
     }
     file->f_ops = NULL;
@@ -466,7 +466,7 @@ static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
 {
     struct ap_file_system_type *fsyst = malloc(sizeof(struct ap_file_system_type));
     if (fsyst == NULL) {
-        perror("file_sys_type malloc filed\n");
+        ap_err("file_sys_type malloc filed\n");
         exit(1);
     }
     INIT_LIST_HEAD(&fsyst->mts);
