@@ -1,18 +1,16 @@
-//
-//  ap_file_thread.c
-//  ap_file_system
-//
-//  Created by HU XUKAI on 14/11/18.
-//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <stdlib.h>
 #include <ap_pthread.h>
 #include <ap_file.h>
 #include <bag.h>
 
 pthread_key_t file_thread_key;
-
 pthread_once_t thread_once = PTHREAD_ONCE_INIT;
 static void thread_file_destory(void *my_data)
 {
@@ -28,7 +26,7 @@ static void thread_init()
 {
     int err = pthread_key_create(&file_thread_key, thread_file_destory);
     if (err) {
-        perror("ap_thread_init failed\n");
+        ap_err("ap_thread_init failed\n");
         exit(1);
     }
     
@@ -46,7 +44,7 @@ int ap_file_thread_init()
     
     int set = pthread_setspecific(file_thread_key, file_pthr);
     if (set) {
-        perror("ap_thread set failes\n");
+        ap_err("ap_thread set failes\n");
         exit(1);
     }
     return 0;

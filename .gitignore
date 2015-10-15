@@ -4,14 +4,53 @@
 *.lo
 *.Plo
 
-*.Plo
 
-*.Plo
+*.dirstamp
 
-ap_stdlib/.deps/libapfsys_la-counter.Plo
+*.dylib
 
-ap_stdlib/.deps/libapfsys_la-lock_reg.Plo
+*.plist
+
+*.a
+
+*.la
+
+*.lai
+
+*.m4
+
+*.0
+
+*.1
 
 autom4te.cache/requests
 
-*.Plo
+missing
+
+ltmain.sh
+
+libtool
+
+install-sh
+
+depcomp
+
+*.sub
+
+*.guess
+
+compile
+
+*.log
+
+*.status
+
+*.in
+
+stamp-h1
+
+config.h
+
+configure
+
+Makefile

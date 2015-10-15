@@ -1,10 +1,10 @@
-//
-//  ap_fs.c
-//  ap_file_system
-//
-//  Created by HU XUKAI on 14/11/12.
-//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
-//
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -12,10 +12,7 @@
 #include <bag.h>
 #include <ap_pthread.h>
 
-static struct ap_file_operations root_file_operations;
-static struct ap_inode_operations root_dir_operations;
 static struct ap_inode root_dir;
-
 pthread_mutex_t umask_lock = PTHREAD_MUTEX_INITIALIZER;
 int ap_umask = 022;
 
@@ -41,8 +38,6 @@ static struct ap_inode root_dir = {
     .ch_lock = PTHREAD_MUTEX_INITIALIZER,
     .children = LIST_HEAD_INIT(root_dir.children),
     .child = LIST_HEAD_INIT(root_dir.child),
-    .i_ops = &root_dir_operations,
-    .f_ops = &root_file_operations,
 };
 
 int ap_unmask = 022;
@@ -66,6 +61,25 @@ BAG_IMPOR_FREE(AP_INODE_INICATOR_FREE, struct ap_inode_indicator);
 BAG_IMPOR_FREE(search_mtp_unlock, struct ap_inode);
 BAG_IMPOR_FREE(AP_INODE_FREE, struct ap_inode);
 BAG_IMPOR_FREE(AP_FILE_FREE, struct ap_file);
+
+static inline void
+complete_get_inode(struct ap_inode *inode, struct ap_inode_indicator *indc)
+{
+    if (inode->links == 0)
+        inode->links++;
+    if (inode->mount_inode == NULL) {
+        inode->mount_inode = indc->cur_mtp;
+        pthread_mutex_lock(&indc->cur_mtp->mount_p_counter.counter_lock);
+        pthread_mutex_lock(&inode->inode_counter.counter_lock);
+        indc->cur_mtp->mount_p_counter.in_use += inode->inode_counter.in_use;
+        pthread_mutex_unlock(&indc->cur_mtp->mount_p_counter.counter_lock);
+        pthread_mutex_unlock(&inode->inode_counter.counter_lock);
+        if (list_empty(&inode->mt_inodes.inodes))
+            add_inode_to_mt(inode, indc->cur_mtp);
+    }
+    
+}
+
 
 int walk_path(struct ap_inode_indicator *start)
 {
@@ -160,11 +174,11 @@ AGAIN:
                 goto AGAIN;
             }
         }
-        if(cursor_inode->i_ops->find_inode != NULL){
+        if(cursor_inode->i_ops != NULL && cursor_inode->i_ops->find_inode != NULL){
             get = cursor_inode->i_ops->find_inode(start);
             if (!get) {
+                complete_get_inode(start->cur_inode, start);
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
-                add_inode_to_mt(start->cur_inode, curr_mount_p);
                 BAG_EXCUTE(&mount_ps);
                 return 0;
             }
@@ -173,7 +187,7 @@ AGAIN:
             return -1;
         }
         
-        if (cursor_inode->i_ops->get_inode == NULL) {
+        if (cursor_inode->i_ops == NULL || cursor_inode->i_ops->get_inode == NULL) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
             BAG_EXCUTE(&mount_ps);
             return -1;
@@ -189,10 +203,8 @@ AGAIN:
         list_add(&start->cur_inode->child, &cursor_inode->children);
         add_inode_to_mt(start->cur_inode, curr_mount_p);
         start->cur_inode->parent = cursor_inode;
-        if (start->cur_inode->links == 0) {
-            start->cur_inode->links++;
-        }
-
+        complete_get_inode(start->cur_inode, start);
+        
         path = start->cur_slash;
         if (start->slash_remain == 0) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
@@ -222,44 +234,16 @@ struct ap_file_system_type *find_filesystem(char *fsn)
     return NULL;
 }
 
-void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
-{
-    pthread_mutex_lock(&parent->ch_lock);
-    list_add(&child->child, &parent->children);
-    pthread_mutex_unlock(&parent->ch_lock);
-}
-
-void inode_del_child(struct ap_inode *parent, struct ap_inode *child)
-{
-    pthread_mutex_lock(&parent->ch_lock);
-    list_del(&child->child);
-    pthread_mutex_unlock(&parent->ch_lock);
-}
-
 int register_fsyst(struct ap_file_system_type *fsyst)
 {
     if (fsyst->get_initial_inode == NULL ||
-        fsyst->name == NULL) {
+        fsyst->name == NULL) 
         return -1;
-    }
+
     pthread_mutex_lock(&f_systems.f_system_lock);
     list_add(&fsyst->systems, &f_systems.i_file_system);
     pthread_mutex_unlock(&f_systems.f_system_lock);
     return 0;
-}
-
-void inode_ipc_get(void *ind)
-{
-    struct ipc_inode_holder *ihl = ind;
-    ap_inode_get(ihl->inde);
-    return;
-}
-
-void inode_ipc_put(void *ind)
-{
-    struct ipc_inode_holder *ihl = ind;
-    ap_inode_put(ihl->inde);
-    return;
 }
 
 static void free_o_file_in_byp(thrd_byp_t *byp)
@@ -277,16 +261,16 @@ static void free_o_file_in_byp(thrd_byp_t *byp)
 void THRD_BYP_FREE(thrd_byp_t *byp)
 {
     pthread_mutex_destroy(&byp->file_lock);
-    if (byp->dir_o != NULL) {
+    if (byp->dir_o != NULL) 
         AP_DIR_FREE(byp->dir_o);
-    }
+    
     free_o_file_in_byp(byp);
     free(byp);
 }
 
-void iholer_destory(struct ipc_inode_holder *iholder)
+void proc_byp_destory(proc_byp_t *proc_byp)
 {
-    struct ap_hash *hash = iholder->ipc_byp_hash;
+    struct ap_hash *hash = proc_byp->ipc_byp_hash;
     struct list_head *lis_pos1;
     struct list_head *lis_pos2;
     struct hash_union *un_pos;
@@ -299,7 +283,20 @@ void iholer_destory(struct ipc_inode_holder *iholder)
             THRD_BYP_FREE(byp);
         }
     }
+    
+    lis_pos1 = lis_pos2 = NULL;
+    list_for_each_use(lis_pos1, lis_pos2, &proc_byp->ipc_iondes){
+        list_del(lis_pos1);
+        struct ipc_inode_holder *ihl =
+        list_entry(lis_pos1, struct ipc_inode_holder, ipc_proc_byp_lis);
+        IPC_INODE_HOLDER_FREE(ihl);
+    }
+    
+    bitmap_free(proc_byp->bitmap);
 }
+
+
+
 
 static int check_decompose(struct ap_inode *mt)
 {
@@ -310,9 +307,9 @@ static int check_decompose(struct ap_inode *mt)
     
     while (!BAG_EMPTY(&stack)) {
         pos0 = BAG_POP(&stack);
-        if (pos0->mount_p_counter.in_use > 0) {
+        if (pos0->mount_p_counter.in_use > 0)
             return -1;
-        }
+        
         list_for_each(lis_pos, &pos0->mt_children){
             pos1 = list_entry(lis_pos, struct ap_inode, mt_child);
             BAG_RAW_PUSH(pos1, NULL, &stack);
@@ -334,12 +331,10 @@ static void __decompose_mt(struct ap_inode *mt)
         list_for_each_use(lis_pos_inode, lis_pos1, &pos_mt->mt_inodes.mt_inode_h){
             pos_inode = list_entry(lis_pos_inode, struct ap_inode, mt_inodes.inodes);
             list_del(lis_pos_inode);
-            if (pos_inode->is_gate) {
+            if (pos_inode->is_gate)
                 inode_put_link(pos_inode->real_inode);
-            }
-            if (pos_inode->links <= 1) {
+            if (pos_inode->links <= 1)
                 AP_INODE_FREE(pos_inode);
-            }
         }
         list_for_each(lis_pos_mt, &pos_mt->mt_children){
             pos_mt_c = list_entry(lis_pos_mt, struct ap_inode, mt_child);
@@ -439,9 +434,9 @@ int initial_indicator(const char *path,
 extern int ap_vfs_permission(struct ap_inode_indicator *indic, int mask)
 {
     struct ap_inode *inode = indic->cur_inode;
-    if (inode->i_ops != NULL && inode->i_ops->permission != NULL) {
+    if (inode->i_ops != NULL && inode->i_ops->permission != NULL)
         return inode->i_ops->permission(inode, mask, indic);
-    }
+
     return 0;
 }
 
@@ -459,9 +454,8 @@ char *regular_path(const char *path, int *slash_no)
     const char *path_end = path + path_len;
     
     if (*path == '.') {
-        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/'))) {
+        if (!(*(path + 1) == '/' || (*(path+1) == '.' && *(path + 2) == '/')))
             return NULL;
-        }
     }
     
     while ((slash = strchr(path_cursor, '/')) != NULL) {
@@ -473,9 +467,8 @@ char *regular_path(const char *path, int *slash_no)
         slash++;
         (*slash_no)++;
         path_cursor = slash;
-        if (path_cursor == path_end) {
+        if (path_cursor == path_end)
             break;
-        }
     }
     
     ssize_t len = strlen(path);

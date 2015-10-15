@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
-
 #define ap_err(m) do{ fprintf(stderr,"%s %d" ,__FILE__, __LINE__); \
                         perror(m);\
                         }while(0)
@@ -46,6 +45,5 @@ static inline int Msgget(key_t key, int flag)
     }
     return msgget_s;
 }
-
 
 #endif

@@ -1,10 +1,10 @@
-//
-//  proc_fs.c
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/4/21.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -33,6 +33,8 @@ struct ipc_holder_hash ipc_hold_table;
 static struct ap_inode_operations procfs_inode_operations;
 static struct ap_inode_operations procff_inode_operations;
 static struct ap_inode_operations proc_inode_operations;
+static struct ap_inode_operations proc_sub_inode_operations;
+
 static struct ap_inode_operations proc_file_i_operations;
 static struct ap_file_operations proc_file_operations;
 
@@ -81,6 +83,38 @@ constr_req(void *buf, size_t buf_len, size_t list[], int lis_len, size_t *ttlen)
     return msgbuf;
 }
 
+static inline proc_byp_t *get_proc_byp(struct hash_identity ide)
+{
+    struct holder *hl = ipc_holder_hash_get(ide, 0);
+    if (hl == NULL)
+        return NULL;
+    return (proc_byp_t *)hl->x_objext;
+}
+
+static void ihl_proc_byp_destory(void *object)
+{
+    proc_byp_destory(object);
+}
+
+
+static proc_byp_t *check_add_proc_byp(struct hash_identity ide)
+{
+    struct holder *hl;
+    
+    proc_byp_t *byp = get_proc_byp(ide);
+    if (byp != NULL)
+        return byp;
+    
+    byp = MALLOC_PROC_BYP();
+    hl = MALLOC_HOLDER();
+    hl->x_objext = byp;
+    hl->ide.ide_c = ide.ide_c;
+    hl->ide.ide_type.ide_i = ide.ide_type.ide_i;
+    hl->destory = ihl_proc_byp_destory;
+    ipc_holder_hash_insert(hl);
+    return byp;
+}
+
 static struct ap_file *get_o_file(thrd_byp_t *byp, int ipc_fd)
 {
     pthread_mutex_lock(&byp->file_lock);
@@ -101,10 +135,10 @@ static inline struct ap_ipc_info *get_ipc_info(struct ap_inode *inode)
 }
 
 static thrd_byp_t
-*get_thr_byp(struct ipc_inode_holder *ihl, struct ipc_inode_ide *iide)
+*get_thr_byp(proc_byp_t *proc_byp, struct ipc_inode_ide *iide)
 {
     struct hash_union *un;
-    un = hash_union_get(ihl->ipc_byp_hash, iide->ide_t);
+    un = hash_union_get(proc_byp->ipc_byp_hash, iide->ide_t);
     if (un == NULL)
         return NULL;
     
@@ -113,21 +147,23 @@ static thrd_byp_t
 
 static struct ap_file *look_up_file(struct ipc_inode_ide *iide)
 {
-    struct holder *hl;
-    struct ap_inode *inode;
     struct ap_file *file;
-    thrd_byp_t *byp;
+    thrd_byp_t *thr_byp;
+    proc_byp_t *proc_byp;
+    struct hash_identity tmp_ide;
+    tmp_ide.ide_c = NULL;
+    tmp_ide.ide_type.ide_i = 0;
+    tmp_ide.ide_type.pid = iide->ide_p.ide_type.pid;
     
-    hl = ipc_holder_hash_get(iide->ide_p, 0);
-    if (hl == NULL)
+    proc_byp = get_proc_byp(tmp_ide);
+    if (proc_byp == NULL)
         return NULL;
     
-    inode = hl->ihl.inde;
-    byp = get_thr_byp(&hl->ihl, iide);
-    if (byp == NULL)
+    thr_byp = get_thr_byp(proc_byp, iide);
+    if (thr_byp == NULL)
         return NULL;
     
-    file = get_o_file(byp, iide->fd);
+    file = get_o_file(thr_byp, iide->fd);
     if (file == NULL)
         return NULL;
     return file;
@@ -194,9 +230,10 @@ static void inode_disc_free(struct ap_inode *inode)
     struct ap_ipc_info *info = parent->x_object;
     decrease_hash_rsize(info->inde_hash_table);
     inode_put_link(inode);
-    if (inode->links == 0)
-        parent->i_ops->unlink(inode);
-    
+    if (inode->links == 0){
+        if (inode->i_ops != NULL && inode->i_ops->unlink != NULL)
+            inode->i_ops->unlink(inode);
+    }
 }
 
 static struct ipc_inode_ide *get_iide_path(const char *path, size_t *ttlen)
@@ -219,14 +256,14 @@ handle_disc(struct ap_inode *inde, struct ap_ipc_port *p, const char *sever_name
     if (inde == NULL) {
         return;
     }
-    struct ap_inode *parent = inde->is_ipc_base? inde:inde->parent;
-    struct ap_ipc_info *info = parent->x_object;
-    if (parent->parent == NULL) {
+    struct ap_inode *base = inde->is_ipc_base? inde:inde->parent;
+    struct ap_ipc_info *info = base->x_object;
+    if (base->parent == NULL) {
         inode_disc_free(inde);
         return;
     }
-    inode_del_child(parent->parent, parent);
-    parent->parent = NULL;
+    inode_del_child(base->parent, base);
+    base->parent = NULL;
     info->disc = 1;
     inode_disc_free(inde);
 }
@@ -234,6 +271,7 @@ handle_disc(struct ap_inode *inde, struct ap_ipc_port *p, const char *sever_name
 static int check_connect(struct ap_ipc_info *info, struct ap_inode *inode)
 {
     struct ap_ipc_port *s_port;
+    struct hash_identity ide;
     if (info->disc) {
         inode_disc_free(inode);
         errno = ENOENT;
@@ -242,6 +280,11 @@ static int check_connect(struct ap_ipc_info *info, struct ap_inode *inode)
     s_port = info->port_pair->far_port;
     if (s_port->ipc_ops->ipc_probe != NULL&&
         s_port->ipc_ops->ipc_probe(s_port) == -1) {
+        ide.ide_c = NULL;
+        ide.ide_type.pid = getpid();
+        struct holder *hl = ipc_holder_hash_get(ide, 0);
+        ipc_holder_hash_delet(hl);
+        hl->destory(hl->x_objext);
         errno = EBADF;
         handle_disc(inode, s_port, info->info_h->sever_name);
         return -1;
@@ -273,13 +316,30 @@ static int ap_ipc_kick_start(struct ap_ipc_port *port, const char *path)
     return 0;
 }
 
-static void client_g(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *req)
+static struct ipc_inode_holder *
+get_ihl_from_proc_byp(proc_byp_t *byp, struct hash_identity ide)
+{
+    struct list_head *pos;
+    pthread_mutex_lock(&byp->iinode_lock);
+    list_for_each(pos, &byp->ipc_iondes){
+        struct ipc_inode_holder *ihl =
+        list_entry(pos, struct ipc_inode_holder, ipc_proc_byp_lis);
+        if (strcmp(ihl->iide.ide_c, ide.ide_c) == 0) {
+            pthread_mutex_unlock(&byp->iinode_lock);
+            return ihl;
+        }
+    }
+    pthread_mutex_unlock(&byp->iinode_lock);
+    return NULL;
+}
+
+static void
+client_g(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *req)
 {
     struct ap_inode_indicator *indic;
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
     char *path = iide->chrs + iide->off_set_p;
     struct ap_msgreply re;
-    struct holder *hl;
     struct ap_inode_indicator *strc_cp;
     size_t len;
     size_t str_len = strlen(path);
@@ -308,17 +368,22 @@ static void client_g(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     *strc_cp = *indic;
     
     if (!get) {
-        hl = MALLOC_HOLDER();
+        proc_byp_t *proc_byp;
+        struct hash_identity c_ide;
         char *ide_c = Malloc_z(str_len + 1);
         strncpy(ide_c, path, str_len);
-        hl->ide.ide_c = ide_c;
-        hl->ide.ide_type.ide_i =iide->ide_p.ide_type.pid;
-        hl->ipc_get = inode_ipc_get;
-        hl->ipc_put = inode_ipc_put;
-        hl->ihl.inde = indic->cur_inode;
-        hl->ihl.ipc_byp_hash = MALLOC_IPC_HASH(AP_IPC_FILE_HASH_LEN);
-        hl->destory = iholer_destory;
-        ipc_holder_hash_insert(hl);
+        c_ide.ide_c = NULL;
+        c_ide.ide_type.ide_i = iide->ide_p.ide_type.pid;
+        proc_byp = check_add_proc_byp(c_ide);
+        struct ipc_inode_holder *ihl = MALLOC_IPC_INODE_HOLDER();
+        ihl->inde = indic->cur_inode;
+        ap_inode_get(indic->cur_inode);
+        ihl->iide.ide_c = ide_c;
+        
+        pthread_mutex_lock(&proc_byp->iinode_lock);
+        list_add(&ihl->ipc_proc_byp_lis, &proc_byp->ipc_iondes);
+        pthread_mutex_unlock(&proc_byp->iinode_lock);
+        
         *((struct ap_inode *)(strc_cp + 1)) = *indic->cur_inode;
     }
     port->ipc_ops->ipc_send(port, re_m, len, NULL);
@@ -330,41 +395,49 @@ static void client_g(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
 static void client_rdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *req)
 {
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
-    struct holder *hl;
     struct ap_msgreply *re;
     AP_DIR *dir;
-    thrd_byp_t *byp;
+    thrd_byp_t *thr_byp;
     rest_iide(iide);
     size_t read_n,len;
-    hl = ipc_holder_hash_get(iide->ide_p, 0);
-    if (hl == NULL) {
+    proc_byp_t *proc_byp;
+    struct hash_identity tmp_ide;
+    tmp_ide.ide_type.ide_i = 0;
+    tmp_ide.ide_c = NULL;
+    tmp_ide.ide_type.pid = iide->ide_p.ide_type.pid;
+    
+    proc_byp = get_proc_byp(tmp_ide);
+    if (proc_byp == NULL) {
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
-    byp = get_thr_byp(&hl->ihl, iide);
-    if (byp == NULL) {
-        byp = MALLOC_THRD_BYP();
+    
+    struct ipc_inode_holder *ihl = get_ihl_from_proc_byp(proc_byp, iide->ide_p);
+    
+    thr_byp = get_thr_byp(proc_byp, iide);
+    if (thr_byp == NULL) {
+        thr_byp = MALLOC_THRD_BYP();
         size_t str_l = strlen(iide->ide_t.ide_c);
-        byp->h_un.ide.ide_c = Malloc_z(str_l + 1);
-        strncpy((char *)byp->h_un.ide.ide_c, iide->ide_t.ide_c, str_l);
-        byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
-        if(hash_union_insert_recheck(hl->ihl.ipc_byp_hash, &byp->h_un) != &byp->h_un)
-            THRD_BYP_FREE(byp);
+        thr_byp->h_un.ide.ide_c = Malloc_z(str_l + 1);
+        strncpy((char *)thr_byp->h_un.ide.ide_c, iide->ide_t.ide_c, str_l);
+        thr_byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
+        if(hash_union_insert_recheck(proc_byp->ipc_byp_hash, &thr_byp->h_un) != &thr_byp->h_un)
+            THRD_BYP_FREE(thr_byp);
     }
     
-    if (byp->dir_o == NULL) {
+    if (thr_byp->dir_o == NULL) {
         dir = MALLOC_AP_DIR();
-        byp->dir_o = dir;
-        dir->dir_i = hl->ihl.inde;
+        thr_byp->dir_o = dir;
+        dir->dir_i = ihl->inde;
         ap_inode_get(dir->dir_i);
     }
     
-    dir = byp->dir_o;
+    dir = thr_byp->dir_o;
     if (dir->d_buff != NULL)
         memset(dir->d_buff, '\0', DEFALUT_DIR_RD_ONECE_LEN);
     
-    read_n = hl->ihl.inde->i_ops->
-    readdir(hl->ihl.inde, dir, dir->d_buff, DIR_RD_ONECE_NUM(req->req_t.f_o_info.read_len));
+    read_n = ihl->inde->i_ops->
+    readdir(ihl->inde, dir, dir->d_buff, DIR_RD_ONECE_NUM(req->req_t.f_o_info.read_len));
     
     len = sizeof(struct ap_msgreply) + read_n + sizeof(int);
     re = Malloc_z(len);
@@ -382,24 +455,29 @@ static void client_cdir(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
 {
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
     rest_iide(iide);
-    struct holder *hl;
     struct ap_msgreply *re;
-    thrd_byp_t *byp;
+    thrd_byp_t *thr_byp;
+    proc_byp_t *proc_byp;
     
-    hl = ipc_holder_hash_get(iide->ide_p, 0);
-    if (hl == NULL) {
+    struct hash_identity tmp_ide;
+    tmp_ide.ide_type.ide_i = 0;
+    tmp_ide.ide_c = NULL;
+    tmp_ide.ide_type.pid = iide->ide_p.ide_type.pid;
+    
+    proc_byp = get_proc_byp(tmp_ide);
+    if (proc_byp == NULL) {
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
-    byp = get_thr_byp(&hl->ihl, iide);
-    if (byp == NULL) {
+    
+    thr_byp = get_thr_byp(proc_byp, iide);
+    if (thr_byp == NULL) {
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
     
-    if (byp->dir_o != NULL)
-        AP_DIR_FREE(byp->dir_o);
-    
+    if (thr_byp->dir_o != NULL)
+        AP_DIR_FREE(thr_byp->dir_o);
     
     re = Malloc_z(sizeof(*re));
     re->rep_t.re_type = 0;
@@ -425,8 +503,12 @@ static void client_r(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
+    if (file->f_ops == NULL || file->f_ops->read == NULL) {
+        ap_msg_send_err(port, ESRCH, -1);
+        return;
+    }
     
-    read_n = inde->f_ops->
+    read_n = file->f_ops->
     read(file, read_buf, req->req_t.f_o_info.off_size, req->req_t.f_o_info.read_len);
     if (read_n <= 0) {
         ap_msg_send_err(port, errno, (int)read_n);
@@ -460,8 +542,13 @@ static void client_w(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
-
-    write_n = inde->f_ops->
+    
+    if (file->f_ops == NULL || file->f_ops->write == NULL) {
+        ap_msg_send_err(port, ESRCH, -1);
+        return;
+    }
+    
+    write_n = file->f_ops->
     write(file, req_d[1], req->req_t.f_o_info.off_size, req->req_t.f_o_info.wirte_len);
     if (write_n < 0) {
         ap_msg_send_err(port ,errno, -1);
@@ -481,23 +568,30 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     rest_iide(iide);
     int open_s;
     struct ap_msgreply re;
-    struct holder *hl;
     struct ap_inode *inde;
     struct ap_file *file;
     struct hash_union *un;
     thrd_byp_t *thr_byp;
+    proc_byp_t *proc_byp;
+    struct hash_identity tmp_ide;
+    tmp_ide.ide_c = NULL;
+    tmp_ide.ide_type.ide_i = 0;
+    tmp_ide.ide_type.pid = iide->ide_p.ide_type.pid;
     
-    hl = ipc_holder_hash_get(iide->ide_p, 0);
-    if (hl == NULL) {
+    proc_byp = get_proc_byp(tmp_ide);
+    if (proc_byp == NULL) {
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
     
-    inde = hl->ihl.inde;
+    struct ipc_inode_holder *ihl = get_ihl_from_proc_byp(proc_byp, iide->ide_p);
+    inde = ihl->inde;
     file = AP_FILE_MALLOC();
     AP_FILE_INIT(file);
     
-    if (inde->f_ops->open != NULL) {
+    file->f_ops = inde->f_ops;
+    
+    if (inde->f_ops!= NULL && inde->f_ops->open != NULL) {
         open_s = inde->f_ops->open(file, inde, req->req_t.f_o_info.flags);
         if (open_s == -1) {
             ap_msg_send_err(port, errno, -1);
@@ -506,30 +600,28 @@ static void client_o(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
         }
     }
     
-    file->f_ops = inde->f_ops;
     file->relate_i = inde;
-    file->ipc_fd = open_s;
+    file->ipc_fd = (int)atomic_set_next_unset_bit(proc_byp->bitmap);
     ap_inode_get(inde);
     
     iide->ide_t.ide_c  = (iide->chrs + iide->off_set_t);
-    un = hash_union_get(hl->ihl.ipc_byp_hash, iide->ide_t);
+    un = hash_union_get(proc_byp->ipc_byp_hash, iide->ide_t);
     if (un == NULL) {
         thr_byp = MALLOC_THRD_BYP();
         size_t str_l = strlen(iide->ide_t.ide_c);
         thr_byp->h_un.ide.ide_c = Malloc_z(str_l + 1);
         strncpy((char *)thr_byp->h_un.ide.ide_c, iide->ide_t.ide_c, str_l);
         thr_byp->h_un.ide.ide_type.thr_id = iide->ide_t.ide_type.thr_id;
-        if((un = hash_union_insert_recheck(hl->ihl.ipc_byp_hash, &thr_byp->h_un)) !=
+        if((un = hash_union_insert_recheck(proc_byp->ipc_byp_hash, &thr_byp->h_un)) !=
            &thr_byp->h_un){
             THRD_BYP_FREE(thr_byp);
         }
     }
-    
     thr_byp = container_of(un, thrd_byp_t, h_un);
     add_o_file(thr_byp, file);
     
     re.rep_t.re_type = 0;
-    re.ipc_fd = open_s;
+    re.ipc_fd = file->ipc_fd;
     re.struct_l = 0;
     port->ipc_ops->ipc_send(port, &re, sizeof(re), NULL);
 }
@@ -540,30 +632,36 @@ static void client_c(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     rest_iide(iide);
     struct ap_inode *inde;
     struct ap_file *file;
-    thrd_byp_t *byp;
-    struct holder *hl;
+    thrd_byp_t *thr_byp;
+    proc_byp_t *proc_byp;
     struct ap_inode *inode;
     struct ap_msgreply re;
+    struct hash_identity tmp_ide;
+    tmp_ide.ide_c = NULL;
+    tmp_ide.ide_type.ide_i = 0;
+    tmp_ide.ide_type.pid = iide->ide_p.ide_type.pid;
     
-    hl = ipc_holder_hash_get(iide->ide_p, 0);
-    if (hl == NULL){
+    proc_byp = get_proc_byp(tmp_ide);
+    if (proc_byp == NULL) {
+        ap_msg_send_err(port, EINVAL, -1);
+        return;
+    }
+    
+    struct ipc_inode_holder *ihl = get_ihl_from_proc_byp(proc_byp, iide->ide_p);
+    inode = ihl->inde;
+    thr_byp = get_thr_byp(proc_byp, iide);
+    if (thr_byp == NULL){
         ap_msg_send_err(port, errno, -1);
         return;
     }
     
-    inode = hl->ihl.inde;
-    byp = get_thr_byp(&hl->ihl, iide);
-    if (byp == NULL){
-        ap_msg_send_err(port, errno, -1);
-        return;
-    }
-    
-    file = get_o_file(byp, iide->fd);
+    file = get_o_file(thr_byp, iide->fd);
     if (file == NULL){
         ap_msg_send_err(port, errno, -1);
         return;
     }
     
+    atomic_unset_bitmap(proc_byp->bitmap, file->ipc_fd);
     if (file->f_ops->release != NULL) {
        int rs = file->f_ops->release(file, inde);
         if (rs == -1) {
@@ -571,10 +669,10 @@ static void client_c(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
             return;
         }
     }
-    pthread_mutex_lock(&byp->file_lock);
+    pthread_mutex_lock(&thr_byp->file_lock);
     list_del(&file->ipc_file);
     AP_FILE_FREE(file);
-    pthread_mutex_unlock(&byp->file_lock);
+    pthread_mutex_unlock(&thr_byp->file_lock);
     re.rep_t.re_type = 0;
     re.struct_l = 0;
     port->ipc_ops->ipc_send(port, &re, sizeof(re), NULL);
@@ -585,21 +683,29 @@ static void client_d(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *r
     struct hash_identity ide;
     struct ipc_inode_ide *iide = (struct ipc_inode_ide *)req_d[0];
     char *path = iide->chrs + iide->off_set_p;
-    struct holder *hl;
-    struct holder_table_union *un;
+    struct ap_msgreply re;
+    proc_byp_t *proc_byp;
     ide.ide_c = path;
-    ide.ide_type.ide_i = iide->ide_p.ide_type.pid;
-    hl = ipc_holder_hash_get(ide, 0);
-    if (hl == NULL) {
+    struct hash_identity tmp_ide;
+    tmp_ide.ide_c = NULL;
+    tmp_ide.ide_type.ide_i = 0;
+    tmp_ide.ide_type.pid = iide->ide_p.ide_type.pid;
+    
+    proc_byp = get_proc_byp(tmp_ide);
+    if (proc_byp == NULL) {
         ap_msg_send_err(port, EINVAL, -1);
         return;
     }
-    un = hl->hl_un;
-    pthread_mutex_lock(&un->table_lock);
-    list_del(&hl->hash_lis);
-    pthread_mutex_unlock(&un->table_lock);
     
-    HOLDER_FREE(hl);
+    struct ipc_inode_holder *ihl = get_ihl_from_proc_byp(proc_byp, ide);
+    pthread_mutex_lock(&proc_byp->iinode_lock);
+    list_del(&ihl->ipc_proc_byp_lis);
+    pthread_mutex_unlock(&proc_byp->iinode_lock);
+    IPC_INODE_HOLDER_FREE(ihl);
+    
+    re.rep_t.re_type = 0;
+    re.struct_l = 0;
+    port->ipc_ops->ipc_send(port, &re, sizeof(re), NULL);
 }
 
 static void client_seek(struct ap_ipc_port *port, char **req_d, struct ap_msgreq *req)
@@ -614,7 +720,7 @@ static void client_seek(struct ap_ipc_port *port, char **req_d, struct ap_msgreq
         return;
     }
     
-    if (file->f_ops->llseek == NULL) {
+    if (file->f_ops == NULL || file->f_ops->llseek == NULL) {
         ap_msg_send_err(port, ESPIPE, -1);
         return;
     }
@@ -648,9 +754,9 @@ static void *ap_proc_sever(void *arg)
         msg_buf = (struct ap_msgbuf *)buf;
         type = msg_buf->req.req_t.op_type;
         req_detail = pull_req(&msg_buf->req);
-        for (int i = 0; i<msg_buf->req.index_lenth; i ++) {
+        for (int i = 0; i<msg_buf->req.index_lenth; i ++)
             BAG_RAW_PUSH(req_detail[i], free, &trashs);
-        }
+        
         switch (type) {
             case g:
                 client_g(p_port, req_detail, &msg_buf->req);
@@ -722,6 +828,7 @@ static struct ap_inode
         chmod(AP_PROC_FILE, S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
     
     char p_file[AP_IPC_PATH_LEN];
+    memset(p_file, '\0', AP_IPC_PATH_LEN);
     const char *path[] = {
         AP_PROC_FILE,
         m_info->sever_name,
@@ -729,9 +836,9 @@ static struct ap_inode
     
     path_names_cat(p_file, path, 2, "/");
     int mkd = mkdir(p_file, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-    if (mkd == -1 && errno != EEXIST) {
+    if (mkd == -1 && errno != EEXIST)
         return NULL;
-    }
+    
     
     snprintf(p_file + strl3 + 1, AP_IPC_PATH_LEN - strl3 -1, "/%ld_sever",(long)pid);
     h_info = MALLOC_IPC_INFO_HEAD();
@@ -796,7 +903,7 @@ static int procfs_get_inode(struct ap_inode_indicator *indc)
     errno = 0;
     dp = opendir(AP_PROC_FILE);
     if (dp == NULL) {
-        perror("ap_proc can't open the dir");
+        ap_err("ap_proc can't open the dir");
         goto FAILED;
     }
     
@@ -853,15 +960,15 @@ static int ipc_get_root(ppair_t *ppair)
     struct package_hint hint;
     ssize_t sent_s = s_port->ipc_ops->
     ipc_send(s_port, buf, ttlen, &hint);
-    if (sent_s == -1) {
+    if (sent_s == -1)
         B_return(-1);
-    }
+    
     TRASH_BAG_RAW_PUSH(&hint, BAG_PAKAGE_HINT_FREE);
     ssize_t recv_s = s_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
-    if (recv_s == -1) {
+    if (recv_s == -1) 
         B_return(-1);
-    }
+    
     TRASH_BAG_RAW_PUSH(msg_reply, free);
     
     struct ap_msgreply *msgre = (struct ap_msgreply *)msg_reply;
@@ -1068,17 +1175,20 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
     cur_ind->name = Malloc_z(len + 1);
     strncpy(cur_ind->name, dir_name, len);
     
-    if (f_ind->is_dir == 1){
-        cur_ind->i_ops = &proc_file_i_operations;
+    if (f_ind->is_dir){
+        cur_ind->i_ops = &proc_sub_inode_operations;
     }
     else{
         cur_ind->f_ops = &proc_file_operations;
         cur_ind->i_ops = &proc_file_i_operations;
     }
     
+    
+    cur_ind->mount_inode = indc->cur_mtp;
     ap_inode_put(indc->cur_inode);
     ap_inode_get(cur_ind);
     indc->cur_inode = cur_ind;
+    
     B_return((int)msgre->rep_t.re_type);
 }
 
@@ -1094,25 +1204,29 @@ static int find_proc_inode(struct ap_inode_indicator *indc)
     if (indc->slash_remain > 0)
         *indc->cur_slash = '/';
 
+    strl = strlen(indc->the_name) + 2;
+    path = Malloc_z(strl);
+    path_cpy_add_root(path, indc->the_name, strlen(indc->the_name));
+    
     info = get_ipc_info(indc->cur_inode);
-    ide.ide_c = indc->the_name;
+    ide.ide_c = path;
     ide.ide_type.ide_i = 0;
     un = hash_union_get(info->inde_hash_table, ide);
     if (un != NULL) {
+        ap_inode_put(indc->cur_inode);
         indc->cur_inode = container_of(un, struct ap_inode, ipc_path_hash);
+        ap_inode_get(indc->cur_inode);
         return 0;
     }
     
     get = get_proc_inode(indc);
-    if (get)
+    if (get == -1)
         return get;
-    strl = strlen(ide.ide_c) + 2;
-    path = Malloc_z(strl);
-    path_cpy_add_root(path, ide.ide_c, strlen(ide.ide_c));
     
     indc->cur_inode->ipc_path_hash.ide.ide_c = path;
     indc->cur_inode->ipc_path_hash.ide.ide_type.ide_i = 0;
     indc->cur_inode->links++;
+    add_inode_to_mt(indc->cur_inode, indc->cur_mtp);
     hash_union_insert(info->inde_hash_table, &indc->cur_inode->ipc_path_hash);
     return get;
 }
@@ -1248,6 +1362,7 @@ static ssize_t proc_write(struct ap_file *file, char *buf, off_t off, size_t siz
     
     TRASH_BAG_RAW_PUSH(msg_reply, free);
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
+    
     if (msgre->rep_t.re_type <= 0) {
         errno = msgre->rep_t.err;
         B_return(msgre->rep_t.re_type);
@@ -1303,6 +1418,7 @@ static int proc_open(struct ap_file *file, struct ap_inode *inode, unsigned long
         B_return(-1);
     }
     TRASH_BAG_RAW_PUSH(&hint, BAG_PAKAGE_HINT_FREE);
+    
     recv_s = c_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1){
@@ -1382,6 +1498,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     }
     
     TRASH_BAG_RAW_PUSH(&hint, BAG_PAKAGE_HINT_FREE);
+    
     recv_s = c_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1) {
@@ -1392,6 +1509,7 @@ static int proc_release(struct ap_file *file, struct ap_inode *inode)
     
     TRASH_BAG_RAW_PUSH(msg_reply, free);
     struct ap_msgreply *msgre = (struct ap_msgreply*)msg_reply;
+    
     if (msgre->rep_t.re_type == -1) {
         errno = msgre->rep_t.err;
         B_return(-1);
@@ -1525,6 +1643,7 @@ static ssize_t proc_readdir
         B_return(-1);
     }
     TRASH_BAG_RAW_PUSH(&hint, BAG_PAKAGE_HINT_FREE);
+    
     recv_s = c_port->ipc_ops->
     ipc_recv(c_port, (void **)&msg_reply, AP_IPC_ONE_MSG_UNION, &hint, NULL);
     if (recv_s == -1){
@@ -1532,8 +1651,10 @@ static ssize_t proc_readdir
             handle_disc(inode, s_port, info->info_h->sever_name);
         B_return(-1);
     }
+    
     TRASH_BAG_RAW_PUSH(msg_reply, free);
     struct ap_msgreply *msgre = (struct ap_msgreply *)msg_reply;
+   
     if (msgre->rep_t.re_type == -1 || msgre->struct_l == 0) {
         errno = msgre->rep_t.err;
         B_return(-1);
@@ -1541,6 +1662,7 @@ static ssize_t proc_readdir
     if (msgre->rep_t.read_n > 0) {
         memcpy(buff, msgre->re_struct, msgre->rep_t.read_n);
     }
+    
     dir->done = msgre->rep_t.readdir_is_done;
     B_return(msgre->rep_t.read_n);
 }
@@ -1742,6 +1864,13 @@ static struct ap_inode_operations proc_inode_operations = {
     .closedir = proc_closedir,
 };
 
+static struct ap_inode_operations proc_sub_inode_operations = {
+    .unlink = proc_unlink,
+    .destory = proc_destory,
+    .readdir = proc_readdir,
+    .closedir = proc_closedir,
+};
+
 static struct ap_inode_operations proc_file_i_operations = {
     .destory = proc_destory,
 };
@@ -1757,8 +1886,8 @@ static struct ap_file_operations proc_file_operations = {
 int init_proc_fs()
 {
     struct ap_file_system_type *proc_fsys = MALLOC_FILE_SYS_TYPE();
+    proc_fsys->is_allow_mount = 0;
     proc_fsys->name = PROC_FILE_FS;
-    
     proc_fsys->get_initial_inode = proc_get_initial_inode;
     return register_fsyst(proc_fsys);
 }

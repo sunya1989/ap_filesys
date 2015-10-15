@@ -1,17 +1,17 @@
-//
-//  ger_fs.h
-//  ap_file_system
-//
-//  Created by HU XUKAI on 14/12/24.
-//  Copyright (c) 2014年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #ifndef ap_file_system_ger_fs_h
 #define ap_file_system_ger_fs_h
 
 #include <pthread.h>
 #include <ap_fsys/list.h>
 #include <ap_fsys/counter.h>
+#include <ap_fsys/envelop.h>
 #define GER_FILE_FS "ger"
 
 struct stem_file_operations;
@@ -34,6 +34,8 @@ struct ger_stem_node{
     
     struct stem_file_operations *sf_ops;
     struct stem_inode_operations *si_ops;
+    
+    void *x_object;
 };
 
 static inline void STEM_INIT(struct ger_stem_node *stem)
@@ -42,6 +44,7 @@ static inline void STEM_INIT(struct ger_stem_node *stem)
     stem->prepare_raw_data = NULL;
     stem->sf_ops = NULL;
     stem->si_ops = NULL;
+    stem->x_object = NULL;
     stem->raw_data_isset = 0;
     
     INIT_LIST_HEAD(&stem->children);

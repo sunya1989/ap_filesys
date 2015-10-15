@@ -2,7 +2,6 @@
 //  lock_reg.c
 //  ap_tester
 //
-//  Copyright (c)
 //
 
 #include <stdio.h>

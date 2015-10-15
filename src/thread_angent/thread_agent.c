@@ -1,11 +1,10 @@
-//
-//  thread_age.c
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/3/14.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <string.h>
 #include <stdio.h>
 #include <envelop.h>
@@ -54,6 +53,10 @@ static ssize_t thread_age_read(struct ger_stem_node *stem, char *buf, off_t off_
 {
     struct thread_age_attribute *thr_attr = container_of(stem, struct thread_age_attribute, thr_stem);
     ssize_t n_read;
+    if (thr_attr->thr_attr_ops == NULL || thr_attr->thr_attr_ops->attr_read == NULL) {
+        errno = ESRCH;
+        return -1;
+    }
     n_read = thr_attr->thr_attr_ops->attr_read(buf,stem,off_set,len);
     return n_read;
 }
@@ -62,6 +65,10 @@ static ssize_t thread_age_write(struct ger_stem_node *stem, char *buf, off_t off
 {
     struct thread_age_attribute *thr_attr = container_of(stem, struct thread_age_attribute, thr_stem);
     ssize_t n_write;
+    if (thr_attr->thr_attr_ops == NULL || thr_attr->thr_attr_ops->attr_write == NULL) {
+        errno = ESRCH;
+        return -1;
+    }
     n_write = thr_attr->thr_attr_ops->attr_write(buf,stem,off_set,len);
     return n_write;
 }

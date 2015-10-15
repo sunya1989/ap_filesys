@@ -1,11 +1,10 @@
-//
-//  ap_hash.c
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/5/8.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
-
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <ap_fs.h>
 #include <stdio.h>
 #include <ap_hash.h>
@@ -15,7 +14,7 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
 {
     unsigned hash;
     char *hasf_str;
-    char *join;
+    char *join = NULL;
     char str_arr[32];
     char *str = ultoa(ide->ide_type.ide_i, str_arr, 10);
     if (ide->ide_c == NULL) {
@@ -29,7 +28,8 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
     }
     hash = BKDRHash(hasf_str);
     hash = hash % size;
-    free(join);
+    if (join != NULL) 
+        free(join);
     return hash;
 }
 
@@ -56,11 +56,11 @@ struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou)
     hl_indx = &ipc_hold_table.hash_table[hash].holder;
     list_for_each(pos, hl_indx){
         hl = list_entry(pos, struct holder, hash_lis);
-        if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 &&
-            hl->ide.ide_type.ide_i == ide.ide_type.ide_i) {
-            if (inc_cou) {
-                hl->ipc_get(&hl->ihl);
-            }
+        if ((hl->ide.ide_c == ide.ide_c ||
+            strcmp(hl->ide.ide_c, ide.ide_c) == 0) &&
+            (hl->ide.ide_type.ide_i == ide.ide_type.ide_i)) {
+            if (inc_cou && hl->ipc_get != NULL)
+                hl->ipc_get(hl->x_objext);
             pthread_mutex_unlock(lock);
             return hl;
         }
@@ -73,7 +73,7 @@ void hash_union_insert(struct ap_hash *table, struct hash_union *un)
 {
     unsigned hash_n = get_hash_n(&un->ide, table->size);
     if (hash_n > table->size) {
-        fprintf(stderr,"hash table size erro\n");
+        ap_err("hash table size erro\n");
         exit(1);
     }
     pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
@@ -93,15 +93,16 @@ struct hash_union
     struct list_head *head;
     struct hash_union *pos;
     if (hash_n > table->size) {
-        fprintf(stderr,"hash table size erro\n");
+        ap_err("hash table size erro\n");
         exit(1);
     }
     pthread_mutex_t *lock = &table->hash_table[hash_n].t_lock;
     pthread_mutex_lock(lock);
     head = &table->hash_table[hash_n].hash_union_entry;
     list_for_each_entry(pos, head, union_lis){
-        if (strcmp(pos->ide.ide_c, un->ide.ide_c) == 0 &&
-            pos->ide.ide_type.ide_i == un->ide.ide_type.ide_i) {
+        if ((pos->ide.ide_c == un->ide.ide_c||
+            strcmp(pos->ide.ide_c, un->ide.ide_c) == 0) &&
+            (pos->ide.ide_type.ide_i == un->ide.ide_type.ide_i)) {
             pthread_mutex_unlock(lock);
             return pos;
         }
@@ -117,7 +118,7 @@ struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity id
 {
     unsigned hash_n = get_hash_n(&ide, table->size);
     if (hash_n > table->size) {
-        fprintf(stderr,"hash table size erro\n");
+        ap_err("hash table size erro\n");
         exit(1);
     }
 
@@ -130,8 +131,9 @@ struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity id
     un = &table->hash_table[hash_n].hash_union_entry;
     list_for_each(pos, un){
         hun = list_entry(pos, struct hash_union, union_lis);
-        if (strcmp(hun->ide.ide_c, ide.ide_c) == 0 &&
-            hun->ide.ide_type.ide_i == ide.ide_type.ide_i) {
+        if ((hun->ide.ide_c == ide.ide_c ||
+            strcmp(hun->ide.ide_c, ide.ide_c) == 0) &&
+            (hun->ide.ide_type.ide_i == ide.ide_type.ide_i)) {
             pthread_mutex_unlock(lock);
             return hun;
         }

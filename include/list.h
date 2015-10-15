@@ -1,9 +1,18 @@
+/*
+ *   Copyright (c) 2015, HU XUKAI
+ *
+ *   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #ifndef ap_file_system_list_h
 #define ap_file_system_list_h
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <ap_fsys/envelop.h>
+
 #define container_of(ptr, type, member) ({                      \
           const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
           (type *)( (char *)__mptr - _offsetof(type,member) );})
@@ -11,8 +20,8 @@
 #define _offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 
 struct list_head{
-	struct list_head *prev;
-	struct list_head *next;
+    struct list_head *prev;
+    struct list_head *next;
 };
 
 static inline void INIT_LIST_HEAD(struct list_head *list)
@@ -24,7 +33,7 @@ static inline void INIT_LIST_HEAD(struct list_head *list)
 static inline void list_add(struct list_head *new_h, struct list_head *head)
 {
     if (new_h == NULL || head == NULL) {
-        fprintf(stderr, "list can't be null\n");
+        ap_err("list can't be null\n");
         exit(1);
     }
     new_h->prev = head;
@@ -36,7 +45,7 @@ static inline void list_add(struct list_head *new_h, struct list_head *head)
 static inline void list_add_tail(struct list_head *new_h, struct list_head *head)
 {  
   if (new_h == NULL || head == NULL) {
-       fprintf(stderr, "list can't be null\n");
+        ap_err("list can't be null\n");
         exit(1);
     }
     new_h->next = head;
@@ -87,14 +96,14 @@ for (pos1 = (head)->next, pos2 = (head)->next->next; pos1 != (head); pos1 = pos2
 #define list_for_each_prev(pos, head) \
 for (pos = (head)->prev; pos != (head); pos = pos->prev)
 
-#define list_for_each_entry(pos, head, member)				\
-for (pos = list_first_entry(head, typeof(*pos), member);	\
-&pos->member != (head);					\
+#define list_for_each_entry(pos, head, member)              \
+for (pos = list_first_entry(head, typeof(*pos), member);    \
+&pos->member != (head);                 \
 pos = list_next_entry(pos, member))
 
 #define list_for_each_entry_middle(pos, head, middle, member)   \
-for (pos = list_first_entry(middle, typeof(*pos), member);	\
-&pos->member != (head);					\
+for (pos = list_first_entry(middle, typeof(*pos), member);  \
+&pos->member != (head);                 \
 pos = list_next_entry(pos, member))
 
 #endif
