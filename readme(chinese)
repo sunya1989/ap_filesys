@@ -1,0 +1,353 @@
+ 	1.AP_FSYS是一个进程内的虚拟文件系统，用于组织和操作进程内的数据和特性。
+
+	1.1文件系统是由一簇信息元和在其上的操作组成 比如可以把一张图片看成是一个信息元 而读取和修改(写)这张图片就构成了在其上的操作。 而且文件系统还负责组织这些信息 （通常是以树的结构 也就是目录和文件的形式）
+	
+	2.AP_FSYS中以ap_inode结构体来表示一个信息元 用ap_file_operations 和 ap_inode_operations 结构体来表示在其上的操作(它们被定义在ap_fs.h头文件中)
+	
+	3.gernal file system 是在 1.1 意义下的文件系统 实现了 ap_file_operations 和 ap_inode_operations 并且把ap_inode 映射为ger_stem_node 把ap_file_operations和ap_inode_operations 映射为stem_file_operations 和 stem_inode_operations(ger_stem_node stem_file_operations stem_inode_operations 定义在ger_fs.h中)
+	
+	4.可以把ger_stem_node嵌入到任意一结构体中并实现stem_file_operations 和 stem_inode_operations 就可以把这个结构体变成一个信息元可以对其进行读写操作 比如
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+	struct gernal{
+    int is_open;
+    pthread_mutex_t lock;
+    size_t size;
+    
+    struct ger_stem_node stem;
+    
+    char buf[TEST_LINE_MAX];
+}ger_ex;
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+如上 ger_stem_node 结构体 stem 嵌入了ger_ex中 其上的操作如下定义 
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+static ssize_t ger_ex_read(struct ger_stem_node *stem, char *buf, off_t off, size_t size)
+{
+    /*recover the object into which the stem was embedded*/
+    struct gernal *ger = container_of(stem, struct gernal, stem);
+   
+   						......... 
+    
+    pthread_mutex_lock(&ger->lock);
+    /*for the simplicity we just ignore the off parameter*/
+    memcpy(buf, ger->buf, size);
+    pthread_mutex_unlock(&ger->lock);
+    
+    return size;
+}
+
+static ssize_t ger_ex_write(struct ger_stem_node *stem, char *buf, off_t off, size_t size)
+{   
+									......... 
+
+    pthread_mutex_lock(&ger->lock);
+    /*for the simplicity we just ignore the off parameter*/
+    memcpy(ger->buf, buf, size);
+    pthread_mutex_unlock(&ger->lock);
+    
+    return size;
+}
+
+static int ger_ex_open(struct ger_stem_node *stem, unsigned long flag)
+{
+    /*recover the object into which the stem was embedded*/
+    struct gernal *ger = container_of(stem, struct gernal, stem);
+    
+    /*if have not been opened before then initiate ger_ex*/
+    if (!ger->is_open) {
+        pthread_mutex_init(&ger->lock, NULL);
+        ger->is_open = 1;
+    }
+    
+    ger->size = 0;
+    memset(ger->buf, '\0', TEST_LINE_MAX);
+    /*fill some contents*/
+    char text[] = "ger_ex is opened";
+    strncpy(ger->buf, text, sizeof(text));
+    ger->size = sizeof(text);
+    return 0;
+}
+
+static int ger_ex_destory(struct ger_stem_node *stem)
+{
+    /*recover the object into which the stem was embedded*/
+    struct gernal *ger = container_of(stem, struct gernal, stem);
+    
+    memset(ger->buf, '\0', TEST_LINE_MAX);
+    pthread_mutex_destroy(&ger->lock);
+    ger->size = 0;
+    return 0;
+}
+
+static struct stem_file_operations ger_ex_file_ops = {
+    .stem_read = ger_ex_read,
+    .stem_write = ger_ex_write,
+    .stem_open = ger_ex_open,
+};
+
+static struct stem_inode_operations ger_ex_inode_ops = {
+    .stem_destory = ger_ex_destory,
+};
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+定义好这些操作之后我们就可以把它们加入到gernal文件系统中使其成为文件 在此之前要先挂载 gernal文件系统
+
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－-－－－－－exmaples.c
+int mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+/*pointing to the file and inode operations*/
+    ger_ex.stem.sf_ops = &ger_ex_file_ops;
+    ger_ex.stem.si_ops = &ger_ex_inode_ops;
+    
+    ger_ex.stem.stem_mode = 0777;
+    ger_ex.stem.stem_name = "gernal_exmple";
+								
+			.........
+
+	int hook_s = hook_to_stem(root, &ger_ex.stem);
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+在hook_to_stem函数之后 ger_ex 就被加入到了gernal文件系统中 就可以进行打开，读取和写操作
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+/*open the file*/
+    int fd = ap_open("/gernal_exmple", O_RDWR);							
+
+          .........
+
+    char buf[TEST_LINE_MAX];
+    memset(buf, '\0', TEST_LINE_MAX);
+    
+    ssize_t read_n = ap_read(fd, buf, TEST_LINE_MAX);
+    			
+    	  .........
+    
+    printf("%s\n",buf);
+							
+		  .........
+
+	char write_buf[] = "writing....";
+    ssize_t write_n = ap_write(fd, write_buf, sizeof(write_buf));
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+5. stdio agent 是利用gernal文件系统导入操作系统中的一些目录结构或者文件到进程中 首先在操作系统中建立一个目录和其下的一个文件
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+/*make a test-directory*/
+    int mk_s = mkdir("/tmp/ap_test", S_IRWXU | S_IRWXG | S_IRWXO);
+    if (mk_s == -1) {
+        perror("");
+        exit(1);
+    }
+
+ /*fill the test-file*/
+    char pre_write_buf[] = "test_stdio\n";
+    int fd = open("/tmp/ap_test/std_test", O_CREAT | O_RDWR);
+    write(fd, pre_write_buf, sizeof(pre_write_buf));
+    chmod("/tmp/ap_test/std_test", 0777);
+    close(fd);
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+再将其导入到进程中成为根目录
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+/*import /tmp/aptest into this process as root directory "/"*/
+    root_dir = MALLOC_STD_AGE_DIR("/tmp/ap_test");
+    root_dir->stem.stem_name = "/";
+    root_dir->stem.stem_mode = 0777;
+
+/*mount "/"*/
+    int mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+同样也可以进行读写打开等操作 只不过/tmp/ap_test变成了根目录
+
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+ int ap_fd = ap_open("/std_test", O_RDWR);
+    
+    			.........    
+    
+    /*read test-file*/
+    char buf[TEST_LINE_MAX];
+    memset(buf, '\0', TEST_LINE_MAX);
+    ssize_t read_n = ap_read(ap_fd, buf, TEST_LINE_MAX);
+   	
+   			 .........
+    
+    printf("%s\n",buf);
+    
+    /*write test-file*/
+    char write_buf[] = "stdio has been worte\n";
+    ssize_t write_n = ap_write(ap_fd, write_buf, sizeof(write_buf));
+   				.........
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+6. thread agent 也是建立在gernal文件系统之上 起初是想把一个线程作为目录而线程的一些属性作为文件操作 例子在exmaples.c中这里不再详述
+
+7. proc file system 是用于建立进程之间的联系的 比如进程A用AP_FSYS建立了一个进程内文件目录结构 进程B就可以用proc 文件系统就可以访问整个进程A的文件结构
+
+首先挂载proc文件系统
+
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+ /*prepare mount information*/
+    struct proc_mount_info info;
+    info.sever_name = "proc_user0";
+    info.typ = SYSTEM_V;
+    
+    /*mount file system*/
+    int mount_s = ap_mount(&info, PROC_FILE_FS, "/procs");
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+info是挂载所需要的挂载信息 sever_name 是你为进程所决定的服务名 info.typ 是要用的进程间通通信的方法
+
+同时在另一个进程里也挂载proc文件系统
+
+首先挂载根目录
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
+ /*import /tmp/ap_test_proc into this process as root directory "/"*/
+    root_dir = MALLOC_STD_AGE_DIR("/tmp/ap_test_proc");
+    root_dir->stem.stem_name = "/";
+    root_dir->stem.stem_mode = 0777;
+    
+    /*mount ger file system*/
+    mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+根目录是导入的/tmp/ap_test_proc
+
+再挂载proc文件系统
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
+ /*mount proc file system*/
+    struct proc_mount_info m_info;
+    m_info.typ = SYSTEM_V;
+    m_info.sever_name = "proc_user1";
+    mount_s = ap_mount(&m_info, PROC_FILE_FS, "/procs");
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+可见这个进程的服务名是proc_user1
+
+这样一来在进程proc_user0的目录/procs下就可以访问到 proc_user1进程内的文件结构
+顺带提一下 在proc_user1中定义了一个condition结构体 其他定义如下
+
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
+struct condition{
+    int is_open;
+    pthread_cond_t cond;
+
+    struct ger_stem_node stem;
+    
+    int v;
+    pthread_mutex_t cond_lock;
+}cond;
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+这个结构体是为测试而定义的 有一个条件变量 cond 通过stem成员添加到文件系统中
+
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
+cond.stem.stem_name = "condition";
+cond.stem.stem_mode = 0777;
+cond.stem.sf_ops = &cond_file_ops;
+cond.stem.si_ops = &cond_inode_ops;
+   			 .........
+int hook_s = hook_to_stem(root, &cond.stem);
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+打开/condition文件 从中读取就会等待在条件变量上
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
+ int cond_fd = ap_open("/condition", O_RDWR);
+
+   			 .........
+	char v;
+	ssize_t read_n = ap_read(cond_fd, &v, 1);
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+只要其它进程完成一些任务后写condition文件 proc_user1进程就会从等待中返回
+
+在proc_user0 进程内可以找到proc_usr1的相关目录 路径的形式一般为/procs/severname/severname@pid
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+ /*open directory and read*/
+    dir = ap_open_dir("/procs");
+    if (dir == NULL) {
+        perror("open dir failed\n");
+        exit(1);
+    }
+    /*prepare the path*/
+    strcat(proc_path, "/procs");
+    while (loop < 2) {
+        strncat(proc_path, "/", 1);
+        dirt = NULL;
+        dirt = ap_readdir(dir);
+        if (dirt == NULL){
+            printf("dirctory is empty!\n");
+            exit(0);
+        }
+        strncat(proc_path, dirt->name, dirt->name_l);
+        ap_closedir(dir);
+        
+        dir = NULL;
+        dir = ap_open_dir(proc_path);
+        if (dir == NULL && errno != ENOTDIR) {
+            perror("open dir failed\n");
+            exit(1);
+        }
+        loop++;
+    }
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+上面的代码寻找/procs/proc_usr1/proc_usr1@pid 
+
+再在/procs/proc_usr1/proc_usr1@pid下搜索condition文件和另一个文件
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+while (!c_file_find || !t_file_find) {
+        dirt = NULL;
+        dirt = ap_readdir(dir);
+        if (dirt == NULL){
+            printf("dirctory is empty!\n");
+            exit(0);
+        }
+        if (strncmp(dirt->name, "condition", dirt->name_l) == 0) {
+            c_file_find = 1;
+            strncat(cond_path, dirt->name, dirt->name_l);
+        }else{
+            t_file_find = 1;
+            strncat(proc_path, dirt->name, dirt->name_l);
+        }
+    }
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+对找到的文件进行打开 读和写操作
+
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+ /*open the file that reside in other process*/
+    fd1 = ap_open(proc_path, O_RDWR);
+   
+     			 .........
+ 
+ /*write*/
+ char *write_w = "proc_user0 have wrote\n";
+ size_t len = strlen(write_w);
+ ssize_t write_n = ap_write(fd1, write_w, len);
+     			 
+     			 .........
+
+	/*read*/
+ ap_lseek(fd1, 0, SEEK_SET);
+ ssize_t read_n = ap_read(fd1, &test_r, TEST_LINE_MAX);			
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+在读的时候用ap_lseek返回文件开头
+
+之后打开condition文件写这个文件就可以使得proc_user1从等待中返回并退出
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
+	/*open conditon file*/
+	int fd2 = ap_open(cond_path, O_RDWR);
+    
+ 					    .........
+	char v;
+	write_n = ap_write(fd2, &v, 1);
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
+
+
+
+
+
+
+
+
+
