@@ -162,6 +162,7 @@ void thread_exmple()
         exit(1);
     }
     
+    //__test_thread_age_w2(NULL);
     /*create threads*/
     pthread_create(&n0, NULL, __test_thread_age_print, NULL);
     pthread_create(&n1, NULL, __test_thread_age_w1, NULL);
@@ -170,6 +171,7 @@ void thread_exmple()
     pthread_join(n0, &n_p0);
     pthread_join(n1, &n_p1);
     pthread_join(n2, &n_p2);
+    
     
     /*unlink file*/
     int unl_s =  ap_unlink("/thread_test/test0");
@@ -436,14 +438,31 @@ static void proc_example()
     }
     printf("%s\n",test_r);
     
+    ap_close(fd1);
+    int ulink_s = ap_unlink(proc_path);
+    if (ulink_s == -1) {
+        perror("proc unlink failed\n");
+        exit(1);
+    }
+    
     char v;
     write_n = ap_write(fd2, &v, 1);
     if (write_n == -1) {
         perror("write faile\n");
         exit(1);
     }
-    ap_close(fd1);
     ap_close(fd2);
+    ulink_s = ap_unlink(cond_path);
+    if (ulink_s == -1) {
+        perror("proc unlink failed\n");
+        exit(1);
+    }
+    
+    int unmount_s = ap_unmount("/procs");
+    if (unmount_s == -1) {
+        perror("unmount_s failed\n");
+        exit(1);
+    }
 }
 
 int main(int argc, const char * argv[])
@@ -548,20 +567,20 @@ int main(int argc, const char * argv[])
     }
     
     /*demonstrate gernal example*/
-    //ger_exmple();
+    ger_exmple();
     /*demonstrate thread agent*/
-    /*thread_exmple();
+    thread_exmple();
+    /*demonstrate proc example*/
+    proc_example();
     
+    chdir(AP_REWIND_DIR_BEYOND_ROOT);
     int umount_s = ap_unmount("/");
     if (umount_s == -1) {
         perror("unmount failed\n");
         exit(1);
-    }*/
+    }
     
-    /*demonstrate proc example*/
-    proc_example();
 }
-
 
 
 

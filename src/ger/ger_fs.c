@@ -158,7 +158,7 @@ static off_t ger_llseek(struct ap_file *file, off_t off_set, int origin)
 static int ger_unlink(struct ap_inode *ind)
 {
     struct ger_stem_node *stem = ind->x_object; //类型检查??
-    int o;
+    int o = 0;
 
     ind->x_object = NULL;
     pthread_mutex_lock(&stem->parent->ch_lock);

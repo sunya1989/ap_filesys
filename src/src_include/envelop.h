@@ -1,10 +1,3 @@
-//
-//  envelop.h
-//  ap_editor
-//
-//  Created by HU XUKAI on 15/4/26.
-//  Copyright (c) 2015年 HU XUKAI.<goingonhxk@gmail.com>
-//
 /*
  *   Copyright (c) 2015, HU XUKAI
  *

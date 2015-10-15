@@ -1,11 +1,3 @@
-//
-//  bitmap.h
-//  ap_tester
-//
-//  Created by sunya on 15/10/4.
-//  Copyright (c) 2015年 sunya. All rights reserved.
-//
-
 /*
  *   Copyright (c) 2015, HU XUKAI
  *
