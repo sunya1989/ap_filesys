@@ -548,18 +548,18 @@ int main(int argc, const char * argv[])
     }
     
     /*demonstrate gernal example*/
-    ger_exmple();
+    //ger_exmple();
     /*demonstrate thread agent*/
-    thread_exmple();
+    /*thread_exmple();
     
     int umount_s = ap_unmount("/");
     if (umount_s == -1) {
         perror("unmount failed\n");
         exit(1);
-    }
+    }*/
     
     /*demonstrate proc example*/
-    //proc_example();
+    proc_example();
 }
 
 

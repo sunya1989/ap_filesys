@@ -1088,9 +1088,12 @@ static int get_proc_inode(struct ap_inode_indicator *indc)
         cur_ind->i_ops = &proc_file_i_operations;
     }
     
+    
+    cur_ind->mount_inode = indc->cur_mtp;
     ap_inode_put(indc->cur_inode);
     ap_inode_get(cur_ind);
     indc->cur_inode = cur_ind;
+    
     B_return((int)msgre->rep_t.re_type);
 }
 
