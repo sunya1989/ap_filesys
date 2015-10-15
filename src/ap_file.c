@@ -116,35 +116,35 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     
     par_indic = MALLOC_INODE_INDICATOR();
     mount_point = MALLOC_AP_INODE();
-    
     mount_point->is_mount_point = 1;
 
-    mount_inode = fsyst->get_initial_inode(fsyst,m_info);
-    if (mount_inode == NULL) {
-        return -1;
-    }
-    if (mount_inode->links == 0) {
-        mount_inode->links++;
-    }
-    mount_point->real_inode = mount_inode;
-    mount_inode->mount_inode = mount_point;
-    
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
         ap_err("ap_thread didn't find\n");
         exit(1);
     }
     
-    if((initial_indicator(path, par_indic, ap_fpthr)) == -1)
+    if((initial_indicator(path, par_indic, ap_fpthr)) == -1){
+        AP_INODE_FREE(mount_point);
+        AP_INODE_INICATOR_FREE(par_indic);
         return -1;
+    }
     
     get = walk_path(par_indic);
     
     if ((get == -1 && par_indic->slash_remain > 0) ||
         !par_indic->cur_inode->is_dir) {
         errno = ENOENT;
+        AP_INODE_FREE(mount_point);
         AP_INODE_INICATOR_FREE(par_indic);
         return -1;
+    }
+    
+    if (par_indic->cur_mtp->fsyst != NULL &&
+        !par_indic->cur_mtp->fsyst->is_allow_mount) {
+        errno = ESRCH;
+        AP_INODE_FREE(mount_point);
+        AP_INODE_INICATOR_FREE(par_indic);
     }
     
     if (!get)
@@ -152,12 +152,24 @@ static int __ap_mount(void *m_info, struct ap_file_system_type *fsyst, const cha
     else
         parent = par_indic->cur_inode;
     
+    mount_inode = fsyst->get_initial_inode(fsyst,m_info);
+    if (mount_inode == NULL) {
+        AP_INODE_FREE(mount_point);
+        AP_INODE_INICATOR_FREE(par_indic);
+        return -1;
+    }
+    
+    if (mount_inode->links == 0)
+        mount_inode->links++;
+    
+    mount_point->real_inode = mount_inode;
+    mount_inode->mount_inode = mount_point;
+    
     pthread_mutex_lock(&parent->ch_lock);
     if (!get){
         mount_point->prev_mpoints = par_indic->cur_inode;
         list_del(&par_indic->cur_inode->child);
     }
-    
     list_add(&mount_point->child, &parent->children);
     mount_point->parent = parent;
     mount_point->links++;
@@ -244,7 +256,6 @@ int ap_unmount(const char *path)
     struct ap_inode *op_inode, *mount_p;
     struct ap_file_pthread *ap_fpthr = pthread_getspecific(file_thread_key);
     if (ap_fpthr == NULL) {
-        
         ap_err("ap_thread didn't find\n");
         exit(1);
     }

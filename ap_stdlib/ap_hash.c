@@ -14,7 +14,7 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
 {
     unsigned hash;
     char *hasf_str;
-    char *join;
+    char *join = NULL;
     char str_arr[32];
     char *str = ultoa(ide->ide_type.ide_i, str_arr, 10);
     if (ide->ide_c == NULL) {
@@ -28,7 +28,8 @@ static unsigned get_hash_n(struct hash_identity *ide, size_t size)
     }
     hash = BKDRHash(hasf_str);
     hash = hash % size;
-    free(join);
+    if (join != NULL) 
+        free(join);
     return hash;
 }
 
@@ -55,11 +56,11 @@ struct holder *ipc_holder_hash_get(struct hash_identity ide, int inc_cou)
     hl_indx = &ipc_hold_table.hash_table[hash].holder;
     list_for_each(pos, hl_indx){
         hl = list_entry(pos, struct holder, hash_lis);
-        if (strcmp(hl->ide.ide_c, ide.ide_c) == 0 &&
-            hl->ide.ide_type.ide_i == ide.ide_type.ide_i) {
-            if (inc_cou) 
-                hl->ipc_get(&hl->ihl);
-            
+        if ((hl->ide.ide_c == ide.ide_c ||
+            strcmp(hl->ide.ide_c, ide.ide_c) == 0) &&
+            (hl->ide.ide_type.ide_i == ide.ide_type.ide_i)) {
+            if (inc_cou && hl->ipc_get != NULL)
+                hl->ipc_get(hl->x_objext);
             pthread_mutex_unlock(lock);
             return hl;
         }
@@ -99,8 +100,9 @@ struct hash_union
     pthread_mutex_lock(lock);
     head = &table->hash_table[hash_n].hash_union_entry;
     list_for_each_entry(pos, head, union_lis){
-        if (strcmp(pos->ide.ide_c, un->ide.ide_c) == 0 &&
-            pos->ide.ide_type.ide_i == un->ide.ide_type.ide_i) {
+        if ((pos->ide.ide_c == un->ide.ide_c||
+            strcmp(pos->ide.ide_c, un->ide.ide_c) == 0) &&
+            (pos->ide.ide_type.ide_i == un->ide.ide_type.ide_i)) {
             pthread_mutex_unlock(lock);
             return pos;
         }
@@ -129,8 +131,9 @@ struct hash_union *hash_union_get(struct ap_hash *table, struct hash_identity id
     un = &table->hash_table[hash_n].hash_union_entry;
     list_for_each(pos, un){
         hun = list_entry(pos, struct hash_union, union_lis);
-        if (strcmp(hun->ide.ide_c, ide.ide_c) == 0 &&
-            hun->ide.ide_type.ide_i == ide.ide_type.ide_i) {
+        if ((hun->ide.ide_c == ide.ide_c ||
+            strcmp(hun->ide.ide_c, ide.ide_c) == 0) &&
+            (hun->ide.ide_type.ide_i == ide.ide_type.ide_i)) {
             pthread_mutex_unlock(lock);
             return hun;
         }

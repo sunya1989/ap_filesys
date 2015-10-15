@@ -62,6 +62,25 @@ BAG_IMPOR_FREE(search_mtp_unlock, struct ap_inode);
 BAG_IMPOR_FREE(AP_INODE_FREE, struct ap_inode);
 BAG_IMPOR_FREE(AP_FILE_FREE, struct ap_file);
 
+static inline void
+complete_get_inode(struct ap_inode *inode, struct ap_inode_indicator *indc)
+{
+    if (inode->links == 0)
+        inode->links++;
+    if (inode->mount_inode == NULL) {
+        inode->mount_inode = indc->cur_mtp;
+        pthread_mutex_lock(&indc->cur_mtp->mount_p_counter.counter_lock);
+        pthread_mutex_lock(&inode->inode_counter.counter_lock);
+        indc->cur_mtp->mount_p_counter.in_use += inode->inode_counter.in_use;
+        pthread_mutex_unlock(&indc->cur_mtp->mount_p_counter.counter_lock);
+        pthread_mutex_unlock(&inode->inode_counter.counter_lock);
+        if (list_empty(&inode->mt_inodes.inodes))
+            add_inode_to_mt(inode, indc->cur_mtp);
+    }
+    
+}
+
+
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;
@@ -158,8 +177,8 @@ AGAIN:
         if(cursor_inode->i_ops != NULL && cursor_inode->i_ops->find_inode != NULL){
             get = cursor_inode->i_ops->find_inode(start);
             if (!get) {
+                complete_get_inode(start->cur_inode, start);
                 pthread_mutex_unlock(&cursor_inode->ch_lock);
-                add_inode_to_mt(start->cur_inode, curr_mount_p);
                 BAG_EXCUTE(&mount_ps);
                 return 0;
             }
@@ -184,10 +203,8 @@ AGAIN:
         list_add(&start->cur_inode->child, &cursor_inode->children);
         add_inode_to_mt(start->cur_inode, curr_mount_p);
         start->cur_inode->parent = cursor_inode;
-        if (start->cur_inode->links == 0) {
-            start->cur_inode->links++;
-        }
-
+        complete_get_inode(start->cur_inode, start);
+        
         path = start->cur_slash;
         if (start->slash_remain == 0) {
             pthread_mutex_unlock(&cursor_inode->ch_lock);
@@ -217,20 +234,6 @@ struct ap_file_system_type *find_filesystem(char *fsn)
     return NULL;
 }
 
-void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
-{
-    pthread_mutex_lock(&parent->ch_lock);
-    list_add(&child->child, &parent->children);
-    pthread_mutex_unlock(&parent->ch_lock);
-}
-
-void inode_del_child(struct ap_inode *parent, struct ap_inode *child)
-{
-    pthread_mutex_lock(&parent->ch_lock);
-    list_del(&child->child);
-    pthread_mutex_unlock(&parent->ch_lock);
-}
-
 int register_fsyst(struct ap_file_system_type *fsyst)
 {
     if (fsyst->get_initial_inode == NULL ||
@@ -241,20 +244,6 @@ int register_fsyst(struct ap_file_system_type *fsyst)
     list_add(&fsyst->systems, &f_systems.i_file_system);
     pthread_mutex_unlock(&f_systems.f_system_lock);
     return 0;
-}
-
-void inode_ipc_get(void *ind)
-{
-    struct ipc_inode_holder *ihl = ind;
-    ap_inode_get(ihl->inde);
-    return;
-}
-
-void inode_ipc_put(void *ind)
-{
-    struct ipc_inode_holder *ihl = ind;
-    ap_inode_put(ihl->inde);
-    return;
 }
 
 static void free_o_file_in_byp(thrd_byp_t *byp)
@@ -279,9 +268,9 @@ void THRD_BYP_FREE(thrd_byp_t *byp)
     free(byp);
 }
 
-void iholer_destory(struct ipc_inode_holder *iholder)
+void proc_byp_destory(proc_byp_t *proc_byp)
 {
-    struct ap_hash *hash = iholder->ipc_byp_hash;
+    struct ap_hash *hash = proc_byp->ipc_byp_hash;
     struct list_head *lis_pos1;
     struct list_head *lis_pos2;
     struct hash_union *un_pos;
@@ -294,8 +283,20 @@ void iholer_destory(struct ipc_inode_holder *iholder)
             THRD_BYP_FREE(byp);
         }
     }
-    bitmap_free(iholder->bitmap);
+    
+    lis_pos1 = lis_pos2 = NULL;
+    list_for_each_use(lis_pos1, lis_pos2, &proc_byp->ipc_iondes){
+        list_del(lis_pos1);
+        struct ipc_inode_holder *ihl =
+        list_entry(lis_pos1, struct ipc_inode_holder, ipc_proc_byp_lis);
+        IPC_INODE_HOLDER_FREE(ihl);
+    }
+    
+    bitmap_free(proc_byp->bitmap);
 }
+
+
+
 
 static int check_decompose(struct ap_inode *mt)
 {

@@ -34,8 +34,7 @@ struct ap_inode{
                          so need to be malloced*/
     int is_mount_point,is_gate,is_dir,is_ipc_base;
     int is_search_mt;   /*set to 1 when wlak_path routine is using
-                         it in order to prevent from deleting by other thread*/
-    
+                         it in order to prevent from deleting by other thread*/    
     uid_t i_uid;
     gid_t i_gid;
     mode_t i_mode;
@@ -195,9 +194,9 @@ struct ipc_inode_ide{
 };
 
 struct ipc_inode_holder{
+    struct hash_identity iide;
+    struct list_head ipc_proc_byp_lis;
     struct ap_inode *inde;
-    bitmap_t *bitmap;
-    struct ap_hash *ipc_byp_hash; //hash thrd_byp_t
 };
 
 struct ipc_inode_thread_byp{
@@ -207,7 +206,25 @@ struct ipc_inode_thread_byp{
     AP_DIR *dir_o;  /*opened dir*/
 };
 
+struct ipc_proc_byp{
+    pthread_mutex_t iinode_lock;
+    struct list_head ipc_iondes;
+    struct ap_hash *ipc_byp_hash;
+    bitmap_t *bitmap;
+};
+
 typedef struct ipc_inode_thread_byp thrd_byp_t;
+typedef struct ipc_proc_byp proc_byp_t;
+
+static inline proc_byp_t *MALLOC_PROC_BYP()
+{
+    proc_byp_t *byp = Malloc_z(sizeof(*byp));
+    byp->ipc_byp_hash = MALLOC_IPC_HASH(AP_IPC_FILE_HASH_LEN);
+    byp->bitmap = create_bitmap(_OPEN_MAX);
+    INIT_LIST_HEAD(&byp->ipc_iondes);
+    pthread_mutex_init(&byp->iinode_lock, NULL);
+    return byp;
+}
 
 static inline thrd_byp_t *MALLOC_THRD_BYP()
 {
@@ -221,23 +238,20 @@ static inline thrd_byp_t *MALLOC_THRD_BYP()
 void THRD_BYP_FREE(thrd_byp_t *byp);
 
 struct holder{
-    struct ipc_inode_holder ihl;
+    void *x_objext;
     unsigned hash_n;
     struct hash_identity ide;
     struct list_head hash_lis;
     struct holder_table_union *hl_un;
     void (*ipc_get)(void *);
     void (*ipc_put)(void *);
-    void (*destory)(struct ipc_inode_holder *);
+    void (*destory)(void *);
 };
 
 static inline struct holder *MALLOC_HOLDER()
 {
     struct holder *hl = Malloc_z(sizeof(*hl));
     INIT_LIST_HEAD(&hl->hash_lis);
-    hl->ihl.inde = NULL;
-    hl->ihl.ipc_byp_hash = NULL;
-    hl->ihl.bitmap = create_bitmap(_OPEN_MAX);
     hl->ide.ide_c = NULL;
     hl->ipc_get = hl->ipc_put = NULL;
     return hl;
@@ -246,8 +260,7 @@ static inline struct holder *MALLOC_HOLDER()
 static inline void HOLDER_FREE(struct holder *hl)
 {
     if (hl->destory != NULL)
-        hl->destory(&hl->ihl);
-    
+        hl->destory(hl->x_objext);
     free(hl);
 }
 
@@ -255,9 +268,15 @@ static inline struct ipc_inode_holder *MALLOC_IPC_INODE_HOLDER()
 {
     struct ipc_inode_holder *hl = Malloc_z(sizeof(*hl));
     hl->inde = NULL;
-    hl->ipc_byp_hash = NULL;
-    hl->bitmap = create_bitmap(_OPEN_MAX);
+    INIT_LIST_HEAD(&hl->ipc_proc_byp_lis);
     return hl;
+}
+
+static inline void IPC_INODE_HOLDER_FREE(struct ipc_inode_holder *ihl)
+{
+    if (ihl->inde != NULL)
+        ap_inode_put(ihl->inde);
+    free(ihl);
 }
 
 static inline int AP_INODE_INIT(struct ap_inode *inode)
@@ -339,12 +358,12 @@ static inline struct ap_inode *convert_to_real_ind(struct ap_inode *ind)
     return ind->real_inode == ind? ind:ind->real_inode;
 }
 
-extern void iholer_destory(struct ipc_inode_holder *iholder);
-static inline void IHOLDER_FREE(struct ipc_inode_holder *iholder)
+extern void proc_byp_destory(proc_byp_t *proc_byp);
+
+static inline void PROC_BYP_FREE(proc_byp_t *proc_byp)
 {
-    iholer_destory(iholder);
-    ap_inode_put(iholder->inde);
-    free(iholder);
+    proc_byp_destory(proc_byp);
+    free(proc_byp);
 }
 
 struct ap_inode_indicator{
@@ -454,6 +473,7 @@ struct ap_file_root{
 extern struct ap_file_root f_root;
 
 struct ap_file_system_type{
+    int is_allow_mount;
     const char *name;
     struct list_head systems;
     struct list_head mts;
@@ -472,6 +492,7 @@ static inline struct ap_file_system_type *MALLOC_FILE_SYS_TYPE()
     INIT_LIST_HEAD(&fsyst->mts);
     INIT_LIST_HEAD(&fsyst->systems);
     COUNTER_INIT(&fsyst->fs_type_counter);
+    fsyst->is_allow_mount = 1;
     fsyst->name = NULL;
     fsyst->get_initial_inode =  NULL;
     return fsyst;
@@ -499,11 +520,33 @@ add_mt_inodes(struct ap_inode *ind, struct ap_inode *mt_par)
     
 }
 
+static inline void inode_add_child(struct ap_inode *parent, struct ap_inode *child)
+{
+    pthread_mutex_lock(&parent->ch_lock);
+    list_add(&child->child, &parent->children);
+    pthread_mutex_unlock(&parent->ch_lock);
+}
+
+static inline void inode_del_child(struct ap_inode *parent, struct ap_inode *child)
+{
+    pthread_mutex_lock(&parent->ch_lock);
+    list_del(&child->child);
+    pthread_mutex_unlock(&parent->ch_lock);
+}
+
 static inline void add_inode_to_mt(struct ap_inode *inode, struct ap_inode *mt)
 {
     pthread_mutex_lock(&mt->inodes_lock);
     list_add(&inode->mt_inodes.inodes, &mt->mt_inodes.mt_inode_h);
     pthread_mutex_unlock(&mt->inodes_lock);
+}
+
+static inline void joint_inode_into_fsys(struct ap_inode *inode, struct ap_inode_indicator *indc)
+{
+    inode->mount_inode = indc->cur_mtp;
+    inode->parent = indc->cur_inode;
+    inode_add_child(inode->parent, inode);
+    add_inode_to_mt(inode, inode->mount_inode);
 }
 
 static inline void del_inode_from_mt(struct ap_inode *inode)
@@ -534,16 +577,12 @@ extern struct ap_file_systems f_systems;
 extern void clean_inode_tides(struct ap_inode *inode);
 extern int register_fsyst(struct ap_file_system_type *fsyst);
 extern int walk_path(struct ap_inode_indicator *start);
-extern void inode_add_child(struct ap_inode *parent, struct ap_inode *child);
-extern void inode_del_child(struct ap_inode *parent, struct ap_inode *child);
 extern struct ap_file_system_type *find_filesystem(char *fsn);
 extern int initial_indicator(const char *path,
                              struct ap_inode_indicator *ind,
                              struct ap_file_pthread *ap_fpthr);
 extern void ipc_holder_hash_insert(struct holder *hl);
 extern void ipc_holder_hash_delet(struct holder *hl);
-extern void inode_ipc_get(void *ind);
-extern void inode_ipc_put(void *ind);
 extern int decompose_mt(struct ap_inode *mt);
 extern int ap_vfs_permission(struct ap_inode_indicator *indic, int mask);
 extern char *regular_path(const char *path, int *slash_no);
