@@ -9,7 +9,8 @@
 4.one can embed ger_stem_node into an arbitrary structure, and also can treat this structure as a "file" once the stem_file_operations and stem_inode_operations hanve been implemented. for a instance
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
-	struct gernal{
+
+struct gernal{
     int is_open;
     pthread_mutex_t lock;
     size_t size;
@@ -18,11 +19,13 @@
     
     char buf[TEST_LINE_MAX];
 }ger_ex;
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 stem is a instance of structure ger_stem_node that is embeded into ger_ex. the operations is following
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+
 static ssize_t ger_ex_read(struct ger_stem_node *stem, char *buf, off_t off, size_t size)
 {
     /*recover the object into which the stem was embedded*/
@@ -37,6 +40,7 @@ static ssize_t ger_ex_read(struct ger_stem_node *stem, char *buf, off_t off, siz
     
     return size;
 }
+
 
 static ssize_t ger_ex_write(struct ger_stem_node *stem, char *buf, off_t off, size_t size)
 {   
@@ -90,6 +94,7 @@ static struct stem_file_operations ger_ex_file_ops = {
 static struct stem_inode_operations ger_ex_inode_ops = {
     .stem_destory = ger_ex_destory,
 };
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 we need to mount gernal file system before it can acctually work
@@ -137,6 +142,7 @@ after hook_to_stem ger_ex is added to gernal file system then you can open read 
 5. stdio agent is based on gernal file system, use stdio agent one can import directories and files that resides in OS into process. first establish a dirctory and a file
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+
 /*make a test-directory*/
     int mk_s = mkdir("/tmp/ap_test", S_IRWXU | S_IRWXG | S_IRWXO);
     if (mk_s == -1) {
@@ -150,11 +156,13 @@ after hook_to_stem ger_ex is added to gernal file system then you can open read 
     write(fd, pre_write_buf, sizeof(pre_write_buf));
     chmod("/tmp/ap_test/std_test", 0777);
     close(fd);
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 then import this dirctory into process as root dirctory
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+
 /*import /tmp/aptest into this process as root directory "/"*/
     root_dir = MALLOC_STD_AGE_DIR("/tmp/ap_test");
     root_dir->stem.stem_name = "/";
@@ -162,11 +170,14 @@ then import this dirctory into process as root dirctory
 
 /*mount "/"*/
     int mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 like we have shown above one can open read write the file that just have been import, desipite "/tmp/ap_test" has become root dirctory in the process
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
- int ap_fd = ap_open("/std_test", O_RDWR);
+
+int ap_fd = ap_open("/std_test", O_RDWR);
     
      .........    
     
@@ -193,36 +204,46 @@ like we have shown above one can open read write the file that just have been im
 first mount the proc file system
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
- /*prepare mount information*/
+ 
+/*prepare mount information*/
     struct proc_mount_info info;
     info.sever_name = "proc_user0";
     info.typ = SYSTEM_V;
     
     /*mount file system*/
     int mount_s = ap_mount(&info, PROC_FILE_FS, "/procs");
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
 info is the information that mount process need, sever_name is the sever name you choose for the process info.typ is the type of IPC you choose.
 
 meanwhile mount proc file system in other process
 first mount the root dirctory
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
- /*import /tmp/ap_test_proc into this process as root directory "/"*/
+ 
+/*import /tmp/ap_test_proc into this process as root directory "/"*/
     root_dir = MALLOC_STD_AGE_DIR("/tmp/ap_test_proc");
     root_dir->stem.stem_name = "/";
     root_dir->stem.stem_mode = 0777;
     
     /*mount ger file system*/
     mount_s = ap_mount(&root_dir->stem, GER_FILE_FS, "/");
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
 the root directory is imported "/tmp/ap_test_proc"
 
 then mount the proc file system
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
- /*mount proc file system*/
+ 
+/*mount proc file system*/
     struct proc_mount_info m_info;
     m_info.typ = SYSTEM_V;
     m_info.sever_name = "proc_user1";
     mount_s = ap_mount(&m_info, PROC_FILE_FS, "/procs");
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 as we can see the sever name of this process is "proc_user1"
 
@@ -230,6 +251,7 @@ after that we can acess the file of proc_usr1 through proc_usr0
 by the way we have also defined a condition structure as bellow
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
+
 struct condition{
     int is_open;
     pthread_cond_t cond;
@@ -239,33 +261,41 @@ struct condition{
     int v;
     pthread_mutex_t cond_lock;
 }cond;
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 this structure is for the testing has a condition variable and cond to the gernal file system
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
+
 cond.stem.stem_name = "condition";
 cond.stem.stem_mode = 0777;
 cond.stem.sf_ops = &cond_file_ops;
 cond.stem.si_ops = &cond_inode_ops;
    			 .........
 int hook_s = hook_to_stem(root, &cond.stem);
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 open /conditon and read from it will make process wait in that condition variable
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
- int cond_fd = ap_open("/condition", O_RDWR);
+
+int cond_fd = ap_open("/condition", O_RDWR);
 
    			 .........
 	char v;
 	ssize_t read_n = ap_read(cond_fd, &v, 1);
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
+
 when some other process have complete some work then write condition file will make proc_usr1 return from waiting
 
 now we can find dirctory that relate to proc_usr1 usually has the form /procs/severname/severname@pid
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
- /*open directory and read*/
+
+/*open directory and read*/
     dir = ap_open_dir("/procs");
     if (dir == NULL) {
         perror("open dir failed\n");
@@ -292,12 +322,15 @@ now we can find dirctory that relate to proc_usr1 usually has the form /procs/se
         }
         loop++;
     }
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 the code above is looking for /procs/proc_usr1/proc_usr1@pid 
 
 then search condition file and another file under /procs/proc_usr1/proc_usr1@pid
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
+
 while (!c_file_find || !t_file_find) {
         dirt = NULL;
         dirt = ap_readdir(dir);
@@ -313,12 +346,14 @@ while (!c_file_find || !t_file_find) {
             strncat(proc_path, dirt->name, dirt->name_l);
         }
     }
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 read and write the file that you have found
 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－exmaples.c
- /*open the file that reside in other process*/
+ 
+/*open the file that reside in other process*/
     fd1 = ap_open(proc_path, O_RDWR);
    
      			 .........
@@ -333,16 +368,19 @@ read and write the file that you have found
 	/*read*/
  ap_lseek(fd1, 0, SEEK_SET);
  ssize_t read_n = ap_read(fd1, &test_r, TEST_LINE_MAX);			
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 open codition file write this weak up proc_usr1 
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－proc_example.c
-	/*open conditon file*/
+
+/*open conditon file*/
 	int fd2 = ap_open(cond_path, O_RDWR);
     
  					    .........
 	char v;
 	write_n = ap_write(fd2, &v, 1);
+
 －－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－
 
 
