@@ -295,9 +295,6 @@ void proc_byp_destory(proc_byp_t *proc_byp)
     bitmap_free(proc_byp->bitmap);
 }
 
-
-
-
 static int check_decompose(struct ap_inode *mt)
 {
     struct bag_head stack = BAG_HEAD_INIT(stack);

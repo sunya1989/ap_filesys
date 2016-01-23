@@ -68,6 +68,7 @@ int ap_open(const char *path, int flags)
     
     file = AP_FILE_MALLOC();
     AP_FILE_INIT(file);
+    TRASH_BAG_PUSH(&file->file_bag);
     
     if ((ap_vfs_permission(final_indc, mask)) != 0){
         errno = EACCES;
