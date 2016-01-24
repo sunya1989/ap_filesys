@@ -5,3 +5,4 @@
 *.a
 *.la
 *.lai
+*.tags*
