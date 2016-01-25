@@ -4,6 +4,8 @@
  */
 #ifndef ap_file_system_ap_types_h
 #define ap_file_system_ap_types_h
+#include "ap_types.h"
+
 #define EI_NIDENT	16
 
 /* 32-bit ELF base types. */
@@ -56,5 +58,8 @@ typedef struct elf64_hdr {
   Elf64_Half e_shnum;
   Elf64_Half e_shstrndx;
 } Elf64_Ehdr;
+
+#define Elf_Ehdr  Elf64_Ehdr
+#define Elf_Shdr Elf64_Shdr
 
  #endif
