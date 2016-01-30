@@ -25,7 +25,6 @@ typedef __u32	Elf64_Word;
 typedef __u64	Elf64_Xword;
 typedef __s64	Elf64_Sxword;
 
-
 /* These constants define the different elf file types */
 #define ET_NONE   0
 #define ET_REL    1
@@ -70,6 +69,7 @@ typedef __s64	Elf64_Sxword;
 
 #ifndef ELF_OSABI
 #define ELF_OSABI ELFOSABI_NONE
+#endif
 
 /* sh_type */
 #define SHT_NULL	0
@@ -107,37 +107,37 @@ typedef __s64	Elf64_Sxword;
 
 
 typedef struct elf32_hdr{
-  unsigned char	e_ident[EI_NIDENT];
-  Elf32_Half	e_type;
-  Elf32_Half	e_machine;
-  Elf32_Word	e_version;
-  Elf32_Addr	e_entry;  /* Entry point */
-  Elf32_Off	e_phoff;
-  Elf32_Off	e_shoff;
-  Elf32_Word	e_flags;
-  Elf32_Half	e_ehsize;
-  Elf32_Half	e_phentsize;
-  Elf32_Half	e_phnum;
-  Elf32_Half	e_shentsize;
-  Elf32_Half	e_shnum;
-  Elf32_Half	e_shstrndx;
+	unsigned char	e_ident[EI_NIDENT];
+	Elf32_Half	e_type;
+	Elf32_Half	e_machine;
+	Elf32_Word	e_version;
+	Elf32_Addr	e_entry;  /* Entry point */
+	Elf32_Off	e_phoff;
+	Elf32_Off	e_shoff;
+	Elf32_Word	e_flags;
+	Elf32_Half	e_ehsize;
+	Elf32_Half	e_phentsize;
+	Elf32_Half	e_phnum;
+	Elf32_Half	e_shentsize;
+	Elf32_Half	e_shnum;
+	Elf32_Half	e_shstrndx;
 } Elf32_Ehdr;
 
 typedef struct elf64_hdr {
-  unsigned char	e_ident[EI_NIDENT];	/* ELF "magic number" */
-  Elf64_Half e_type;
-  Elf64_Half e_machine;
-  Elf64_Word e_version;
-  Elf64_Addr e_entry;		/* Entry point virtual address */
-  Elf64_Off e_phoff;		/* Program header table file offset */
-  Elf64_Off e_shoff;		/* Section header table file offset */
-  Elf64_Word e_flags;
-  Elf64_Half e_ehsize;
-  Elf64_Half e_phentsize;
-  Elf64_Half e_phnum;
-  Elf64_Half e_shentsize;
-  Elf64_Half e_shnum;
-  Elf64_Half e_shstrndx;
+	unsigned char	e_ident[EI_NIDENT];	/* ELF "magic number" */
+	Elf64_Half e_type;
+	Elf64_Half e_machine;
+	Elf64_Word e_version;
+	Elf64_Addr e_entry;		/* Entry point virtual address */
+	Elf64_Off e_phoff;		/* Program header table file offset */
+	Elf64_Off e_shoff;		/* Section header table file offset */
+	Elf64_Word e_flags;
+	Elf64_Half e_ehsize;
+	Elf64_Half e_phentsize;
+	Elf64_Half e_phnum;
+	Elf64_Half e_shentsize;
+	Elf64_Half e_shnum;
+	Elf64_Half e_shstrndx;
 } Elf64_Ehdr;
 
 typedef struct elf32_shdr {
@@ -166,12 +166,30 @@ typedef struct elf64_shdr {
 	Elf64_Xword sh_entsize;	/* Entry size if section holds table */
 } Elf64_Shdr;
 
+typedef struct elf32_sym{
+	Elf32_Word	st_name;
+	Elf32_Addr	st_value;
+	Elf32_Word	st_size;
+	unsigned char	st_info;
+	unsigned char	st_other;
+	Elf32_Half	st_shndx;
+} Elf32_Sym;
+
+typedef struct elf64_sym {
+	Elf64_Word st_name;		/* Symbol name, index in string tbl */
+	unsigned char	st_info;	/* Type and binding attributes */
+	unsigned char	st_other;	/* No defined meaning, 0 */
+	Elf64_Half st_shndx;		/* Associated section index */
+	Elf64_Addr st_value;		/* Value of the symbol */
+	Elf64_Xword st_size;		/* Associated symbol size */
+} Elf64_Sym;
+
 #define EM_X86_64	62	/* AMD x86-64 */
 
 #define elf_check_arch(x)			\
 ((x)->e_machine == EM_X86_64)
 
-#define Elf_Ehdr  Elf64_Ehdr
-#define Elf_Shdr Elf64_Shdr
-
+#define Elf_Ehdr	Elf64_Ehdr
+#define Elf_Shdr	Elf64_Shdr
+#define Elf_Sym		Elf64_Sym
 #endif

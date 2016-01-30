@@ -23,6 +23,8 @@ struct module{
 	unsigned long init_size;
 	unsigned long init_text_size;
 	unsigned long init_ro_size;
+	unsigned long sym_off;
+	unsigned long str_off;
 };
 
 #endif

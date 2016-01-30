@@ -4,8 +4,10 @@
 #include <string.h>
 #include <ap_string.h>
 /*the code is similar with the code of linux kernel in kernel/module.c*/
+#define	BITS_PER_LONG (sizeof(unsigned long) * 8)
 #define K_ALIGN(x, a) __ALIGN(x, (typeof(x))(a) - 1)
 #define __ALIGN(x, mask) (((x) + (mask)) & ~mask)
+#define INIT_OFFSET_MASK (1UL << (BITS_PER_LONG-1))
 
 struct  load_info{
 	Elf_Ehdr *ehdr;
@@ -83,7 +85,7 @@ static int check_rewrite_shdr(struct load_info *info)
 	return 0;
 }
 
-static void section_layout(struct module *mod, struct load_info *info)
+static void section_layout(struct load_info *info)
 {
 #define CHECK_NUM 4
 	
@@ -95,7 +97,7 @@ static void section_layout(struct module *mod, struct load_info *info)
 	};
 	
 	char *sname;
-	
+	struct module *mod = info->mod;
 	for (int i = 0; i < info->ehdr->e_shnum; i++)
 		info->shdr[i].sh_entsize = ~0UL;
 		
@@ -131,7 +133,8 @@ static void section_layout(struct module *mod, struct load_info *info)
 			|| (shdr->sh_entsize != ~0UL)
 			|| !(strstarts(sname, ".init")))
 			continue;
-		shdr->sh_entsize = get_off_set(&mod->init_size, shdr);
+		shdr->sh_entsize = (get_off_set(&mod->init_size, shdr)
+					| INIT_OFFSET_MASK);
 		switch (i) {
 		case 0:
 			mod->init_text_size = mod->init_size;
@@ -141,6 +144,49 @@ static void section_layout(struct module *mod, struct load_info *info)
 		break;
 		}
 	}
+}
+
+static int is_core_symb(const Elf_Sym *sym, const Elf_Shdr *shdr,
+			unsigned int sh_num)
+{
+	const Elf_Shdr *sec;
+	
+	if (sym->st_shndx == SHN_UNDEF
+		|| sym->st_shndx > sh_num
+		|| !sym->st_name)
+		return 0;
+	sec = shdr + sym->st_shndx;
+	if (!(sec->sh_flags & SHF_ALLOC)
+		|| (sec->sh_entsize & INIT_OFFSET_MASK))
+		return 0;
+	return 1;
+}
+
+static void symtab_layout(struct load_info *info)
+{
+	struct module *mod = info->mod;
+	Elf_Shdr *symsec = info->shdr + info->index.sym;
+	Elf_Shdr *symstrsec = info->shdr + info->index.str;
+	Elf_Sym *sym = (void *)info->ehdr + symsec->sh_offset;
+	unsigned int i, nsym, ncores, strb_size = 0;
+	
+	symsec->sh_flags |= SHF_ALLOC;
+	symsec->sh_entsize = get_off_set(&mod->init_size, symsec);
+	nsym = (unsigned int)symsec->sh_size / sizeof(*sym);
+	for (i = ncores = 0; i < nsym; i++) {
+		if (is_core_symb(sym + i, info->shdr, info->ehdr->e_shnum)){
+			strb_size += strlen(info->strtb + sym[i].st_name);
+			ncores++;
+		}
+	}
+	mod->sym_off = K_ALIGN(mod->core_size, symsec->sh_addralign);
+	mod->str_off = mod->sym_off + ncores * sizeof(Elf_Sym);
+	mod->core_size = mod->str_off;
+	
+	symstrsec->sh_flags &= SHF_ALLOC;
+	symstrsec->sh_entsize = get_off_set(&mod->init_size, symstrsec);
+
+	return;
 	
 }
 
@@ -159,7 +205,8 @@ static int prepare_load_info(struct load_info *info, unsigned long len,
 		if (info->shdr[i].sh_type == SHT_SYMTAB) {
 			info->index.sym = i;
 			info->index.str = info->shdr[i].sh_link;
-			info->strtb = (void *)info->ehdr + info->shdr[i].sh_offset;
+			info->strtb = (void *)info->ehdr
+				+ info->shdr[info->index.str].sh_offset;
 			break;
 		}
 	}
