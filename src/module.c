@@ -1,3 +1,7 @@
+/*   This source code is released for free distribution under the terms of the
+ *   GNU General Public License.
+ *
+ */
 #include <elf.h>
 #include <module.h>
 #include <envelop.h>
@@ -162,7 +166,7 @@ static int is_core_symb(const Elf_Sym *sym, const Elf_Shdr *shdr,
 		return 0;
 	return 1;
 }
-
+/*
 static void symtab_layout(struct load_info *info)
 {
 	struct module *mod = info->mod;
@@ -189,7 +193,7 @@ static void symtab_layout(struct load_info *info)
 
 	return;
 }
-
+*/
 static int prepare_load_info(struct load_info *info, unsigned long len,
 						struct kernel_module_layout ker_lay)
 {
@@ -283,11 +287,12 @@ static struct ap_symbol *find_symbol(const char *name)
 
 static int fix_symbols(struct load_info *info)
 {
+	errno = 0;
 	Elf_Shdr *sym_shdr = &info->shdr[info->index.sym];
 	Elf_Sym *sym = (void *)sym_shdr->sh_addr;
 	struct ap_symbol *ap_symbol;
+	unsigned long base = 0;
 	
-	int ret = 0;
 	
 	for (unsigned int i = 0; i < (sym_shdr->sh_size / sizeof(Elf_Sym)); i++) {
 		const char *name = info->strtb + sym[i].st_name;
@@ -299,12 +304,121 @@ static int fix_symbols(struct load_info *info)
 				
 			fprintf(stderr, "%s:please compile with -fno-common\n",
 					info->mod->module_name);
-			ret = ENOEXEC;
+			errno = ENOEXEC;
 			break;
 		case SHN_UNDEF:
 			ap_symbol = find_symbol(name);
+			
+			if (ap_symbol) {
+				sym[i].st_value = ap_symbol->value;
+				break;
+			}
+			
+			if (!ap_symbol && ELF_ST_BIND(sym[i].st_info) == STB_WEAK)
+				break;
+			fprintf(stderr, "%s: Unknown symbol %s (err %i)\n",
+					info->mod->module_name,name,errno);
+			errno = errno ?: ENOENT;
+			break;
+		default:
+			base = info->shdr[sym[i].st_shndx].sh_addr;
+			sym[i].st_value += base;
 		}
 	}
+	return errno ? 0:-1;
+}
+
+static int apply_relocate_add(Elf64_Shdr *sechdrs,
+					   const char *strtab,
+					   unsigned int symindex,
+					   unsigned int relsec,
+					   struct module *me)
+{
+	unsigned int i;
+	Elf64_Rela *rel = (void *)sechdrs[relsec].sh_addr;
+	Elf64_Sym *sym;
+	void *loc;
+	__u64 val;
+	
+	for (i = 0; i < sechdrs[relsec].sh_size / sizeof(*rel); i++) {
+		/* This is where to make the change */
+		loc = (void *)sechdrs[sechdrs[relsec].sh_info].sh_addr
+		+ rel[i].r_offset;
+		
+		/* This is the symbol it is referring to.  Note that all
+		 undefined symbols have been resolved.  */
+		sym = (Elf64_Sym *)sechdrs[symindex].sh_addr
+		+ ELF64_R_SYM(rel[i].r_info);
+		
+		val = sym->st_value + rel[i].r_addend;
+		
+		switch (ELF64_R_TYPE(rel[i].r_info)) {
+			case R_X86_64_NONE:
+				break;
+			case R_X86_64_64:
+				*(__u64 *)loc = val;
+				break;
+			case R_X86_64_32:
+				*(__u32 *)loc = (__u32)val;
+				if (val != *(__u32 *)loc)
+					goto overflow;
+				break;
+			case R_X86_64_32S:
+				*(__s32 *)loc = (__s32)val;
+				if ((__s64)val != *(__s32 *)loc)
+					goto overflow;
+				break;
+			case R_X86_64_PC32:
+				val -= (__u64)loc;
+				*(__u32 *)loc = (__u32)val;
+				
+				break;
+			default:
+				fprintf(stderr,"%s: Unknown rela relocation: %lu\n",
+					   me->module_name, ELF64_R_TYPE(rel[i].r_info));
+				errno = ENOEXEC;
+				return -1;
+		}
+	}
+	return 0;
+	
+overflow:
+	fprintf(stderr,"overflow in relocation type %d val %lx\n",
+		   (int)ELF64_R_TYPE(rel[i].r_info), val);
+	fprintf(stderr,"`%s' likely not compiled with -mcmodel=kernel\n",
+		   me->module_name);
+	errno = ENOEXEC;
+	return -1;
+}
+
+static int apply_relocations(const struct load_info *info)
+{
+	struct module *mod = info->mod;
+	errno = 0;
+	for (unsigned int i = 0; i < info->ehdr->e_shnum ; i++) {
+		int sec_info = info->shdr[i].sh_info;
+		
+		if (sec_info > info->ehdr->e_shnum)
+			continue;
+		if (!(info->shdr[sec_info].sh_flags & SHF_ALLOC))
+			continue;
+		if (info->shdr[i].sh_type == SHT_REL) {
+			/*only support x86-64 right now*/
+			fprintf(stderr, "module %s relocation unsurpport\n", mod->module_name);
+			errno = ENOEXEC;
+			return -1;
+		}
+		if (info->shdr[i].sh_type == SHT_RELA) {
+			if (apply_relocate_add(info->shdr, info->strtb,
+								   info->index.sym, i, mod))
+				return -1;
+		}
+	}
+	return 0;
+}
+
+static int verify_export_symbol(struct module *mod)
+{
 	
 }
 
@@ -324,14 +438,12 @@ struct module *load_module(void *buff, unsigned long len)
 		goto FREE;
 	
 	section_layout(info);
-	symtab_layout(info);
 	if (sec_copy_to_dest(info))
-		return NULL;
-	
+		 goto FREE;
+	if (fix_symbols(info))
+		goto FREE;
 	
 FREE:
-	
-	
 	
 	
 }

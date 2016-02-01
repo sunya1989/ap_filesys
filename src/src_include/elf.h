@@ -96,6 +96,45 @@ typedef __s64	Elf64_Sxword;
 #define SHF_EXECINSTR	0x4
 #define SHF_MASKPROC	0xf0000000
 
+/* This info is needed when parsing the symbol table */
+#define STB_LOCAL  0
+#define STB_GLOBAL 1
+#define STB_WEAK   2
+
+
+#define ELF64_R_SYM(i)			((i) >> 32)
+#define ELF64_R_TYPE(i)			((i) & 0xffffffff)
+
+
+/* x86-64 relocation types */
+#define R_X86_64_NONE		0	/* No reloc */
+#define R_X86_64_64		1	/* Direct 64 bit  */
+#define R_X86_64_PC32		2	/* PC relative 32 bit signed */
+#define R_X86_64_GOT32		3	/* 32 bit GOT entry */
+#define R_X86_64_PLT32		4	/* 32 bit PLT address */
+#define R_X86_64_COPY		5	/* Copy symbol at runtime */
+#define R_X86_64_GLOB_DAT	6	/* Create GOT entry */
+#define R_X86_64_JUMP_SLOT	7	/* Create PLT entry */
+#define R_X86_64_RELATIVE	8	/* Adjust by program base */
+#define R_X86_64_GOTPCREL	9	/* 32 bit signed pc relative
+offset to GOT */
+#define R_X86_64_32		10	/* Direct 32 bit zero extended */
+#define R_X86_64_32S		11	/* Direct 32 bit sign extended */
+#define R_X86_64_16		12	/* Direct 16 bit zero extended */
+#define R_X86_64_PC16		13	/* 16 bit sign extended pc relative */
+#define R_X86_64_8		14	/* Direct 8 bit sign extended  */
+#define R_X86_64_PC8		15	/* 8 bit sign extended pc relative */
+
+#define R_X86_64_NUM		16
+
+
+#define ELF_ST_BIND(x)		((x) >> 4)
+#define ELF_ST_TYPE(x)		(((unsigned int) x) & 0xf)
+#define ELF32_ST_BIND(x)	ELF_ST_BIND(x)
+#define ELF32_ST_TYPE(x)	ELF_ST_TYPE(x)
+#define ELF64_ST_BIND(x)	ELF_ST_BIND(x)
+#define ELF64_ST_TYPE(x)	ELF_ST_TYPE(x)
+
 /* special section indexes */
 #define SHN_UNDEF	0
 #define SHN_LORESERVE	0xff00
@@ -183,6 +222,12 @@ typedef struct elf64_sym {
 	Elf64_Addr st_value;		/* Value of the symbol */
 	Elf64_Xword st_size;		/* Associated symbol size */
 } Elf64_Sym;
+
+typedef struct elf64_rela {
+	Elf64_Addr r_offset;	/* Location at which to apply the action */
+	Elf64_Xword r_info;	/* index and type of relocation */
+	Elf64_Sxword r_addend;	/* Constant addend used to compute value */
+} Elf64_Rela;
 
 #define EM_X86_64	62	/* AMD x86-64 */
 
