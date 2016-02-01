@@ -3,6 +3,7 @@
 #include <envelop.h>
 #include <string.h>
 #include <ap_string.h>
+#include <export.h>
 /*the code is similar with the code of linux kernel in kernel/module.c*/
 #define	BITS_PER_LONG (sizeof(unsigned long) * 8)
 #define K_ALIGN(x, a) __ALIGN(x, (typeof(x))(a) - 1)
@@ -187,7 +188,6 @@ static void symtab_layout(struct load_info *info)
 	symstrsec->sh_entsize = get_off_set(&mod->init_size, symstrsec);
 
 	return;
-	
 }
 
 static int prepare_load_info(struct load_info *info, unsigned long len,
@@ -225,14 +225,86 @@ static int prepare_load_info(struct load_info *info, unsigned long len,
 	}
 	
 	info->mod = Malloc_z(sizeof(*info->mod));
-	info->mod->init = (void *)info->ehdr + info->shdr[info->index.mod].sh_offset + ker_lay.init_off;
-	info->mod->exit = (void *)info->ehdr + info->shdr[info->index.mod].sh_offset + ker_lay.exit_off;
 	
 	return 0;
 }
 
 static struct kernel_module_layout get_kernel_module_layout()
 {
+	
+}
+
+static int sec_copy_to_dest(struct load_info *info)
+{
+	void *ptr;
+	
+	ptr = Malloc_z(info->mod->core_size);
+	info->mod->module_core = ptr;
+	
+	if (info->mod->init_size) {
+		ptr = Malloc_z(info->mod->init_size);
+		info->mod->module_init = ptr;
+	}else
+		info->mod->module_init = NULL;
+	for (unsigned int i = 0; i < info->ehdr->e_shnum; i++) {
+		void *dest = NULL;
+		Elf_Shdr *shdr = &info->shdr[i];
+
+		if ((shdr->sh_flags & SHF_ALLOC) != SHF_ALLOC)
+			continue;
+		if (shdr->sh_entsize & INIT_OFFSET_MASK)
+			dest = info->mod->module_init
+				+ (shdr->sh_entsize & ~INIT_OFFSET_MASK);
+		else
+			dest = info->mod->module_core + shdr->sh_entsize;
+		if (shdr->sh_type != SHT_NOBITS)
+			memcpy(dest, (void *)shdr->sh_addr, shdr->sh_size);
+		
+		shdr->sh_addr = (unsigned long)dest;
+	}
+	return 0;
+}
+
+static struct ap_symbol *find_symbol(const char *name)
+{
+	struct sym_search *search = get_ap_symbol();
+	struct ap_symbol *sym = search->start;
+	size_t strl= strlen(name);
+	unsigned int sym_num = (unsigned int) (search->start - search->end)
+						/ sizeof(*sym);
+	
+	for (unsigned int i = 0; i < sym_num; i++) {
+		if (strncmp(sym[i].name, name, strl) == 0 )
+			return sym + i;
+	}
+	
+	return NULL;
+}
+
+static int fix_symbols(struct load_info *info)
+{
+	Elf_Shdr *sym_shdr = &info->shdr[info->index.sym];
+	Elf_Sym *sym = (void *)sym_shdr->sh_addr;
+	struct ap_symbol *ap_symbol;
+	
+	int ret = 0;
+	
+	for (unsigned int i = 0; i < (sym_shdr->sh_size / sizeof(Elf_Sym)); i++) {
+		const char *name = info->strtb + sym[i].st_name;
+		
+		switch (sym[i].st_shndx) {
+		case SHN_COMMON:
+			if (!strncmp(name, "__gnu_lto", 9))
+				break;
+				
+			fprintf(stderr, "%s:please compile with -fno-common\n",
+					info->mod->module_name);
+			ret = ENOEXEC;
+			break;
+		case SHN_UNDEF:
+			ap_symbol = find_symbol(name);
+		}
+	}
 	
 }
 
@@ -250,6 +322,11 @@ struct module *load_module(void *buff, unsigned long len)
 	struct kernel_module_layout kml = get_kernel_module_layout();
 	if (prepare_load_info(info, len, kml))
 		goto FREE;
+	
+	section_layout(info);
+	symtab_layout(info);
+	if (sec_copy_to_dest(info))
+		return NULL;
 	
 	
 FREE:

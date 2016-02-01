@@ -1,7 +1,7 @@
 #ifndef ap_file_system_module_h
 #define ap_file_system_module_h
 #define MODULE_NAME_MAX 100
-
+#include <counter.h>
 /*
  *since we use linux kernel module for convenience, hence we need to know
  *the layout of the kernel verison of struct module
@@ -9,6 +9,11 @@
 struct kernel_module_layout{
 	unsigned long init_off;	/*off set of init function*/
 	unsigned long exit_off;	/*off set of exit function*/
+};
+
+struct sym_search{
+	void *start;
+	void *end;
 };
 
 struct module{
@@ -25,6 +30,14 @@ struct module{
 	unsigned long init_ro_size;
 	unsigned long sym_off;
 	unsigned long str_off;
+	
+	struct counter mod_counter;
+	
+	void *module_core;
+	void *module_init;
 };
+struct ap_symbol;
+extern struct sym_search *get_ap_symbol();
+
 
 #endif
