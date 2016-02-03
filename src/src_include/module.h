@@ -2,6 +2,7 @@
 #define ap_file_system_module_h
 #define MODULE_NAME_MAX 100
 #include <counter.h>
+#include <list.h>
 /*
  *since we use linux kernel module for convenience, hence we need to know
  *the layout of the kernel verison of struct module
@@ -35,6 +36,15 @@ struct module{
 	
 	void *module_core;
 	void *module_init;
+	
+	void *syms;
+	
+	struct list_head modules_dominate_lis;
+};
+
+struct module_dominate{
+	struct list_head list;
+	struct module *module_dominated;
 };
 struct ap_symbol;
 extern struct sym_search *get_ap_symbol();

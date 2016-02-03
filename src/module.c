@@ -444,6 +444,10 @@ struct module *load_module(void *buff, unsigned long len)
 		goto FREE;
 	
 FREE:
-	
-	
+	if (info->shdr)
+		free(info->shdr);
+	if (info->mod->core_size && info->mod->module_core)
+		free(info->mod->module_core);
+	if (info->mod->init_size && info->mod->module_init);
+		free(info->mod->module_init);
 }
