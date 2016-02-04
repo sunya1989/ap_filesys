@@ -1,13 +1,16 @@
 /*   This source code is released for free distribution under the terms of the
  *   GNU General Public License.
- *
  */
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 #include <elf.h>
 #include <module.h>
 #include <envelop.h>
 #include <string.h>
 #include <ap_string.h>
 #include <export.h>
+#include <ap_file.h>
 /*the code is similar with the code of linux kernel in kernel/module.c*/
 #define	BITS_PER_LONG (sizeof(unsigned long) * 8)
 #define K_ALIGN(x, a) __ALIGN(x, (typeof(x))(a) - 1)
@@ -166,34 +169,7 @@ static int is_core_symb(const Elf_Sym *sym, const Elf_Shdr *shdr,
 		return 0;
 	return 1;
 }
-/*
-static void symtab_layout(struct load_info *info)
-{
-	struct module *mod = info->mod;
-	Elf_Shdr *symsec = info->shdr + info->index.sym;
-	Elf_Shdr *symstrsec = info->shdr + info->index.str;
-	Elf_Sym *sym = (void *)info->ehdr + symsec->sh_offset;
-	unsigned int i, nsym, ncores, strb_size = 0;
-	
-	symsec->sh_flags |= SHF_ALLOC;
-	symsec->sh_entsize = get_off_set(&mod->init_size, symsec);
-	nsym = (unsigned int)symsec->sh_size / sizeof(*sym);
-	for (i = ncores = 0; i < nsym; i++) {
-		if (is_core_symb(sym + i, info->shdr, info->ehdr->e_shnum)){
-			strb_size += strlen(info->strtb + sym[i].st_name);
-			ncores++;
-		}
-	}
-	mod->sym_off = K_ALIGN(mod->core_size, symsec->sh_addralign);
-	mod->str_off = mod->sym_off + ncores * sizeof(Elf_Sym);
-	mod->core_size = mod->str_off;
-	
-	symstrsec->sh_flags &= SHF_ALLOC;
-	symstrsec->sh_entsize = get_off_set(&mod->init_size, symstrsec);
 
-	return;
-}
-*/
 static int prepare_load_info(struct load_info *info, unsigned long len,
 						struct kernel_module_layout ker_lay)
 {
@@ -422,6 +398,26 @@ static int verify_export_symbol(struct module *mod)
 	
 }
 
+static struct module *find_real_module(struct load_info *info,
+									   struct kernel_module_layout kml)
+{
+	Elf_Shdr *hdr = &info->shdr[info->index.mod];
+	info->mod->init = (void *)hdr->sh_addr + kml.init_off;
+	info->mod->exit = (void *)hdr->sh_addr + kml.exit_off;
+	strncpy(info->mod->module_name, (char *)hdr->sh_addr
+			+ kml.name_off, MODULE_NAME_MAX);
+	return info->mod;
+}
+
+static int find_mod_syms(struct load_info *info)
+{
+	unsigned int sec = find_sec(info, "__ksymtab");
+	Elf_Shdr *hdr = &info->shdr[sec];
+	info->mod->syms = (void *)hdr->sh_addr;
+	info->mod->syms_num = hdr->sh_size / sizeof(*info->mod->syms);
+	return 0;
+}
+
 /*
  *load module, return module structure with point to init and exit function
  */
@@ -443,11 +439,98 @@ struct module *load_module(void *buff, unsigned long len)
 	if (fix_symbols(info))
 		goto FREE;
 	
+	info->mod = find_real_module(info, kml);
+	if (info->mod == NULL) {
+		errno = ENOEXEC;
+		goto FREE;
+	}
+	
+	if (verify_export_symbol(info->mod))
+		goto FREE;
+	
+	module_add_to_global(info->mod);
+	
 FREE:
-	if (info->shdr)
-		free(info->shdr);
 	if (info->mod->core_size && info->mod->module_core)
 		free(info->mod->module_core);
-	if (info->mod->init_size && info->mod->module_init);
+	if (info->mod->init_size && info->mod->module_init)
 		free(info->mod->module_init);
+	return NULL;
 }
+
+struct sym_search *get_ap_symbol()
+{
+	if (k_syms.get)
+		return &k_syms.se;
+	
+	pthread_mutex_lock(&k_syms.se_lock);
+	if (k_syms.get) {
+		pthread_mutex_unlock(&k_syms.se_lock);
+		return &k_syms.se;
+	}
+	
+#define MAX_LINE 255
+	char buff[MAX_LINE];
+	ssize_t read_n;
+	struct stat st;
+	void *addr;
+	struct load_info *info = Malloc_z(sizeof(*info));
+	struct sym_search *ss = Malloc_z(sizeof(*info));
+	Elf_Shdr *hdr;
+	ss->end = ss->start = NULL;
+	ss->num_sym = 0;
+	memset(buff, 0, MAX_LINE);
+	
+	/*get the process file path*/
+	int fd = ap_open("/process/path", O_RDONLY);
+	if (fd == -1)
+		return NULL;
+	read_n = ap_read(fd, buff, MAX_LINE);
+	if (read_n < MAX_LINE || read_n < 0)
+		return NULL;
+	ap_close(fd);
+	
+	/*get file status*/
+	fd = -1;
+	fd = open(buff, O_RDONLY);
+	if (fd == -1)
+		return NULL;
+	
+	if (fstat(fd, &st) == -1)
+		return NULL;
+	
+	/*map the file into address space*/
+	addr = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (addr == MAP_FAILED)
+		return NULL;
+	
+	/*check the sanity of elf file*/
+	info->ehdr = addr;
+	if (elf_check(info))
+		return NULL;
+	info->shdr = (void *)info->ehdr + info->ehdr->e_shoff;
+	info->len = st.st_size;
+	
+	/*find __ksymtab section*/
+	int sec = find_sec(info, "__ksymtab");
+	if (sec == 0)
+		return ss;
+	
+	hdr = &info->shdr[sec];
+	if (info->len < hdr->sh_offset + hdr->sh_size) {
+		errno = ENOEXEC;
+		perror("file has been truncated");
+		return NULL;
+	}
+	hdr->sh_addr = (size_t)info->ehdr + hdr->sh_offset;
+	/*move sym table*/
+	void *new_addr = Malloc_z(hdr->sh_size);
+	memcpy(new_addr, (void *)hdr->sh_addr, hdr->sh_size);
+	k_syms.se.start = new_addr;
+	k_syms.se.end = new_addr + hdr->sh_size;
+	k_syms.se.num_sym = hdr->sh_size / sizeof(struct ap_symbol);
+	k_syms.get = 1;
+	pthread_mutex_unlock(&k_syms.se_lock);
+	return &k_syms.se;
+}
+
