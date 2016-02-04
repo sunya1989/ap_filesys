@@ -22,25 +22,12 @@
 /* Indirect, so macros are expanded before pasting. */
 #define VMLINUX_SYMBOL(x) __VMLINUX_SYMBOL(x)
 #define VMLINUX_SYMBOL_STR(x) __VMLINUX_SYMBOL_STR(x)
-
-#ifndef __ASSEMBLY__
 struct ap_symbol
 {
 	unsigned long value;
 	const char *name;
 };
 
-#ifdef MODULE
-extern struct module __this_module;
-#define THIS_MODULE (&__this_module)
-#else
-#define THIS_MODULE ((struct module *)0)
-#endif
-
-#ifdef CONFIG_MODULES
-
-#ifndef __GENKSYMS__
-#ifdef CONFIG_MODVERSIONS
 /* Mark the CRC weak since genksyms apparently decides not to
  * generate a checksums for some symbols */
 #define __CRC_SYMBOL(sym, sec)					\
@@ -49,9 +36,6 @@ static const unsigned long __kcrctab_##sym		\
 __used							\
 __attribute__((section("___kcrctab" sec "+" #sym), unused))	\
 = (unsigned long) &__crc_##sym;
-#else
-#define __CRC_SYMBOL(sym, sec)
-#endif
 
 /* For every exported symbol, place a struct in the __ksymtab section */
 #define __EXPORT_SYMBOL(sym, sec)				\
@@ -69,14 +53,4 @@ __attribute__((section("___ksymtab" sec "+" #sym), unused))	\
 #define EXPORT_SYMBOL(sym)					\
 __EXPORT_SYMBOL(sym, "")
 
-#endif	/* __GENKSYMS__ */
-
-#else /* !CONFIG_MODULES... */
-
-#define EXPORT_SYMBOL(sym)
-
-#endif /* CONFIG_MODULES */
-#endif /* !__ASSEMBLY__ */
-
-#endif /* _LINUX_EXPORT_H */
 #endif /* export_h */

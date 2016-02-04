@@ -46,6 +46,7 @@ struct module{
 	
 	struct list_head mod_dominate_lis;
 	struct list_head mod_global_lis;
+	struct list_head mod_wait_excute;
 };
 
 struct module_dominate{
@@ -57,6 +58,11 @@ struct module_global{
 	struct list_head m_g_lis;
 	pthread_mutex_t m_g_lock;
 }mode_global;
+
+struct module_wait{
+	struct list_head m_need_excute;
+	pthread_mutex_t m_n_lock;
+}mode_wait;
 
 static void module_add_to_global(struct module *mod)
 {
@@ -72,7 +78,7 @@ struct porc_syms{
 }k_syms;
 
 struct ap_symbol;
-extern struct sym_search *get_ap_symbol();
-
+extern int mount_module_agent();
+extern struct module *load_module(void *buff, unsigned long len);
 
 #endif
