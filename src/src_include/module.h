@@ -4,16 +4,24 @@
 #include <pthread.h>
 #include <counter.h>
 #include <list.h>
+#include <ger_fs.h>
+
+#define SIG_NEW_MOD 100
+#define MODULE_LAYOUT_MARK 0x8086
+#define MODULE_DIR_PATH "/.ap_modules"
 /*
  *since we use linux kernel module for convenience, hence we need to know
  *the layout of the kernel verison of struct module
  */
 struct kernel_module_layout{
+	unsigned int mark;
+	struct ger_stem_node node;
+	int is_layout_set;
 	unsigned int name_off;
 	
 	unsigned int init_off;	/*off set of init function*/
 	unsigned int exit_off;	/*off set of exit function*/
-};
+}linux_mod_layout;
 
 struct sym_search{
 	void *start;

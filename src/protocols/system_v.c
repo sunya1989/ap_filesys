@@ -5,13 +5,14 @@
  *   GNU General Public License.
  *
  */
-#include <ap_string.h>
-#include <sys/ipc.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/msg.h>
 #include <string.h>
+#include <sys/ipc.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <ap_string.h>
+
 #include "system_v.h"
 #define V_PATH_CAT "#SYSTEM_V"
 
