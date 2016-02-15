@@ -11,7 +11,6 @@
 #include <stdio_agent.h>
 
 static struct stem_file_operations module_file_operation;
-static struct stem_file_operations linux_mod_layout_file_operation;
 static void module_file_prepare(struct ger_stem_node *node);
 int mount_module_agent()
 {
@@ -36,28 +35,6 @@ static void kick_new_module()
 		perror("sig_new_mod wrong!");
 		exit(1);
 	}
-}
-
-static void set_km_layout(struct kernel_module_layout *k_l)
-{
-	linux_mod_layout.exit_off = k_l->exit_off;
-	linux_mod_layout.init_off = k_l->init_off;
-	linux_mod_layout.name_off = k_l->name_off;
-	linux_mod_layout.is_layout_set = 1;
-}
-
-static ssize_t module_layout_write(struct ger_stem_node *node,
-								   char *buff,
-								   off_t off,
-								   size_t size)
-{
-	struct kernel_module_layout *k_l = (struct kernel_module_layout *)buff;
-	if (k_l->mark != MODULE_LAYOUT_MARK) {
-		errno = ENOEXEC;
-		return -1;
-	}
-	set_km_layout(k_l);
-	return 0;
 }
 
 static ssize_t module_stem_write(struct ger_stem_node *node,
@@ -119,7 +96,33 @@ static void excute_new_module(int sig)
 		}
 	}
 }
-static char *get_proc_name();
+static char *get_proc_name()
+{
+	FILE *fs;
+	pid_t pid = getpid();
+	char buff[20];
+	char path[100];
+	sprintf(buff, "%d",pid);
+	const char *paths[] = {
+		"proc",
+		buff,
+		"comm",
+	};
+	/*read from /proc/"pid"/comm*/
+	path_names_cat(path, paths, 3, "/");
+	fs = fopen(path, "r");
+	if (fs == NULL) {
+		ap_err("can't find process name!");
+		return NULL;
+	}
+	char *proc_name = Malloc_z(100);
+	if(fgets(proc_name, 100, fs) == NULL){
+		ap_err("can't read from proc file!");
+		return NULL;
+	}
+	
+	return proc_name;
+}
 
 static void module_file_prepare(struct ger_stem_node *node)
 {
@@ -135,51 +138,44 @@ static void module_file_prepare(struct ger_stem_node *node)
 	load_node->stem_mode = 0666;
 	hook_to_stem(node, load_node);
 	
-	/*you need to tell the current linux module struct layout*/
-	linux_mod_layout.node.sf_ops = &linux_mod_layout_file_operation;
-	linux_mod_layout.node.stem_mode = 0666;
-	hook_to_stem(node, &linux_mod_layout.node);
-	
 	/*
 	 *find or create module directory in which all the modules related
 	 *to this process are stored
 	 */
+	int mk_s = mkdir(MODULE_DIR_PATH, 0666);
+	if (mk_s == -1) {
+		ap_err("can't make module direcoty or find it!");
+		exit(1);
+	}
 	
-	mkdir(MODULE_DIR_PATH, 0666);
 	char *proc_name = get_proc_name();
 	const char *paths[] = {
 		MODULE_DIR_PATH,
 		proc_name,
 	};
 	
-	char *dir_path = path_names_cat(path, paths, 2, "/");
-	mkdir(dir_path, 0660);
-	module_dir = MALLOC_STD_AGE_DIR(dir_path);
+	path_names_cat(path, paths, 2, "/");
+	mk_s = mkdir(path, 0660);
+	if (mk_s == -1) {
+		ap_err("");
+		exit(1);
+	}
+	module_dir = MALLOC_STD_AGE_DIR(path);
 	module_dir->stem.stem_name = "mod_list";
 	module_dir->stem.parent = node;
 	module_dir->stem.stem_mode = 0660;
+	hook_to_stem(node, &module_dir->stem);
 	
+	/*find dependence file and import it*/
 	const char *dep_path[] = {
-		dir_path,
 		"dependence"
 	};
 	
-	char *dep = path_names_cat(path, dep_path, 2, "/");
-	int fd = open(dep, O_RDWR | O_CREAT);
+	path_names_cat(path, dep_path, 2, "/");
+	int fd = open(path, O_RDWR | O_CREAT);
 	close(fd);
-	
-	hook_to_stem(node, &module_dir->stem);
-	
 }
-
-
 
 static struct stem_file_operations module_file_operation = {
 	.stem_write = module_stem_write,
 };
-
-static struct stem_file_operations linux_mod_layout_file_operation = {
-	.stem_write = module_layout_write,
-};
-
-

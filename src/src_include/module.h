@@ -15,13 +15,19 @@
  */
 struct kernel_module_layout{
 	unsigned int mark;
-	struct ger_stem_node node;
 	int is_layout_set;
 	unsigned int name_off;
 	
 	unsigned int init_off;	/*off set of init function*/
 	unsigned int exit_off;	/*off set of exit function*/
 }linux_mod_layout;
+
+struct module_indic{
+	void *module;
+	void *init;
+	void *exit;
+	void *name;
+};
 
 struct sym_search{
 	void *start;

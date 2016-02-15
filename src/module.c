@@ -168,8 +168,7 @@ static int is_core_symb(const Elf_Sym *sym, const Elf_Shdr *shdr,
 	return 1;
 }
 
-static int prepare_load_info(struct load_info *info, unsigned long len,
-						struct kernel_module_layout ker_lay)
+static int prepare_load_info(struct load_info *info, unsigned long len)
 {
 	info->shdr = (void *)info->ehdr + info->ehdr->e_shoff;
 	info->secstring = (void *)info->ehdr + info->shdr[info->ehdr->e_shstrndx].sh_offset;
@@ -207,9 +206,20 @@ static int prepare_load_info(struct load_info *info, unsigned long len,
 	return 0;
 }
 
-static struct kernel_module_layout get_kernel_module_layout()
+static int get_kernel_module_layout(struct load_info *info)
 {
+	if (linux_mod_layout.is_layout_set)
+		return 0;
 	
+	unsigned int mod_inc = find_sec(info, ".ap_module_indicator");
+	if (!mod_inc)
+		return -1;
+	Elf_Shdr *shdr = &info->shdr[mod_inc];
+	struct module_indic *m_i = (void *)shdr->sh_addr;
+	linux_mod_layout.init_off = (unsigned int)(m_i->init - m_i->module);
+	linux_mod_layout.exit_off = (unsigned int)(m_i->exit - m_i->module);
+	linux_mod_layout.name_off = (unsigned int)(m_i->name - m_i->module);
+	return 0;
 }
 
 static int sec_copy_to_dest(struct load_info *info)
@@ -534,8 +544,7 @@ struct module *load_module(void *buff, unsigned long len)
 	if (elf_check(info))
 		goto FREE;
 	
-	struct kernel_module_layout kml = get_kernel_module_layout();
-	if (prepare_load_info(info, len, kml))
+	if (prepare_load_info(info, len))
 		goto FREE;
 	
 	section_layout(info);
@@ -544,7 +553,15 @@ struct module *load_module(void *buff, unsigned long len)
 	if (fix_symbols(info))
 		goto FREE;
 	
-	info->mod = find_real_module(info, kml);
+	int ly_s = get_kernel_module_layout(info);
+	if (ly_s == -1) {
+		perror("Module layout is ambiguous!");
+		errno = ENOEXEC;
+		return NULL;
+	}
+	
+	
+	info->mod = find_real_module(info, linux_mod_layout);
 	if (info->mod == NULL) {
 		errno = ENOEXEC;
 		goto FREE;
