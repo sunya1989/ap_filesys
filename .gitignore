@@ -6,3 +6,6 @@
 *.la
 *.lai
 *.tags*
+
+*.dirstamp
+*.Tpo
