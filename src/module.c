@@ -265,8 +265,7 @@ static struct sym_search *get_ap_symbol()
 	}
 	
 #define MAX_LINE 255
-	char buff[MAX_LINE];
-	ssize_t read_n;
+	char *buff;
 	struct stat st;
 	void *addr;
 	struct load_info *info = Malloc_z(sizeof(*info));
@@ -277,17 +276,15 @@ static struct sym_search *get_ap_symbol()
 	memset(buff, 0, MAX_LINE);
 	
 	/*get the process file path*/
-	int fd = ap_open("/process/path", O_RDONLY);
-	if (fd == -1)
+	buff = getenv("PROG_PATH");
+	if (buff == NULL) {
+		ap_err("can't find env PROG_PATH!\n");
+		errno = ENOEXEC;
 		return NULL;
-	read_n = ap_read(fd, buff, MAX_LINE);
-	if (read_n < MAX_LINE || read_n < 0)
-		return NULL;
-	ap_close(fd);
+	}
 	
 	/*get file status*/
-	fd = -1;
-	fd = open(buff, O_RDONLY);
+	int fd = open(buff, O_RDONLY);
 	if (fd == -1)
 		return NULL;
 	
@@ -321,11 +318,18 @@ static struct sym_search *get_ap_symbol()
 	/*move sym table*/
 	void *new_addr = Malloc_z(hdr->sh_size);
 	memcpy(new_addr, (void *)hdr->sh_addr, hdr->sh_size);
+	pthread_mutex_lock(&k_syms.se_lock);
 	k_syms.se.start = new_addr;
 	k_syms.se.end = new_addr + hdr->sh_size;
 	k_syms.se.num_sym = hdr->sh_size / sizeof(struct ap_symbol);
 	k_syms.get = 1;
 	pthread_mutex_unlock(&k_syms.se_lock);
+	int unmap_s = munmap(addr, st.st_size);
+	if (unmap_s == -1) {
+		ap_err("umap source file failed!\n");
+		exit(1);
+	}
+	
 	return &k_syms.se;
 }
 
@@ -559,7 +563,6 @@ struct module *load_module(void *buff, unsigned long len)
 		errno = ENOEXEC;
 		return NULL;
 	}
-	
 	
 	info->mod = find_real_module(info, linux_mod_layout);
 	if (info->mod == NULL) {

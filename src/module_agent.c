@@ -46,12 +46,6 @@ static ssize_t module_stem_write(struct ger_stem_node *node,
 	struct stat st;
 	struct module *mod;
 	
-	if (!linux_mod_layout.is_layout_set) {
-		perror("module layout is ambiguous!");
-		errno = ENOEXEC;
-		return -1;
-	}
-	
 	/*open module file path*/
 	int fd = open(buff, O_RDONLY);
 	if (fd == -1)
@@ -69,6 +63,11 @@ static ssize_t module_stem_write(struct ger_stem_node *node,
 	mod = load_module(addr, st.st_size);
 	if (mod == NULL)
 		return -1;
+	
+	if (munmap(addr, st.st_size) == -1) {
+		ap_err("umap module failed\n");
+		exit(1);
+	}
 	
 	pthread_mutex_lock(&mode_wait.m_n_lock);
 	list_add(&mod->mod_wait_excute, &mode_wait.m_need_excute);
@@ -108,7 +107,7 @@ static char *get_proc_name()
 		buff,
 		"comm",
 	};
-	/*read from /proc/"pid"/comm*/
+	/*read from /proc/"pid"/comm */
 	path_names_cat(path, paths, 3, "/");
 	fs = fopen(path, "r");
 	if (fs == NULL) {
@@ -129,6 +128,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	char path[200];
 	memset(path, 0, 200);
 	struct std_age_dir *module_dir;
+	
 	/*set signal which is rasied when new module is loaded*/
 	signal(SIG_NEW_MOD, excute_new_module);
 	
@@ -136,6 +136,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	struct ger_stem_node *load_node = MALLOC_STEM();
 	load_node->sf_ops = &module_file_operation;
 	load_node->stem_mode = 0666;
+	load_node->stem_name = "load_module";
 	hook_to_stem(node, load_node);
 	
 	/*
