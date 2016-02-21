@@ -92,7 +92,6 @@ struct porc_syms{
 }k_syms;
 
 struct ap_symbol;
-extern int mount_module_agent();
 extern struct module *load_module(void *buff, unsigned long len);
 
 #endif
