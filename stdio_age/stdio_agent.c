@@ -50,7 +50,6 @@ void STD_AGE_DIR_INIT(struct std_age_dir *age_dir, const char *tard)
     char *name = Malloc_z(strl + 1);
     strncpy(name, tard, strl);
     age_dir->stem.stem_name = name;
-    
     age_dir->target_dir = tard;
     if (tard != NULL) 
         age_dir->stem.prepare_raw_data = age_dirprepare_raw_data;
