@@ -465,6 +465,29 @@ static void proc_example()
     }
 }
 
+static void module_example()
+{
+#define MODULE_PATH ""
+	if(mount_module_agent() == -1){
+		ap_err("module agent failed!\n");
+		exit(1);
+	}
+	
+	int fd = ap_open("/modules/load_module", O_WRONLY);
+	if (fd == -1) {
+		ap_err("can't open module load file!\n");
+		exit(1);
+	}
+	
+	printf("load module %s", MODULE_PATH);
+	ssize_t w_s = ap_write(fd, MODULE_PATH, strlen(MODULE_PATH));
+	if (w_s == -1) {
+		ap_err("module can't be loaded!\n");
+		exit(1);
+	}
+}
+
+
 int main(int argc, const char * argv[])
 {
     /*initiate for current thread*/
