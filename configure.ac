@@ -6,6 +6,7 @@ AC_INIT([ap_fsys], [0.01], [goingonhxk@gmail.com])
 AC_CONFIG_SRCDIR([ap_stdlib/ap_hash.c])
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
+CFLAGS="$CFLAGS -std=gnu99"
 LT_PREREQ([2.2]) 
 LT_INIT
 AC_CONFIG_FILES([Makefile])

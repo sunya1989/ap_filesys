@@ -8,7 +8,8 @@
 
 #ifndef lib_export_h
 #define lib_export_h
-extern void ex_puts(char *s);
+#include <stdio.h>
+#include <export.h>
 
-
+EXPORT_SYMBOL(printf);
 #endif /* lib_export_h */
