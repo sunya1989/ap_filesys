@@ -13,8 +13,6 @@
 #include <ap_fsys/ap_file.h>
 #include <ap_fsys/ger_fs.h>
 #include <ap_fsys/stdio_agent.h>
-#include <ap_fsys/lib_export.h>
-
 
 static void module_example()
 {
@@ -81,6 +79,5 @@ int main(int argc, const char * argv[])
 		exit(1);
 	}
 	
-	ex_puts("test module\n");
 	module_example();
 }

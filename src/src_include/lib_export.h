@@ -8,8 +8,6 @@
 
 #ifndef lib_export_h
 #define lib_export_h
-#include <stdio.h>
-#include <export.h>
-
+extern int printf(const char * __restrict, ...);
 EXPORT_SYMBOL(printf);
 #endif /* lib_export_h */
