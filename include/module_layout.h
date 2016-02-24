@@ -14,6 +14,7 @@ struct module_indic{
 	void *module;
 	void *init;
 	void *exit;
+	void *name
 };
 
 struct module_indic __ap_module_indic __attribute__((section(".ap_module_indicator"))) = {
