@@ -10,4 +10,5 @@
 #define lib_export_h
 #include<stdio.h>
 EXPORT_SYMBOL(printf);
+EXPORT_SYMBOL(puts);
 #endif /* lib_export_h */

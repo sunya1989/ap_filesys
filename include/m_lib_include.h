@@ -9,5 +9,5 @@
 #ifndef m_lib_include_h
 #define m_lib_include_h
 extern int printf(const char * __restrict, ...);
-
+extern int	 puts(const char *);
 #endif /* Header_h */

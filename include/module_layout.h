@@ -20,6 +20,7 @@ struct module_indic __ap_module_indic __attribute__((section(".ap_module_indicat
 	.module = &kernel_module,
 	.init = &kernel_module.init,
 	.exit = &kernel_module.exit,
+	.name = &kernel_module.name,
 };
 
 #endif /* module_layout_h */
