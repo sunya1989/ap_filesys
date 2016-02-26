@@ -47,8 +47,8 @@ int main(int argc, const char * argv[])
 	
 	/*make a test-directory*/
 	int mk_s = mkdir("/tmp/ap_test", S_IRWXU | S_IRWXG | S_IRWXO);
-	if (mk_s == -1) {
-		perror("");
+	if (mk_s == -1 && errno != EEXIST) {
+		perror("make new test dir failed\n");
 		exit(1);
 	}
 	

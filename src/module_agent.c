@@ -25,7 +25,12 @@ int mount_module_agent()
 	new_node->stem_mode = 0666;
 	new_node->is_dir = 1;
 	new_node->prepare_raw_data = module_file_prepare;
-	hook_to_stem(node, new_node);
+	
+	int hook_s = hook_to_stem(node, new_node);
+	if (hook_s == -1) {
+		ap_err("hook error");
+		return -1;
+	}
 	return 0;
 }
 
