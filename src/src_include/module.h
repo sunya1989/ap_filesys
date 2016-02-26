@@ -8,7 +8,7 @@
 
 #define SIG_NEW_MOD 100
 #define MODULE_LAYOUT_MARK 0x8086
-#define MODULE_DIR_PATH "/.ap_modules"
+#define MODULE_DIR_PATH "~.ap_modules"
 /*
  *since we use linux kernel module for convenience, hence we need to know
  *the layout of the kernel verison of struct module

@@ -17,7 +17,7 @@
 
 static void module_example()
 {
-#define MODULE_PATH ""
+#define MODULE_PATH "/usr/local/src/work/ap_modules/task01.ko"
 	if(mount_module_agent() == -1){
 		ap_err("module agent failed!\n");
 		exit(1);
@@ -81,4 +81,5 @@ int main(int argc, const char * argv[])
 	}
 	
 	module_example();
+return 0;
 }

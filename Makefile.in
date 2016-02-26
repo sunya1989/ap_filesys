@@ -148,7 +148,6 @@ am_libapfsys_la_OBJECTS = src/ger/libapfsys_la-ger_fs.lo \
 	ap_stdlib/libapfsys_la-ap_string.lo \
 	ap_stdlib/libapfsys_la-lock_reg.lo \
 	ap_stdlib/libapfsys_la-bitmap.lo \
-	src/libapfsys_la-lib_export.lo \
 	src/libapfsys_la-module_agent.lo src/libapfsys_la-module.lo
 libapfsys_la_OBJECTS = $(am_libapfsys_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -360,7 +359,7 @@ libapfsys_la_SOURCES = src/ger/ger_fs.c src/protocols/system_v.c \
 					 src/ap_file_thread.c src/ap_file.c src/ap_fs.c \
 					 stdio_age/stdio_agent.c proc/proc_fs.h proc/proc_fs.c \
 					 ap_stdlib/convert.c ap_stdlib/ap_hash.c ap_stdlib/bag.c ap_stdlib/counter.c \
-					 ap_stdlib/ap_string.c ap_stdlib/lock_reg.c ap_stdlib/bitmap.c src/lib_export.c \
+					 ap_stdlib/ap_string.c ap_stdlib/lock_reg.c ap_stdlib/bitmap.c \
 					 src/module_agent.c src/module.c
 
 pkginclude_HEADERS = include/ap_file.h include/counter.h include/ger_fs.h include/list.h include/stdio_agent.h \
@@ -532,8 +531,6 @@ ap_stdlib/libapfsys_la-lock_reg.lo: ap_stdlib/$(am__dirstamp) \
 	ap_stdlib/$(DEPDIR)/$(am__dirstamp)
 ap_stdlib/libapfsys_la-bitmap.lo: ap_stdlib/$(am__dirstamp) \
 	ap_stdlib/$(DEPDIR)/$(am__dirstamp)
-src/libapfsys_la-lib_export.lo: src/$(am__dirstamp) \
-	src/$(DEPDIR)/$(am__dirstamp)
 src/libapfsys_la-module_agent.lo: src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/libapfsys_la-module.lo: src/$(am__dirstamp) \
@@ -573,7 +570,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-ap_file.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-ap_file_thread.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-ap_fs.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-lib_export.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-module.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/libapfsys_la-module_agent.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/ger/$(DEPDIR)/libapfsys_la-ger_fs.Plo@am__quote@
@@ -717,13 +713,6 @@ ap_stdlib/libapfsys_la-bitmap.lo: ap_stdlib/bitmap.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ap_stdlib/bitmap.c' object='ap_stdlib/libapfsys_la-bitmap.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o ap_stdlib/libapfsys_la-bitmap.lo `test -f 'ap_stdlib/bitmap.c' || echo '$(srcdir)/'`ap_stdlib/bitmap.c
-
-src/libapfsys_la-lib_export.lo: src/lib_export.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/libapfsys_la-lib_export.lo -MD -MP -MF src/$(DEPDIR)/libapfsys_la-lib_export.Tpo -c -o src/libapfsys_la-lib_export.lo `test -f 'src/lib_export.c' || echo '$(srcdir)/'`src/lib_export.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) src/$(DEPDIR)/libapfsys_la-lib_export.Tpo src/$(DEPDIR)/libapfsys_la-lib_export.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='src/lib_export.c' object='src/libapfsys_la-lib_export.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o src/libapfsys_la-lib_export.lo `test -f 'src/lib_export.c' || echo '$(srcdir)/'`src/lib_export.c
 
 src/libapfsys_la-module_agent.lo: src/module_agent.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libapfsys_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT src/libapfsys_la-module_agent.lo -MD -MP -MF src/$(DEPDIR)/libapfsys_la-module_agent.Tpo -c -o src/libapfsys_la-module_agent.lo `test -f 'src/module_agent.c' || echo '$(srcdir)/'`src/module_agent.c

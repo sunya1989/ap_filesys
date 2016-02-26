@@ -2875,6 +2875,7 @@ END
   fi
 fi
 
+CFLAGS="$CFLAGS -g -std=gnu99"
  
 case `pwd` in
   *\ * | *\	*)

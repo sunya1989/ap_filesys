@@ -22,7 +22,7 @@ int mount_module_agent()
 	}
 	struct ger_stem_node *new_node = MALLOC_STEM();
 	new_node->stem_name = "modules";
-	new_node->stem_mode = 0666;
+	new_node->stem_mode = 0755;
 	new_node->is_dir = 1;
 	new_node->prepare_raw_data = module_file_prepare;
 	
@@ -140,16 +140,19 @@ static void module_file_prepare(struct ger_stem_node *node)
 	/*load file, write module path to it when you want to load new module*/
 	struct ger_stem_node *load_node = MALLOC_STEM();
 	load_node->sf_ops = &module_file_operation;
-	load_node->stem_mode = 0666;
+	load_node->stem_mode = 0755;
 	load_node->stem_name = "load_module";
-	hook_to_stem(node, load_node);
-	
+	int hook_s = hook_to_stem(node, load_node);
+	if(hook_s == -1) {
+		ap_err("hook failed\n");
+		return;	
+	}
 	/*
 	 *find or create module directory in which all the modules related
 	 *to this process are stored
 	 */
 	int mk_s = mkdir(MODULE_DIR_PATH, 0666);
-	if (mk_s == -1) {
+	if (mk_s == -1 && errno != EEXIST) {
 		ap_err("can't make module direcoty or find it!");
 		exit(1);
 	}
@@ -161,7 +164,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	};
 	
 	path_names_cat(path, paths, 2, "/");
-	mk_s = mkdir(path, 0660);
+	mk_s = mkdir(path, 0750);
 	if (mk_s == -1) {
 		ap_err("");
 		exit(1);
@@ -169,7 +172,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	module_dir = MALLOC_STD_AGE_DIR(path);
 	module_dir->stem.stem_name = "mod_list";
 	module_dir->stem.parent = node;
-	module_dir->stem.stem_mode = 0660;
+	module_dir->stem.stem_mode = 0750;
 	hook_to_stem(node, &module_dir->stem);
 	
 	/*find dependence file and import it*/
