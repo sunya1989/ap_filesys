@@ -60,7 +60,7 @@ static ssize_t module_stem_write(struct ger_stem_node *node,
 		return -1;
 	
 	/*map module file into address space*/
-	addr = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	addr = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
 	if (addr == MAP_FAILED)
 		return -1;
 	
@@ -102,30 +102,32 @@ static void excute_new_module(int sig)
 }
 static char *get_proc_name()
 {
-	FILE *fs;
+	int fd;
 	pid_t pid = getpid();
 	char buff[20];
 	char path[100];
+	memset(path,'\0', 100);
+	memset(buff,'\0', 20);
 	sprintf(buff, "%d",pid);
 	const char *paths[] = {
-		"proc",
+		"/proc",
 		buff,
 		"comm",
 	};
 	/*read from /proc/"pid"/comm */
 	path_names_cat(path, paths, 3, "/");
-	fs = fopen(path, "r");
-	if (fs == NULL) {
+	fd = open(path, O_RDONLY);
+	if (fd == -1) {
 		ap_err("can't find process name!");
 		return NULL;
 	}
 	char *proc_name = Malloc_z(100);
-	if(fgets(proc_name, 100, fs) == NULL){
+	if(read(fd, proc_name, 100) <= 0){
 		ap_err("can't read from proc file!");
 		return NULL;
 	}
-	
-	return proc_name;
+	char **cut = cut_str(proc_name, '\n', 1);
+	return cut[0];
 }
 
 static void module_file_prepare(struct ger_stem_node *node)
@@ -151,22 +153,30 @@ static void module_file_prepare(struct ger_stem_node *node)
 	 *find or create module directory in which all the modules related
 	 *to this process are stored
 	 */
-	int mk_s = mkdir(MODULE_DIR_PATH, 0666);
+	char *home = getenv("HOME");
+	if (home == NULL) {
+		ap_err("can't find home dir!\n");
+		return;
+	}
+	char *module_dir_path[] = {
+		home,
+		MODULE_DIR_PATH,	
+	};
+
+	path_names_cat(path, module_dir_path, 2, "/");
+	
+	int mk_s = mkdir(path, 0755);
 	if (mk_s == -1 && errno != EEXIST) {
 		ap_err("can't make module direcoty or find it!");
 		exit(1);
 	}
 	
 	char *proc_name = get_proc_name();
-	const char *paths[] = {
-		MODULE_DIR_PATH,
-		proc_name,
-	};
-	
-	path_names_cat(path, paths, 2, "/");
+	path_name_cat(path, proc_name, strlen(proc_name), "/");
+
 	mk_s = mkdir(path, 0750);
-	if (mk_s == -1) {
-		ap_err("");
+	if (mk_s == -1 && errno != EEXIST) {
+		ap_err("can't make process module dir!\n");
 		exit(1);
 	}
 	module_dir = MALLOC_STD_AGE_DIR(path);
@@ -176,11 +186,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	hook_to_stem(node, &module_dir->stem);
 	
 	/*find dependence file and import it*/
-	const char *dep_path[] = {
-		"dependence"
-	};
-	
-	path_names_cat(path, dep_path, 2, "/");
+	path_name_cat(path, "dependence", 10, "/");
 	int fd = open(path, O_RDWR | O_CREAT);
 	close(fd);
 }

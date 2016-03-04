@@ -8,7 +8,7 @@
 
 #define SIG_NEW_MOD 100
 #define MODULE_LAYOUT_MARK 0x8086
-#define MODULE_DIR_PATH "~.ap_modules"
+#define MODULE_DIR_PATH ".ap_modules"
 /*
  *since we use linux kernel module for convenience, hence we need to know
  *the layout of the kernel verison of struct module
@@ -71,12 +71,16 @@ struct module_dominate{
 struct module_global{
 	struct list_head m_g_lis;
 	pthread_mutex_t m_g_lock;
-}mode_global;
+};
+
+extern struct module_global mode_global;
 
 struct module_wait{
 	struct list_head m_need_excute;
 	pthread_mutex_t m_n_lock;
-}mode_wait;
+};
+
+extern struct module_wait mode_wait;
 
 static void module_add_to_global(struct module *mod)
 {
@@ -89,7 +93,9 @@ struct porc_syms{
 	struct sym_search se;
 	pthread_mutex_t se_lock;
 	int get;
-}k_syms;
+};
+
+extern struct porc_syms k_syms;
 
 struct ap_symbol;
 extern struct module *load_module(void *buff, unsigned long len);

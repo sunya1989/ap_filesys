@@ -74,7 +74,7 @@ int main(int argc, const char * argv[])
 	
 	char *prog = realpath(argv[0],NULL);
 	printf("prog path :%s",prog);
-	int ss = setenv(prog, "PROG_PATH", 1);
+	int ss = setenv( "PROG_PATH", prog, 1);
 	if (ss == -1) {
 		ap_err("set prog path failed!\n");
 		exit(1);

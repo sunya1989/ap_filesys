@@ -109,7 +109,7 @@ static ssize_t
 ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object;
-    if (stem->sf_ops == NULL || stem->sf_ops->stem_read == NULL) {
+    if (stem->sf_ops == NULL || stem->sf_ops->stem_write == NULL) {
         errno = ESRCH;
         return -1;
     }

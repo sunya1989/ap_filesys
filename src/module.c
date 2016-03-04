@@ -16,6 +16,21 @@
 #define K_ALIGN(x, a) __ALIGN(x, (typeof(x))(a) - 1)
 #define __ALIGN(x, mask) (((x) + (mask)) & ~mask)
 #define INIT_OFFSET_MASK (1UL << (BITS_PER_LONG-1))
+
+struct module_global mode_global = {
+	.m_g_lis = LIST_HEAD_INIT(mode_global.m_g_lis),
+	.m_g_lock = PTHREAD_MUTEX_INITIALIZER,
+};
+
+struct module_wait mode_wait = {
+	.m_need_excute = LIST_HEAD_INIT(mode_wait.m_need_excute),
+	.m_n_lock = PTHREAD_MUTEX_INITIALIZER,
+};
+
+struct porc_syms k_syms = {
+	.se_lock = PTHREAD_MUTEX_INITIALIZER,
+};
+
 struct  load_info{
 	Elf_Ehdr *ehdr;
 	Elf_Shdr *shdr;
@@ -56,7 +71,7 @@ static int elf_check(struct load_info *info)
 	}
 	
 	if (memcmp(info->ehdr->e_ident, ELFMAG, SELFMAG) != 0
-		|| info->ehdr->e_type != ET_REL
+		|| (info->ehdr->e_type != ET_REL && info->ehdr->e_type != ET_EXEC)
 		|| !elf_check_arch(info->ehdr)
 		|| info->ehdr->e_shentsize != sizeof(Elf_Shdr)){
 		errno = ENOEXEC;
@@ -82,7 +97,7 @@ static int check_rewrite_shdr(struct load_info *info)
 			errno = ENOEXEC;
 			return -1;
 		}
-		shdr->sh_addr = (size_t)info->ehdr + info->shdr->sh_offset;
+		shdr->sh_addr = (size_t)info->ehdr + shdr->sh_offset;
 	}
 	
 	info->index.vers = find_sec(info, "__versions");
@@ -131,23 +146,25 @@ static void section_layout(struct load_info *info)
 	}
 	
 	for (int i = 0; i < CHECK_NUM; i++) {
-		Elf_Shdr *shdr = &info->shdr[i];
-		sname = info->secstring + shdr->sh_name;
+		for (int j = 0; j < info->ehdr->e_shnum; j++){
+			Elf_Shdr *shdr = &info->shdr[j];
+			sname = info->secstring + shdr->sh_name;
 		
-		if ((shdr->sh_flags & masks[i][0]) != masks[i][0]
-			|| (shdr->sh_flags & masks[i][0])
-			|| (shdr->sh_entsize != ~0UL)
-			|| !(strstarts(sname, ".init")))
-			continue;
-		shdr->sh_entsize = (get_off_set(&mod->init_size, shdr)
-					| INIT_OFFSET_MASK);
-		switch (i) {
-		case 0:
-			mod->init_text_size = mod->init_size;
+			if ((shdr->sh_flags & masks[i][0]) != masks[i][0]
+				|| (shdr->sh_flags & masks[i][1])
+				|| (shdr->sh_entsize != ~0UL)
+				|| !(strstarts(sname, ".init")))
+				continue;
+			shdr->sh_entsize = (get_off_set(&mod->init_size, shdr)
+						| INIT_OFFSET_MASK);
+			switch (i) {
+			case 0:
+				mod->init_text_size = mod->init_size;
+				break;
+			case 1:
+				mod->init_ro_size = mod->init_size;
 			break;
-		case 1:
-			mod->init_ro_size = mod->init_size;
-		break;
+			}
 		}
 	}
 }
@@ -273,7 +290,6 @@ static struct sym_search *get_ap_symbol()
 	Elf_Shdr *hdr;
 	ss->end = ss->start = NULL;
 	ss->num_sym = 0;
-	memset(buff, 0, MAX_LINE);
 	
 	/*get the process file path*/
 	buff = getenv("PROG_PATH");
@@ -292,19 +308,21 @@ static struct sym_search *get_ap_symbol()
 		return NULL;
 	
 	/*map the file into address space*/
-	addr = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	addr = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
 	if (addr == MAP_FAILED)
 		return NULL;
 	
 	/*check the sanity of elf file*/
 	info->ehdr = addr;
-	if (elf_check(info))
-		return NULL;
 	info->shdr = (void *)info->ehdr + info->ehdr->e_shoff;
 	info->len = st.st_size;
+	info->secstring = (void *)info->ehdr + info->shdr[info->ehdr->e_shstrndx].sh_offset;
 	
+	if (elf_check(info))
+		return NULL;
+
 	/*find __ksymtab section*/
-	int sec = find_sec(info, "__ksymtab");
+	int sec = find_sec(info, "___ksymtab");
 	if (sec == 0)
 		return ss;
 	
@@ -318,7 +336,6 @@ static struct sym_search *get_ap_symbol()
 	/*move sym table*/
 	void *new_addr = Malloc_z(hdr->sh_size);
 	memcpy(new_addr, (void *)hdr->sh_addr, hdr->sh_size);
-	pthread_mutex_lock(&k_syms.se_lock);
 	k_syms.se.start = new_addr;
 	k_syms.se.end = new_addr + hdr->sh_size;
 	k_syms.se.num_sym = hdr->sh_size / sizeof(struct ap_symbol);
@@ -349,17 +366,18 @@ static struct ap_symbol *find_symbol_in_module(struct module *mod,
 static struct ap_symbol *find_symbol(const char *name)
 {
 	struct sym_search *search = get_ap_symbol();
+	if (search == NULL) {
+		ap_err("no symbol in the source!\n");
+		return NULL;	
+	}
 	struct list_head *pos;
 	struct module *pos_p;
 	struct ap_symbol *sym = search->start;
 
 	if (search->num_sym) {
-		size_t strl= strlen(name);
-		unsigned int sym_num = (unsigned int) (search->start - search->end)
-		/ sizeof(*sym);
-		
+		unsigned int sym_num = search->num_sym;
 		for (unsigned int i = 0; i < sym_num; i++) {
-			if (strncmp(sym[i].name, name, strl) == 0 )
+			if (strncmp(sym[i].name, name, strlen(sym[i].name)) == 0 )
 				return sym + i;
 		}
 	}
@@ -544,7 +562,7 @@ struct module *load_module(void *buff, unsigned long len)
 {
 	struct load_info *info = Malloc_z(sizeof(*info));
 	info->ehdr = buff;
-	
+	info->len = len;
 	if (elf_check(info))
 		goto FREE;
 	
