@@ -367,6 +367,7 @@ static struct ap_symbol *find_symbol(const char *name)
 {
 	struct sym_search *search = get_ap_symbol();
 	if (search == NULL) {
+		errno = ENOENT;
 		ap_err("no symbol in the source!\n");
 		return NULL;	
 	}
@@ -413,6 +414,9 @@ static int fix_symbols(struct load_info *info)
 					info->mod->module_name);
 			errno = ENOEXEC;
 			break;
+		case SHN_ABS:
+			fprintf(stderr, "Absolute symbol\n");
+			break;
 		case SHN_UNDEF:
 			ap_symbol = find_symbol(name);
 			
@@ -421,7 +425,8 @@ static int fix_symbols(struct load_info *info)
 				break;
 			}
 			
-			if (!ap_symbol && ELF_ST_BIND(sym[i].st_info) == STB_WEAK)
+			if (!ap_symbol && (ELF_ST_BIND(sym[i].st_info) == STB_WEAK 
+						|| ELF_ST_TYPE(sym[i].st_info) == STT_NOTYPE))
 				break;
 			fprintf(stderr, "%s: Unknown symbol %s (err %i)\n",
 					info->mod->module_name,name,errno);
@@ -432,7 +437,7 @@ static int fix_symbols(struct load_info *info)
 			sym[i].st_value += base;
 		}
 	}
-	return errno ? 0:-1;
+	return errno ? -1:0;
 }
 
 static int apply_relocate_add(Elf64_Shdr *sechdrs,
@@ -574,7 +579,14 @@ struct module *load_module(void *buff, unsigned long len)
 		 goto FREE;
 	if (fix_symbols(info))
 		goto FREE;
-	
+
+	int a_s = apply_relocations(info);
+	if (a_s == -1) {
+		errno = ENOEXEC;
+		ap_err("relocation failed\n!");
+		return NULL;			
+	}
+
 	int ly_s = get_kernel_module_layout(info);
 	if (ly_s == -1) {
 		perror("Module layout is ambiguous!");
@@ -592,6 +604,7 @@ struct module *load_module(void *buff, unsigned long len)
 		goto FREE;
 	
 	module_add_to_global(info->mod);
+	return info->mod;
 	
 FREE:
 	if (info->mod->core_size && info->mod->module_core)
