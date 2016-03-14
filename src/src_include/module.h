@@ -6,7 +6,7 @@
 #include <list.h>
 #include <ger_fs.h>
 
-#define SIG_NEW_MOD 100
+#define SIG_NEW_MOD 31
 #define MODULE_LAYOUT_MARK 0x8086
 #define MODULE_DIR_PATH ".ap_modules"
 /*
@@ -34,6 +34,9 @@ struct sym_search{
 	void *end;
 	size_t num_sym;
 };
+
+typedef int (*mod_init)(void);
+typedef void (*mod_exit)(void);
 
 struct module{
 	char module_name[MODULE_NAME_MAX];

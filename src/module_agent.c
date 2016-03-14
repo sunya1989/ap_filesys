@@ -137,8 +137,12 @@ static void module_file_prepare(struct ger_stem_node *node)
 	struct std_age_dir *module_dir;
 	
 	/*set signal which is rasied when new module is loaded*/
-	signal(SIG_NEW_MOD, excute_new_module);
-	
+	sig_t ss = signal(SIG_NEW_MOD, excute_new_module);
+	if (ss == SIG_ERR) {
+		ap_err("set SIG_NEW_MOD failed\n");
+		exit(1);	
+	}
+
 	/*load file, write module path to it when you want to load new module*/
 	struct ger_stem_node *load_node = MALLOC_STEM();
 	load_node->sf_ops = &module_file_operation;

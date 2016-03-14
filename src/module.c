@@ -3,6 +3,8 @@
  */
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <stdint.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <elf.h>
 #include <module.h>
@@ -243,11 +245,23 @@ static int sec_copy_to_dest(struct load_info *info)
 {
 	void *ptr;
 	
+
 	ptr = Malloc_z(info->mod->core_size);
+	/*ptr = mmap(NULL,(size_t)info->mod->core_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (ptr == MAP_FAILED) {
+		perror("mmap failed\n");
+		exit(1);	
+	}*/
 	info->mod->module_core = ptr;
 	
 	if (info->mod->init_size) {
-		ptr = Malloc_z(info->mod->init_size);
+		ptr = Malloc_z(info->mod->core_size);
+		/*ptr = mmap(NULL,(size_t)info->mod->init_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		
+		if (ptr == MAP_FAILED) {
+			perror("mmap failed\n");
+			exit(1);	
+		}*/
 		info->mod->module_init = ptr;
 	}else
 		info->mod->module_init = NULL;
@@ -552,10 +566,13 @@ static struct module *find_real_module(struct load_info *info,
 									   struct kernel_module_layout kml)
 {
 	Elf_Shdr *hdr = &info->shdr[info->index.mod];
-	info->mod->init = (void *)hdr->sh_addr + kml.init_off;
-	info->mod->exit = (void *)hdr->sh_addr + kml.exit_off;
+	info->mod->init = *((mod_init *)((void *)hdr->sh_addr + kml.init_off));
+	info->mod->exit = *((mod_exit *)((void *)hdr->sh_addr + kml.exit_off));
 	strncpy(info->mod->module_name, (char *)hdr->sh_addr
 			+ kml.name_off, MODULE_NAME_MAX);
+	////////////////////////////////////////
+		info->mod->init();
+//////////////////////////////////////////////////////////
 	find_mod_syms(info);
 	return info->mod;
 }
@@ -593,7 +610,21 @@ struct module *load_module(void *buff, unsigned long len)
 		errno = ENOEXEC;
 		return NULL;
 	}
+	size_t page_size = sysconf(_SC_PAGESIZE);
+	void *core_page = (void *) ((unsigned long)info->mod->module_core & ~(page_size - 1));
 	
+	int mp_s = mprotect(core_page, info->mod->core_size, PROT_EXEC | PROT_READ);
+	if (mp_s == -1) {
+		perror("protect failed");
+		exit(1);	
+	}
+	void *init_page = (void *) ((unsigned long)info->mod->module_init & ~(page_size - 1));
+	mp_s = mprotect(init_page, info->mod->init_size, PROT_EXEC | PROT_READ);
+	if (mp_s == -1) {
+		perror("protect failed");
+		exit(1);	
+	}
+
 	info->mod = find_real_module(info, linux_mod_layout);
 	if (info->mod == NULL) {
 		errno = ENOEXEC;
