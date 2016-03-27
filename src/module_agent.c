@@ -11,6 +11,7 @@
 #include <stdio_agent.h>
 
 static struct stem_file_operations module_file_operation;
+static struct stem_inode_operations module_ex_inode_operation;
 static void module_file_prepare(struct ger_stem_node *node);
 int mount_module_agent()
 {
@@ -77,10 +78,39 @@ static ssize_t module_stem_write(struct ger_stem_node *node,
 	pthread_mutex_lock(&mode_wait.m_n_lock);
 	list_add(&mod->mod_wait_excute, &mode_wait.m_need_excute);
 	pthread_mutex_unlock(&mode_wait.m_n_lock);
+	counter_get(&mod->mod_counter);
 	
 	/*ok, we can exute the new module*/
 	kick_new_module();
 	return 0;
+}
+
+static int module_ex_unlink(struct ger_stem_node *node)
+{
+	struct module_ex_file_struct *file = container_of(node, struct module_ex_file_struct, node);
+	int r_s = module_free(file->mode);
+	return r_s;
+}
+
+static void add_module_file(const char *name, struct module *mode)
+{
+	struct module_ex_file_struct *m_ex;
+	struct ger_stem_node *node = find_stem_p("/modules/mode_ex_list");
+	if (node == NULL) {
+		ap_err("mode_ex_list was lost!\n");
+		exit(1);
+	}
+	m_ex = MALLOC_M_EX_FILE();
+	char *f_name = Malloc_z(strlen(name) + 1);
+	strcmp(f_name, name);
+	
+	m_ex->node.stem_name = f_name;
+	m_ex->node.si_ops = &module_ex_inode_operation;
+	m_ex->node.stem_mode = 0750;
+	m_ex->mode = mode;
+	counter_get(&mode->mod_counter);
+	hook_to_stem(node, &m_ex->node);
+	return;
 }
 
 static void excute_new_module(int sig)
@@ -98,6 +128,11 @@ static void excute_new_module(int sig)
 		if (mod->init()) {
 			printf("%s module init failed\n", mod->module_name);
 		}
+		/*add a file to module_ex_list*/
+		add_module_file(mod->module_name, mod);
+		
+		list_del(&mod->mod_wait_excute);
+		counter_put(&mod->mod_counter);
 	}
 }
 static char *get_proc_name()
@@ -135,6 +170,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	char path[200];
 	memset(path, 0, 200);
 	struct std_age_dir *module_dir;
+	struct ger_stem_node *module_ex_dir;
 	
 	/*set signal which is rasied when new module is loaded*/
 	sig_t ss = signal(SIG_NEW_MOD, excute_new_module);
@@ -162,7 +198,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 		ap_err("can't find home dir!\n");
 		return;
 	}
-	char *module_dir_path[] = {
+	const char *module_dir_path[] = {
 		home,
 		MODULE_DIR_PATH,	
 	};
@@ -183,11 +219,20 @@ static void module_file_prepare(struct ger_stem_node *node)
 		ap_err("can't make process module dir!\n");
 		exit(1);
 	}
+	/*module binary file list*/
 	module_dir = MALLOC_STD_AGE_DIR(path);
 	module_dir->stem.stem_name = "mod_list";
 	module_dir->stem.parent = node;
 	module_dir->stem.stem_mode = 0750;
 	hook_to_stem(node, &module_dir->stem);
+	
+	/*module was loaded*/
+	module_ex_dir = MALLOC_STEM();
+	module_ex_dir->is_dir = 1;
+	module_ex_dir->stem_name = "mode_ex_list";
+	module_ex_dir->parent = node;
+	module_ex_dir->stem_mode = 0750;
+	hook_to_stem(node, module_ex_dir);
 	
 	/*find dependence file and import it*/
 	path_name_cat(path, "dependence", 10, "/");
@@ -197,4 +242,8 @@ static void module_file_prepare(struct ger_stem_node *node)
 
 static struct stem_file_operations module_file_operation = {
 	.stem_write = module_stem_write,
+};
+
+static struct stem_inode_operations module_ex_inode_operation = {
+	.stem_unlink = module_ex_unlink,
 };

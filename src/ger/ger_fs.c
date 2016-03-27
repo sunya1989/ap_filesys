@@ -168,13 +168,18 @@ static int ger_unlink(struct ap_inode *ind)
         errno = EBUSY;
         return -1;
     }
+	if (stem->si_ops != NULL &&
+		stem->si_ops->stem_unlink != NULL) {
+		o = stem->parent->si_ops->stem_unlink(stem);
+		if (o == -1) {
+			errno = EBUSY;
+			return -1;
+		}
+	}
     list_del(&stem->child);
     pthread_mutex_unlock(&stem->parent->ch_lock);
-    if (stem->si_ops != NULL &&
-        stem->si_ops->stem_unlink != NULL) {
-        o = stem->parent->si_ops->stem_unlink(stem);
-    }
-    return o;
+	
+    return 0;
 }
 
 static int ger_rmdir(struct ap_inode_indicator *indc)

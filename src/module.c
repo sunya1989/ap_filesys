@@ -247,21 +247,10 @@ static int sec_copy_to_dest(struct load_info *info)
 	
 
 	ptr = Malloc_z(info->mod->core_size);
-	/*ptr = mmap(NULL,(size_t)info->mod->core_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (ptr == MAP_FAILED) {
-		perror("mmap failed\n");
-		exit(1);	
-	}*/
 	info->mod->module_core = ptr;
 	
 	if (info->mod->init_size) {
 		ptr = Malloc_z(info->mod->core_size);
-		/*ptr = mmap(NULL,(size_t)info->mod->init_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-		
-		if (ptr == MAP_FAILED) {
-			perror("mmap failed\n");
-			exit(1);	
-		}*/
 		info->mod->module_init = ptr;
 	}else
 		info->mod->module_init = NULL;
@@ -390,7 +379,7 @@ static struct ap_symbol *find_symbol(const char *name)
 	struct ap_symbol *sym = search->start;
 
 	if (search->num_sym) {
-		unsigned int sym_num = search->num_sym;
+		size_t sym_num = search->num_sym;
 		for (unsigned int i = 0; i < sym_num; i++) {
 			if (strncmp(sym[i].name, name, strlen(sym[i].name)) == 0 )
 				return sym + i;
@@ -570,9 +559,6 @@ static struct module *find_real_module(struct load_info *info,
 	info->mod->exit = *((mod_exit *)((void *)hdr->sh_addr + kml.exit_off));
 	strncpy(info->mod->module_name, (char *)hdr->sh_addr
 			+ kml.name_off, MODULE_NAME_MAX);
-	////////////////////////////////////////
-		info->mod->init();
-//////////////////////////////////////////////////////////
 	find_mod_syms(info);
 	return info->mod;
 }
@@ -610,16 +596,21 @@ struct module *load_module(void *buff, unsigned long len)
 		errno = ENOEXEC;
 		return NULL;
 	}
+	
+	/*
+	 *change access permission of allocated memeory in
+	 *where the module code was placed
+	 */
 	size_t page_size = sysconf(_SC_PAGESIZE);
 	void *core_page = (void *) ((unsigned long)info->mod->module_core & ~(page_size - 1));
 	
-	int mp_s = mprotect(core_page, info->mod->core_size, PROT_EXEC | PROT_READ);
+	int mp_s = mprotect(core_page, info->mod->core_size, PROT_EXEC | PROT_READ | PROT_WRITE);
 	if (mp_s == -1) {
 		perror("protect failed");
 		exit(1);	
 	}
 	void *init_page = (void *) ((unsigned long)info->mod->module_init & ~(page_size - 1));
-	mp_s = mprotect(init_page, info->mod->init_size, PROT_EXEC | PROT_READ);
+	mp_s = mprotect(init_page, info->mod->init_size, PROT_EXEC | PROT_READ | PROT_WRITE);
 	if (mp_s == -1) {
 		perror("protect failed");
 		exit(1);	
@@ -643,6 +634,21 @@ FREE:
 	if (info->mod->init_size && info->mod->module_init)
 		free(info->mod->module_init);
 	return NULL;
+}
+
+int module_free(struct module *mode)
+{
+	pthread_mutex_lock(&mode_global.m_g_lock);
+	if (mode->mod_counter.in_use > 0)
+		return -1;
+	list_del(&mode->mod_global_lis);
+	pthread_mutex_unlock(&mode_global.m_g_lock);
+	
+	if (mode->core_ro_size && mode->module_core)
+		free(mode->module_core);
+	if (mode->init_size && mode->module_init)
+		free(mode->module_init);
+	return 0;
 }
 
 

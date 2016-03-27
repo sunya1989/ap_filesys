@@ -66,6 +66,18 @@ struct module{
 	struct list_head mod_wait_excute;
 };
 
+struct module_ex_file_struct{
+	struct ger_stem_node node;
+	struct module *mode;
+};
+
+static inline struct module_ex_file_struct *MALLOC_M_EX_FILE()
+{
+	struct module_ex_file_struct *m_ex_f = Malloc_z(sizeof(*m_ex_f));
+	STEM_INIT(&m_ex_f->node);
+	return m_ex_f;
+}
+
 struct module_dominate{
 	struct list_head list;
 	struct module *module_dominated;
@@ -85,11 +97,12 @@ struct module_wait{
 
 extern struct module_wait mode_wait;
 
-static void module_add_to_global(struct module *mod)
+static inline void module_add_to_global(struct module *mod)
 {
 	pthread_mutex_lock(&mode_global.m_g_lock);
 	list_add(&mod->mod_global_lis, &mode_global.m_g_lis);
 	pthread_mutex_unlock(&mode_global.m_g_lock);
+	counter_get(&mod->mod_counter);
 }
 
 struct porc_syms{
@@ -102,5 +115,5 @@ extern struct porc_syms k_syms;
 
 struct ap_symbol;
 extern struct module *load_module(void *buff, unsigned long len);
-
+extern int module_free(struct module *mode);
 #endif
