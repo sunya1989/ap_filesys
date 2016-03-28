@@ -85,6 +85,8 @@ static inline void list_move(struct list_head *head, struct list_head *start, st
 		exit(1);
 	}
 	
+	list_del_chunk(start, end);
+
 	start->prev = head;
 	end->next = head->next;
 	head->next->prev = end;
@@ -92,7 +94,7 @@ static inline void list_move(struct list_head *head, struct list_head *start, st
 }
 
 static inline void list_move_to_list(struct list_head *head1, struct list_head *head2)
-{
+{	
 	list_move(head2, head1->next, head1->prev);
 }
 

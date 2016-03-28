@@ -97,7 +97,7 @@ static void add_module_file(const char *name, struct module *mode)
 	}
 	m_ex = MALLOC_M_EX_FILE();
 	char *f_name = Malloc_z(strlen(name) + 1);
-	strcmp(f_name, name);
+	strcpy(f_name, name);
 	
 	m_ex->node.stem_name = f_name;
 	m_ex->node.si_ops = &module_ex_inode_operation;
@@ -110,6 +110,8 @@ static void add_module_file(const char *name, struct module *mode)
 static void *excute_new_module(void *arg)
 {
 	struct list_head *pos;
+	struct list_head *tmp_pos;
+	ap_file_thread_init();
 	mode_wait.is_thr_weak = 1;
 	while (1) {
 		pthread_mutex_lock(&mode_wait.m_n_lock);
@@ -121,7 +123,7 @@ static void *excute_new_module(void *arg)
 		mode_wait.wait_n = 0;
 		mode_wait.is_thr_weak = 1;
 		pthread_mutex_unlock(&mode_wait.m_n_lock);
-		list_for_each(pos, &mode_wait.m_excuting)	{
+		list_for_each_use(pos, tmp_pos, &mode_wait.m_excuting)	{
 			struct module *mode = list_entry(pos, struct module, mod_wait_excute);
 			/*init function is missing this should not happen!*/
 			if (mode->init == NULL) {
@@ -172,6 +174,8 @@ static int module_file_prepare(struct ger_stem_node *node)
 	memset(path, 0, 200);
 	struct std_age_dir *module_dir;
 	struct ger_stem_node *module_ex_dir;
+	if (node->raw_data_isset == 1)
+		return 0;
 	
 	/*ok, we exute the new module in a separate thread*/
 	if (kick_module_thr()) {
@@ -238,6 +242,7 @@ static int module_file_prepare(struct ger_stem_node *node)
 	path_name_cat(path, "dependence", 10, "/");
 	int fd = open(path, O_RDWR | O_CREAT);
 	close(fd);
+	node->raw_data_isset = 1;
 	return 0;
 }
 

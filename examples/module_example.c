@@ -35,13 +35,15 @@ static void module_example()
 		ap_err("module can't be loaded!\n");
 		exit(1);
 	}
+	/*wait for the module file is mounted*/
+	sleep(10);
 	/*remove module*/
-	AP_DIR *dir = ap_open_dir("/modules/module_ex_list");
+	AP_DIR *dir = ap_open_dir("/modules/mode_ex_list");
 	if (dir == NULL) {
 		perror("open failed!\n");
 		exit(1);
 	}
-	ap_chdir("/modules/module_ex_list");
+	ap_chdir("/modules/mode_ex_list");
 	struct ap_dirent *dirt;
 	while ((dirt = ap_readdir(dir))!= NULL) {
 		ap_unlink(dirt->name);

@@ -175,7 +175,7 @@ static int ger_unlink(struct ap_inode *ind)
     }
 	if (stem->si_ops != NULL &&
 		stem->si_ops->stem_unlink != NULL) {
-		o = stem->parent->si_ops->stem_unlink(stem);
+		o = stem->si_ops->stem_unlink(stem);
 		if (o == -1) {
 			errno = EBUSY;
 			return -1;

@@ -657,7 +657,7 @@ int module_free(struct module *mode)
 	/*say good bye!*/
 	mode->exit();
 	
-	if (mode->core_ro_size && mode->module_core)
+	if (mode->core_size && mode->module_core)
 		free(mode->module_core);
 	if (mode->init_size && mode->module_init)
 		free(mode->module_init);
