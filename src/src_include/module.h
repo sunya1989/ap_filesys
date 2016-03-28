@@ -91,18 +91,33 @@ struct module_global{
 extern struct module_global mode_global;
 
 struct module_wait{
+	int is_thr_weak;
+	pthread_cond_t wait_cond; /*indicate wether there are modules wait to be excuted*/
+	struct list_head m_excuting;
+	int wait_n; /*the number of module wait in the queue*/
 	struct list_head m_need_excute;
 	pthread_mutex_t m_n_lock;
 };
 
 extern struct module_wait mode_wait;
 
+static inline void module_wait_excute(struct module *mod)
+{
+	pthread_mutex_lock(&mode_wait.m_n_lock);
+	list_add_tail(&mod->mod_wait_excute, &mode_wait.m_need_excute);
+	mode_wait.wait_n++;
+	if (mode_wait.wait_n == 1 && mode_wait.is_thr_weak == 0) {
+		pthread_mutex_unlock(&mode_wait.m_n_lock);
+		pthread_cond_signal(&mode_wait.wait_cond);
+	}
+	pthread_mutex_unlock(&mode_wait.m_n_lock);
+}
+
 static inline void module_add_to_global(struct module *mod)
 {
 	pthread_mutex_lock(&mode_global.m_g_lock);
 	list_add(&mod->mod_global_lis, &mode_global.m_g_lis);
 	pthread_mutex_unlock(&mode_global.m_g_lock);
-	counter_get(&mod->mod_counter);
 }
 
 struct porc_syms{

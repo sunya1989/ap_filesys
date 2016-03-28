@@ -1,5 +1,6 @@
-/*   This source code is released for free distribution under the terms of the
- *   GNU General Public License.
+/*   
+ *This source code is released for free distribution under the terms of the
+ *GNU General Public License.
  */
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -26,6 +27,8 @@ struct module_global mode_global = {
 };
 
 struct module_wait mode_wait = {
+	.wait_cond = PTHREAD_COND_INITIALIZER,
+	.m_excuting = LIST_HEAD_INIT(mode_wait.m_excuting),
 	.m_need_excute = LIST_HEAD_INIT(mode_wait.m_need_excute),
 	.m_n_lock = PTHREAD_MUTEX_INITIALIZER,
 };
@@ -247,11 +250,19 @@ static int sec_copy_to_dest(struct load_info *info)
 	void *ptr;
 	
 	size_t page_size = sysconf(_SC_PAGESIZE);
-	posix_memalign(&ptr, page_size, info->mod->core_size);
+	int al = posix_memalign(&ptr, page_size, info->mod->core_size);
+	if (al) {
+		errno = al;
+		ap_err("allocate memory for module failed!\n");
+	}
 	info->mod->module_core = ptr;
 	
 	if (info->mod->init_size) {
-		posix_memalign(&ptr, page_size, info->mod->init_size);
+		al = posix_memalign(&ptr, page_size, info->mod->init_size);
+		if (al) {
+			errno = al;
+			ap_err("allocate memory for module failed!\n");
+		}
 		info->mod->module_init = ptr;
 	}else
 		info->mod->module_init = NULL;
@@ -600,9 +611,10 @@ struct module *load_module(void *buff, unsigned long len)
 	
 	/*
 	 *change access permission of allocated memeory in
-	 *where the module code was placed
+	 *where the module code was placed.
+	 *the value of module_core and module_init have already been 
+	 *aligned with page size
 	 */
-	
 	int mp_s = mprotect(info->mod->module_core, info->mod->core_size, PROT_EXEC | PROT_READ | PROT_WRITE);
 	if (mp_s == -1) {
 		perror("protect failed");
@@ -642,6 +654,8 @@ int module_free(struct module *mode)
 		return -1;
 	list_del(&mode->mod_global_lis);
 	pthread_mutex_unlock(&mode_global.m_g_lock);
+	/*say good bye!*/
+	mode->exit();
 	
 	if (mode->core_ro_size && mode->module_core)
 		free(mode->module_core);

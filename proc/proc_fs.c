@@ -857,14 +857,14 @@ static struct ap_inode
     creat_permission_file(p_file, S_IRUSR | S_IWGRP);
 
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->s_port);
+	if (thr_cr_s == -1) {
+		h_info->s_port->ipc_ops->ipc_close(h_info->s_port);
+		IPC_PORT_FREE(h_info->s_port);
+		IPC_INFO_HEAD_FREE(h_info);
+		return NULL;
+	}
+	
     pthread_detach(thr_n);
-    if (thr_cr_s == -1) {
-        h_info->s_port->ipc_ops->ipc_close(h_info->s_port);
-        IPC_PORT_FREE(h_info->s_port);
-        IPC_INFO_HEAD_FREE(h_info);
-        return NULL;
-    }
-    
     char *sever_name = Malloc_z(strl1 + 1);
     strncpy(sever_name, m_info->sever_name, strl1);
     h_info->sever_name = sever_name;

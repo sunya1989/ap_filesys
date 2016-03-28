@@ -71,6 +71,31 @@ static inline void list_del(struct list_head *entry)
     entry->prev = entry;
 }
 
+static inline void list_del_chunk(struct list_head *start, struct list_head *end)
+{
+	__list_del(start->prev, end->next);
+	start->prev = end;
+	end->next = start;
+}
+
+static inline void list_move(struct list_head *head, struct list_head *start, struct list_head *end)
+{
+	if (head == NULL || start == NULL || end == NULL) {
+		ap_err("list can't be null\n");
+		exit(1);
+	}
+	
+	start->prev = head;
+	end->next = head->next;
+	head->next->prev = end;
+	head->next = start;
+}
+
+static inline void list_move_to_list(struct list_head *head1, struct list_head *head2)
+{
+	list_move(head2, head1->next, head1->prev);
+}
+
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
 
 #define list_entry(ptr, type, member) \

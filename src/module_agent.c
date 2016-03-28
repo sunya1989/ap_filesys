@@ -12,7 +12,8 @@
 
 static struct stem_file_operations module_file_operation;
 static struct stem_inode_operations module_ex_inode_operation;
-static void module_file_prepare(struct ger_stem_node *node);
+static int module_file_prepare(struct ger_stem_node *node);
+static void *excute_new_module(void *arg);
 int mount_module_agent()
 {
 	struct ger_stem_node *node = find_stem_p("/");
@@ -35,12 +36,13 @@ int mount_module_agent()
 	return 0;
 }
 
-static void kick_new_module()
+static int kick_module_thr()
 {
-	if (kill(getpid(),SIG_NEW_MOD)) {
-		perror("sig_new_mod wrong!");
-		exit(1);
-	}
+	pthread_t thr_n;
+	int thr_cr_s = pthread_create(&thr_n, NULL, excute_new_module, NULL);
+	if (thr_cr_s)
+		return -1;
+	return 0;
 }
 
 static ssize_t module_stem_write(struct ger_stem_node *node,
@@ -74,15 +76,7 @@ static ssize_t module_stem_write(struct ger_stem_node *node,
 		ap_err("umap module failed\n");
 		exit(1);
 	}
-	
-	pthread_mutex_lock(&mode_wait.m_n_lock);
-	list_add(&mod->mod_wait_excute, &mode_wait.m_need_excute);
-	pthread_mutex_unlock(&mode_wait.m_n_lock);
-	counter_get(&mod->mod_counter);
-	
-	/*ok, we can exute the new module*/
-
-	kick_new_module();
+	module_wait_excute(mod);
 	return 0;
 }
 
@@ -109,30 +103,37 @@ static void add_module_file(const char *name, struct module *mode)
 	m_ex->node.si_ops = &module_ex_inode_operation;
 	m_ex->node.stem_mode = 0750;
 	m_ex->mode = mode;
-	counter_get(&mode->mod_counter);
 	hook_to_stem(node, &m_ex->node);
 	return;
 }
 
-static void excute_new_module(int sig)
+static void *excute_new_module(void *arg)
 {
 	struct list_head *pos;
-	struct module *mod;
-	/*iterate through all new loaded modules*/
-	list_for_each(pos, &mode_wait.m_need_excute){
-		mod = list_entry(pos, struct module, mod_wait_excute);
-		if (mod->init == NULL) {
-			perror("module init miss!\n");
-			exit(1);
+	mode_wait.is_thr_weak = 1;
+	while (1) {
+		pthread_mutex_lock(&mode_wait.m_n_lock);
+		if (mode_wait.wait_n == 0) {
+			mode_wait.is_thr_weak = 0;
+			pthread_cond_wait(&mode_wait.wait_cond, &mode_wait.m_n_lock);
 		}
-		if (mod->init()) {
-			printf("%s module init failed\n", mod->module_name);
+		list_move_to_list(&mode_wait.m_need_excute, &mode_wait.m_excuting);
+		mode_wait.wait_n = 0;
+		mode_wait.is_thr_weak = 1;
+		pthread_mutex_unlock(&mode_wait.m_n_lock);
+		list_for_each(pos, &mode_wait.m_excuting)	{
+			struct module *mode = list_entry(pos, struct module, mod_wait_excute);
+			/*init function is missing this should not happen!*/
+			if (mode->init == NULL) {
+				fprintf(stderr, "module %s init function is missing!\n",mode->module_name);
+				exit(1);
+			}
+			if (mode->init()) {
+				fprintf(stderr, "module %s init failed!\n", mode->module_name);
+			}
+			add_module_file(mode->module_name, mode);
+			list_del(&mode->mod_wait_excute);
 		}
-		/*add a file to module_ex_list*/
-		add_module_file(mod->module_name, mod);
-		
-		list_del(&mod->mod_wait_excute);
-		counter_put(&mod->mod_counter);
 	}
 }
 static char *get_proc_name()
@@ -165,18 +166,17 @@ static char *get_proc_name()
 	return cut[0];
 }
 
-static void module_file_prepare(struct ger_stem_node *node)
+static int module_file_prepare(struct ger_stem_node *node)
 {
 	char path[200];
 	memset(path, 0, 200);
 	struct std_age_dir *module_dir;
 	struct ger_stem_node *module_ex_dir;
 	
-	/*set signal which is rasied when new module is loaded*/
-	sig_t ss = signal(SIG_NEW_MOD, excute_new_module);
-	if (ss == SIG_ERR) {
-		ap_err("set SIG_NEW_MOD failed\n");
-		exit(1);	
+	/*ok, we exute the new module in a separate thread*/
+	if (kick_module_thr()) {
+		ap_err("kick module thread failed!\n");
+		return -1;
 	}
 
 	/*load file, write module path to it when you want to load new module*/
@@ -187,7 +187,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	int hook_s = hook_to_stem(node, load_node);
 	if(hook_s == -1) {
 		ap_err("hook failed\n");
-		return;	
+		return -1;
 	}
 	/*
 	 *find or create module directory in which all the modules related
@@ -196,7 +196,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	char *home = getenv("HOME");
 	if (home == NULL) {
 		ap_err("can't find home dir!\n");
-		return;
+		return -1;
 	}
 	const char *module_dir_path[] = {
 		home,
@@ -238,6 +238,7 @@ static void module_file_prepare(struct ger_stem_node *node)
 	path_name_cat(path, "dependence", 10, "/");
 	int fd = open(path, O_RDWR | O_CREAT);
 	close(fd);
+	return 0;
 }
 
 static struct stem_file_operations module_file_operation = {

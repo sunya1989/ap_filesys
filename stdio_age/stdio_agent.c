@@ -16,7 +16,7 @@
 #include <envelop.h>
 #include "stdio_agent.h"
 
-static void age_dirprepare_raw_data(struct ger_stem_node *stem);
+static int age_dirprepare_raw_data(struct ger_stem_node *stem);
 static struct stem_inode_operations std_age_inode_operations;
 static struct stem_file_operations std_age_file_operations0;
 static struct ap_file_operations std_age_file_operations1;
@@ -139,7 +139,7 @@ static inline char *combine_path(const char *path1, const char *path2){
     return tard;
 }
 
-static void age_dirprepare_raw_data(struct ger_stem_node *stem)
+static int age_dirprepare_raw_data(struct ger_stem_node *stem)
 {
     DIR *dp;
     struct dirent *dirp;
@@ -152,12 +152,12 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
     
     struct std_age_dir *sa_dir = container_of(stem, struct std_age_dir, stem); //类型检查？
     if (sa_dir->target_dir == NULL) {
-        return;
+        return 0;
     }
     
     dp = opendir(sa_dir->target_dir);
     if (dp == NULL) {
-        return;
+        return 0;
     }
     chdir(sa_dir->target_dir);
     if (stem->raw_data_isset == 0) {
@@ -201,7 +201,7 @@ static void age_dirprepare_raw_data(struct ger_stem_node *stem)
         exit(1);
     }
     chdir("-");
-    return;
+    return 0;
 }
 
 static struct ap_file_operations std_age_file_operations1 = {

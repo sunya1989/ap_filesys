@@ -69,7 +69,12 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     struct list_head *cusor;
     
     if (stem->prepare_raw_data != NULL) {
-        stem->prepare_raw_data(stem);
+        int p_s = stem->prepare_raw_data(stem);
+		if (p_s) {
+			errno = ENOENT;
+			ap_err("stem prepare_raw_data failed!\n");
+			return -1;
+		}
     }
     
     pthread_mutex_lock(&stem->ch_lock);
@@ -257,7 +262,12 @@ ger_readdir(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
     struct list_head *start = dir->cursor == NULL?
     &node->children : &((struct ger_stem_node *)dir->cursor)->child;
     if (node->prepare_raw_data != NULL) {
-        node->prepare_raw_data(node);
+        int p_s = node->prepare_raw_data(node);
+		if (p_s) {
+			errno = ENOENT;
+			ap_err("stem prepare_raw_data failed!\n");
+			return -1;
+		}
     }
     pthread_mutex_lock(&node->ch_lock);
     list_for_each_middle(pos1, start, &node->children){
