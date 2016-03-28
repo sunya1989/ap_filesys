@@ -37,7 +37,7 @@ int mount_module_agent()
 
 static void kick_new_module()
 {
-	if (raise(SIG_NEW_MOD)) {
+	if (kill(getpid(),SIG_NEW_MOD)) {
 		perror("sig_new_mod wrong!");
 		exit(1);
 	}
@@ -81,6 +81,7 @@ static ssize_t module_stem_write(struct ger_stem_node *node,
 	counter_get(&mod->mod_counter);
 	
 	/*ok, we can exute the new module*/
+
 	kick_new_module();
 	return 0;
 }
@@ -117,7 +118,6 @@ static void excute_new_module(int sig)
 {
 	struct list_head *pos;
 	struct module *mod;
-	
 	/*iterate through all new loaded modules*/
 	list_for_each(pos, &mode_wait.m_need_excute){
 		mod = list_entry(pos, struct module, mod_wait_excute);

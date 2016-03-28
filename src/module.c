@@ -3,6 +3,7 @@
  */
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -245,12 +246,12 @@ static int sec_copy_to_dest(struct load_info *info)
 {
 	void *ptr;
 	
-
-	ptr = Malloc_z(info->mod->core_size);
+	size_t page_size = sysconf(_SC_PAGESIZE);
+	posix_memalign(&ptr, page_size, info->mod->core_size);
 	info->mod->module_core = ptr;
 	
 	if (info->mod->init_size) {
-		ptr = Malloc_z(info->mod->core_size);
+		posix_memalign(&ptr, page_size, info->mod->init_size);
 		info->mod->module_init = ptr;
 	}else
 		info->mod->module_init = NULL;
@@ -601,16 +602,14 @@ struct module *load_module(void *buff, unsigned long len)
 	 *change access permission of allocated memeory in
 	 *where the module code was placed
 	 */
-	size_t page_size = sysconf(_SC_PAGESIZE);
-	void *core_page = (void *) ((unsigned long)info->mod->module_core & ~(page_size - 1));
 	
-	int mp_s = mprotect(core_page, info->mod->core_size, PROT_EXEC | PROT_READ | PROT_WRITE);
+	int mp_s = mprotect(info->mod->module_core, info->mod->core_size, PROT_EXEC | PROT_READ | PROT_WRITE);
 	if (mp_s == -1) {
 		perror("protect failed");
 		exit(1);	
 	}
-	void *init_page = (void *) ((unsigned long)info->mod->module_init & ~(page_size - 1));
-	mp_s = mprotect(init_page, info->mod->init_size, PROT_EXEC | PROT_READ | PROT_WRITE);
+
+	mp_s = mprotect(info->mod->module_init, info->mod->init_size, PROT_EXEC | PROT_READ | PROT_WRITE);
 	if (mp_s == -1) {
 		perror("protect failed");
 		exit(1);	
