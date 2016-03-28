@@ -611,7 +611,7 @@ struct module *load_module(void *buff, unsigned long len)
 	
 	/*
 	 *change access permission of allocated memeory in
-	 *where the module code was placed.
+	 *which the module code was placed.
 	 *the value of module_core and module_init have already been 
 	 *aligned with page size
 	 */
