@@ -17,7 +17,13 @@
 
 static void module_example()
 {
-#define MODULE_PATH "/usr/local/src/work/ap_modules/task01.ko"
+#define MODULE_PATH ""
+	if(MODULE_PATH == "") {
+		printf("oops, MODULE_PATH is NULL, there is a module example source code in  examples/ap_module_ex.\n \
+			you need compile it by yourself (there is already a Makefile under same folder,all you need to do is \n\
+			 just make), and replace MODULE_PATH with the path of newly compiled moudle example binary file\n");
+		exit(1);	
+	}
 	if(mount_module_agent() == -1){
 		ap_err("module agent failed!\n");
 		exit(1);
