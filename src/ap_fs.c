@@ -80,7 +80,6 @@ complete_get_inode(struct ap_inode *inode, struct ap_inode_indicator *indc)
     
 }
 
-
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;

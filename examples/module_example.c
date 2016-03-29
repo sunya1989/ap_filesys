@@ -19,7 +19,7 @@ static void module_example()
 {
 #define MODULE_PATH ""
 	if(MODULE_PATH == "") {
-		printf("oops, MODULE_PATH is NULL, there is a module example source code in  examples/ap_module_ex.\n \
+		printf("oops, MODULE_PATH is NULL, there is a module example source code under examples/ap_module_ex.\n \
 			you need compile it by yourself (there is already a Makefile under same folder,all you need to do is \n\
 			 just make), and replace MODULE_PATH with the path of newly compiled moudle example binary file\n");
 		exit(1);	
