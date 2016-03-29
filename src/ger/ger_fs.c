@@ -69,7 +69,12 @@ static int ger_get_inode(struct ap_inode_indicator *indc)
     struct list_head *cusor;
     
     if (stem->prepare_raw_data != NULL) {
-        stem->prepare_raw_data(stem);
+        int p_s = stem->prepare_raw_data(stem);
+		if (p_s) {
+			errno = ENOENT;
+			ap_err("stem prepare_raw_data failed!\n");
+			return -1;
+		}
     }
     
     pthread_mutex_lock(&stem->ch_lock);
@@ -109,7 +114,7 @@ static ssize_t
 ger_write(struct ap_file *file, char *buf, off_t off_set, size_t len)
 {
     struct ger_stem_node *stem = (struct ger_stem_node *)file->x_object;
-    if (stem->sf_ops == NULL || stem->sf_ops->stem_read == NULL) {
+    if (stem->sf_ops == NULL || stem->sf_ops->stem_write == NULL) {
         errno = ESRCH;
         return -1;
     }
@@ -168,13 +173,18 @@ static int ger_unlink(struct ap_inode *ind)
         errno = EBUSY;
         return -1;
     }
+	if (stem->si_ops != NULL &&
+		stem->si_ops->stem_unlink != NULL) {
+		o = stem->si_ops->stem_unlink(stem);
+		if (o == -1) {
+			errno = EBUSY;
+			return -1;
+		}
+	}
     list_del(&stem->child);
     pthread_mutex_unlock(&stem->parent->ch_lock);
-    if (stem->si_ops != NULL &&
-        stem->si_ops->stem_unlink != NULL) {
-        o = stem->parent->si_ops->stem_unlink(stem);
-    }
-    return o;
+	
+    return 0;
 }
 
 static int ger_rmdir(struct ap_inode_indicator *indc)
@@ -252,7 +262,12 @@ ger_readdir(struct ap_inode *inode, AP_DIR *dir, void *buff, size_t num)
     struct list_head *start = dir->cursor == NULL?
     &node->children : &((struct ger_stem_node *)dir->cursor)->child;
     if (node->prepare_raw_data != NULL) {
-        node->prepare_raw_data(node);
+        int p_s = node->prepare_raw_data(node);
+		if (p_s) {
+			errno = ENOENT;
+			ap_err("stem prepare_raw_data failed!\n");
+			return -1;
+		}
     }
     pthread_mutex_lock(&node->ch_lock);
     list_for_each_middle(pos1, start, &node->children){

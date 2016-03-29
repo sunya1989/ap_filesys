@@ -84,7 +84,6 @@ void __bag_release(struct bag_head *head)
         bg->release(bg->trash);
         if (!embed)
             free(bg);
-        
     }
     head->list_tail = &head->list;
 }

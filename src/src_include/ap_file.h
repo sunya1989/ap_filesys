@@ -29,4 +29,5 @@ extern int ap_closedir(AP_DIR *dir);
 extern ssize_t ap_read(int fd, void *buf, size_t len);
 extern ssize_t ap_write(int fd, void *buf, size_t len);
 extern off_t ap_lseek(int fd, off_t ops, int origin);
+extern int mount_module_agent();
 #endif

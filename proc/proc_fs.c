@@ -37,8 +37,9 @@ static struct ap_inode_operations proc_sub_inode_operations;
 
 static struct ap_inode_operations proc_file_i_operations;
 static struct ap_file_operations proc_file_operations;
+static void ap_msg_send_err(struct ap_ipc_port *port, int err, int re_type);
 
-static void ap_msg_send_err(struct ap_ipc_port *port, errno_t err, int re_type)
+static void ap_msg_send_err(struct ap_ipc_port *port, int err, int re_type)
 {
     struct ap_msgreply re;
     re.rep_t.err = err;
@@ -856,14 +857,14 @@ static struct ap_inode
     creat_permission_file(p_file, S_IRUSR | S_IWGRP);
 
     int thr_cr_s = pthread_create(&thr_n, NULL, ap_proc_sever, h_info->s_port);
+	if (thr_cr_s == -1) {
+		h_info->s_port->ipc_ops->ipc_close(h_info->s_port);
+		IPC_PORT_FREE(h_info->s_port);
+		IPC_INFO_HEAD_FREE(h_info);
+		return NULL;
+	}
+	
     pthread_detach(thr_n);
-    if (thr_cr_s == -1) {
-        h_info->s_port->ipc_ops->ipc_close(h_info->s_port);
-        IPC_PORT_FREE(h_info->s_port);
-        IPC_INFO_HEAD_FREE(h_info);
-        return NULL;
-    }
-    
     char *sever_name = Malloc_z(strl1 + 1);
     strncpy(sever_name, m_info->sever_name, strl1);
     h_info->sever_name = sever_name;
@@ -1533,6 +1534,7 @@ static ssize_t procfs_readdir
     struct ap_ipc_info_head *h_info = inode->x_object;
     const char *sever_name = h_info->sever_name;
     size_t i = 0;
+	size_t d_len;
     if ((dp = dir->cursor) == NULL) {
         dp = opendir(AP_PROC_FILE);
         if (dp == NULL)
@@ -1542,18 +1544,19 @@ static ssize_t procfs_readdir
     }
     for (i = 0; i < num; i++) {
         dirp = readdir(dp);
+		d_len = strlen(dirp->d_name);
         if (dirp == NULL){
             dir->done = 1;
             break;
         }
         if (strcmp(dirp->d_name, ".") == 0 ||
             strcmp(dirp->d_name, "..") == 0 ||
-            strncmp(sever_name, dirp->d_name, dirp->d_namlen) == 0) {
+            strncmp(sever_name, dirp->d_name, d_len) == 0) {
             i--;
             continue;
         }
-        strncpy(dir_tp->name, dirp->d_name, dirp->d_namlen);
-        dir_tp->name_l = dirp->d_namlen;
+        strncpy(dir_tp->name, dirp->d_name, d_len);
+        dir_tp->name_l = d_len;
         dir_tp++;
     }
     
@@ -1570,6 +1573,7 @@ static ssize_t procff_readdir
     char *sever_n = inode->name;
     char full_p[AP_IPC_PATH_LEN];
     char *at_p;
+	size_t d_len;
     const char *names[] = {
         AP_PROC_FILE,
         sever_n,
@@ -1588,9 +1592,9 @@ static ssize_t procff_readdir
         if ((at_p = strchr(dirp->d_name, AT)) == NULL) {
             continue;
         }
-        
-        strncpy(dir_tp->name, dirp->d_name, dirp->d_namlen);
-        dir_tp->name_l = dirp->d_namlen;
+		d_len = strlen(dirp->d_name);
+        strncpy(dir_tp->name, dirp->d_name, d_len);
+        dir_tp->name_l = d_len;
         dir_tp++;
         i++;
     }

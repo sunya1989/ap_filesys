@@ -80,7 +80,6 @@ complete_get_inode(struct ap_inode *inode, struct ap_inode_indicator *indc)
     
 }
 
-
 int walk_path(struct ap_inode_indicator *start)
 {
     char *temp_path;
@@ -295,9 +294,6 @@ void proc_byp_destory(proc_byp_t *proc_byp)
     bitmap_free(proc_byp->bitmap);
 }
 
-
-
-
 static int check_decompose(struct ap_inode *mt)
 {
     struct bag_head stack = BAG_HEAD_INIT(stack);
@@ -388,7 +384,7 @@ static int __initial_indicator(const char *path, struct ap_inode_indicator *indc
     indc->cur_inode = ap_fpthr->c_wd;
     
     char *r_path = regular_path(path, &slash_no);
-    if (path == NULL) {
+    if (r_path == NULL) {
         errno = EINVAL;
         return -1;
     }
@@ -398,7 +394,7 @@ static int __initial_indicator(const char *path, struct ap_inode_indicator *indc
     if (*path == '/') {
         indc->cur_inode = ap_fpthr->m_wd;
     }else if(*path == '.'){
-        if (*(path + 1) == '/' || *(path + 1) == '\0') {  // path 可能为./ ../ ../* ./*
+        if (*(path + 1) == '/' || *(path + 1) == '\0') {  // path may be ./ ../ ../* ./*
             path = *(path+1) == '/' ? path + 2 : path + 1;
             indc->cur_inode = ap_fpthr->c_wd;
             indc->slash_remain--;

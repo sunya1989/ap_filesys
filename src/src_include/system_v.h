@@ -18,8 +18,8 @@ extern struct ap_ipc_operations system_v_ops;
 struct ap_msgseg{
     long mtype;
     size_t seq;
-    size_t len_t; //the lenth of whole message
-    int data_len; //the lenth of single segment
+    size_t len_t; /*the lenth of whole message*/
+    int data_len; /*the lenth of single segment*/
     char segc[AP_MSGSEG_LEN];
 };
 #endif

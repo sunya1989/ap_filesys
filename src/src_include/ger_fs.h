@@ -29,7 +29,7 @@ struct ger_stem_node{
     struct counter stem_inuse;
     int raw_data_isset;
     
-    void (*prepare_raw_data) (struct ger_stem_node *);
+    int (*prepare_raw_data) (struct ger_stem_node *);
     
     struct stem_file_operations *sf_ops;
     struct stem_inode_operations *si_ops;

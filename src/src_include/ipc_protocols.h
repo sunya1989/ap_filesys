@@ -21,7 +21,7 @@ typedef enum op_type{
 }op_type_t;
 
 struct ap_msgrep_type{
-    errno_t err;
+    int err;
     ssize_t re_type;
     size_t read_n;
     size_t write_n;
