@@ -68,10 +68,34 @@ struct module{
 	struct ap_symbol *syms;
 	unsigned long syms_num;
 	
-	struct list_head mod_dominate_lis;
 	struct list_head mod_global_lis;
 	struct list_head mod_wait_excute;
+	struct list_head mod_using;
 };
+
+struct module_use {
+	struct module *mode;
+	struct list_head module_which_using;
+};
+
+static inline struct module_use *MALLOC_MOD_USE()
+{
+	struct module_use *mu;
+	mu = Malloc_z(sizeof(*mu));
+	INIT_LIST_HEAD(&mu->module_which_using);
+	return mu;
+}
+
+static inline struct module *MALLOC_MOD(){
+	struct module *mode;
+	mode = Malloc_z(sizeof(*mode));
+	INIT_LIST_HEAD(&mode->mod_global_lis);
+	INIT_LIST_HEAD(&mode->mod_wait_excute);
+	INIT_LIST_HEAD(&mode->mod_using);
+	COUNTER_INIT(&mode->mod_counter);
+	return mode;
+}
+
 
 struct module_ex_file_struct{
 	struct ger_stem_node node;
@@ -84,11 +108,6 @@ static inline struct module_ex_file_struct *MALLOC_M_EX_FILE()
 	STEM_INIT(&m_ex_f->node);
 	return m_ex_f;
 }
-
-struct module_dominate{
-	struct list_head list;
-	struct module *module_dominated;
-};
 
 struct module_global{
 	struct list_head m_g_lis;

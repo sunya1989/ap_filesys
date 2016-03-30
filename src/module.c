@@ -56,6 +56,39 @@ static long get_off_set(unsigned long *size, Elf_Shdr *section)
 	return tmp;
 }
 
+static int is_using_module(struct module *mod1, struct module *mod2)
+{
+	struct list_head *pos;
+	list_for_each(pos, &mod1->mod_using){
+		struct module_use *mu = list_entry(pos, struct module_use, module_which_using);
+		if (mu->mode == mod2)
+			return 1;
+	}
+	return 0;
+}
+
+static void use_module(struct module *mode1, struct module *mode2)
+{
+	if (is_using_module(mode1, mode2))
+		return;
+	counter_get(&mode2->mod_counter);
+	struct module_use *mu = MALLOC_MOD_USE();
+	mu->mode = mode2;
+	list_add(&mu->module_which_using, &mode1->mod_using);
+	return;
+}
+
+static void module_using_put(struct module *mod)
+{
+	struct list_head *pos1, *pos2;
+	list_for_each_use(pos1, pos2, &mod->mod_using){
+		struct module_use *mu = list_entry(pos1, struct module_use, module_which_using);
+		counter_put(&mu->mode->mod_counter);
+		list_del(pos1);
+		free(pos1);
+	}
+}
+
 static int find_sec(struct load_info *info, char *sec_name)
 {
 	for (unsigned int i = 0; i < info->ehdr->e_shnum; i++) {
@@ -224,8 +257,7 @@ static int prepare_load_info(struct load_info *info, unsigned long len)
 		return -1;
 	}
 	
-	info->mod = Malloc_z(sizeof(*info->mod));
-	
+	info->mod = MALLOC_MOD();
 	return 0;
 }
 
@@ -378,7 +410,7 @@ static struct ap_symbol *find_symbol_in_module(struct module *mod,
 	return NULL;
 }
 
-static struct ap_symbol *find_symbol(const char *name)
+static struct ap_symbol *find_symbol(const char *name, struct module *mode)
 {
 	struct sym_search *search = get_ap_symbol();
 	if (search == NULL) {
@@ -393,7 +425,7 @@ static struct ap_symbol *find_symbol(const char *name)
 	if (search->num_sym) {
 		size_t sym_num = search->num_sym;
 		for (unsigned int i = 0; i < sym_num; i++) {
-			if (strncmp(sym[i].name, name, strlen(sym[i].name)) == 0 )
+			if (strncmp(sym[i].name, name, strlen(sym[i].name)) == 0)
 				return sym + i;
 		}
 	}
@@ -401,8 +433,11 @@ static struct ap_symbol *find_symbol(const char *name)
 	pthread_mutex_lock(&mode_global.m_g_lock);
 	list_for_each(pos, &mode_global.m_g_lis){
 		pos_p = container_of(pos, struct module, mod_global_lis);
-		if ((sym = find_symbol_in_module(pos_p, name)) != NULL)
+		if ((sym = find_symbol_in_module(pos_p, name)) != NULL){
+			if (mode != NULL)
+				use_module(mode, pos_p);
 			return sym;
+		}
 	}
 	pthread_mutex_unlock(&mode_global.m_g_lock);
 	return NULL;
@@ -433,7 +468,7 @@ static int fix_symbols(struct load_info *info)
 			fprintf(stderr, "Absolute symbol\n");
 			break;
 		case SHN_UNDEF:
-			ap_symbol = find_symbol(name);
+			ap_symbol = find_symbol(name, info->mod);
 			
 			if (ap_symbol) {
 				sym[i].st_value = ap_symbol->value;
@@ -548,7 +583,7 @@ static int verify_export_symbol(struct module *mod)
 {
 	unsigned long num = mod->syms_num;
 	for (unsigned long i = 0; i < num; i++) {
-		if (find_symbol(mod->syms[i].name) != NULL)
+		if (find_symbol(mod->syms[i].name, NULL) != NULL)
 			return -1;
 	}
 	return 0;
@@ -654,13 +689,16 @@ int module_free(struct module *mode)
 		return -1;
 	list_del(&mode->mod_global_lis);
 	pthread_mutex_unlock(&mode_global.m_g_lock);
+
 	/*say good bye!*/
 	mode->exit();
+	module_using_put(mode);
 	
 	if (mode->core_size && mode->module_core)
 		free(mode->module_core);
 	if (mode->init_size && mode->module_init)
 		free(mode->module_init);
+	free(mode);
 	return 0;
 }
 
